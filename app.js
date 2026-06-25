@@ -5,8 +5,10 @@ let tokenClient    = null;
 let selectedFile   = null;
 let storiesSheetId = null;
 
-const CRED_KEY = 'ss_credId';    // WebAuthn credential ID in localStorage
-const USER_KEY = 'ss_userInfo';  // cached user name/email
+const CRED_KEY   = 'ss_credId';
+const USER_KEY   = 'ss_userInfo';
+const TOKEN_KEY  = 'ss_token';
+const EXPIRY_KEY = 'ss_tokenExpiry';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const screenBiometric  = document.getElementById('screenBiometric');
@@ -88,7 +90,28 @@ async function verifyBiometric() {
   }
 }
 
-// Try Google silent token refresh (works if browser still has active Google session)
+// Guarda el token en localStorage para reutilizarlo en la próxima apertura
+function saveToken(token, expiresIn) {
+  accessToken = token;
+  tokenExpiry = Date.now() + expiresIn * 1000;
+  localStorage.setItem(TOKEN_KEY,  token);
+  localStorage.setItem(EXPIRY_KEY, tokenExpiry.toString());
+}
+
+// Carga el token guardado; retorna true si aún es válido (quedan >5 min)
+function loadSavedToken() {
+  const token  = localStorage.getItem(TOKEN_KEY);
+  const expiry = parseInt(localStorage.getItem(EXPIRY_KEY) || '0');
+  if (token && Date.now() < expiry - 5 * 60 * 1000) {
+    accessToken = token;
+    tokenExpiry = expiry;
+    return true;
+  }
+  return false;
+}
+
+// Refresca el token de Google silenciosamente (funciona en Chrome/Android;
+// puede fallar en iOS Safari por bloqueo de cookies de terceros)
 async function trySilentGoogleAuth() {
   if (!tokenClient) return false;
   return new Promise(resolve => {
@@ -98,8 +121,7 @@ async function trySilentGoogleAuth() {
       clearTimeout(timeout);
       tokenClient.callback = saved;
       if (resp.error || !resp.access_token) { resolve(false); return; }
-      accessToken = resp.access_token;
-      tokenExpiry = Date.now() + resp.expires_in * 1000;
+      saveToken(resp.access_token, resp.expires_in);
       resolve(true);
     };
     tokenClient.requestAccessToken({ prompt: '' });
@@ -139,8 +161,7 @@ function initAuth() {
     scope: CONFIG.SCOPES,
     callback: async (resp) => {
       if (resp.error) return console.error('Auth error:', resp.error);
-      accessToken = resp.access_token;
-      tokenExpiry = Date.now() + resp.expires_in * 1000;
+      saveToken(resp.access_token, resp.expires_in);
       await onAuthSuccess(true); // true = first Google login → register biometric
     }
   });
@@ -163,28 +184,36 @@ btnBiometric.addEventListener('click', async () => {
 
   const ok = await verifyBiometric();
   if (!ok) {
-    bioIcon.textContent = '❌';
+    bioIcon.textContent     = '❌';
     bioSubtitle.textContent = 'No se pudo verificar. Intenta de nuevo.';
-    btnBiometric.disabled = false;
+    btnBiometric.disabled   = false;
     btnBiometric.textContent = 'Intentar de nuevo';
     return;
   }
 
-  bioIcon.textContent = '✅';
+  bioIcon.textContent     = '✅';
   bioSubtitle.textContent = 'Verificado. Conectando…';
 
-  // Try to refresh Google token silently
+  // 1. Token guardado aún válido → entrar directo (sin tocar Google)
+  if (loadSavedToken()) {
+    await onAuthSuccess(false);
+    return;
+  }
+
+  // 2. Token expirado → intentar renovación silenciosa (funciona en Chrome/Android)
   const silentOk = await trySilentGoogleAuth();
   if (silentOk) {
-    await onAuthSuccess(false); // false = don't re-register biometric
-  } else {
-    // Silent auth failed — Google session expired, need full login
-    bioIcon.textContent = '🔐';
-    bioSubtitle.textContent = 'Sesión de Google expirada. Inicia sesión de nuevo.';
-    btnBiometric.style.display = 'none';
-    btnFallbackGoogle.style.display = '';
-    btnBiometric.disabled = false;
+    await onAuthSuccess(false);
+    return;
   }
+
+  // 3. Todo falló → pedir login de Google (pasa solo cuando el token expiró
+  //    Y la sesión de Google también expiró — muy poco frecuente)
+  bioIcon.textContent = '🔐';
+  bioSubtitle.textContent = 'Sesión expirada. Inicia sesión con Google una vez.';
+  btnBiometric.style.display     = 'none';
+  btnFallbackGoogle.style.display = '';
+  btnBiometric.disabled = false;
 });
 
 // Fallback to Google login from biometric screen
@@ -197,19 +226,22 @@ btnSignOut.addEventListener('click', () => {
     accessToken = null;
     localStorage.removeItem(CRED_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(EXPIRY_KEY);
     showSignInScreen();
   });
 });
 
 async function ensureToken() {
   if (accessToken && Date.now() < tokenExpiry - 60000) return;
+  // Intentar token guardado primero
+  if (loadSavedToken()) return;
   await new Promise((resolve, reject) => {
     const saved = tokenClient.callback;
     tokenClient.callback = (resp) => {
       tokenClient.callback = saved;
       if (resp.error) { reject(new Error(resp.error)); return; }
-      accessToken = resp.access_token;
-      tokenExpiry = Date.now() + resp.expires_in * 1000;
+      saveToken(resp.access_token, resp.expires_in);
       resolve();
     };
     tokenClient.requestAccessToken({ prompt: '' });
