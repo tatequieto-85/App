@@ -648,5 +648,22 @@ function setDefaultDateTime() {
   fSchedule.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
-// Auto-refresh cada 60 s
+// Refresca el token cuando el usuario vuelve a la app desde segundo plano
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && accessToken) {
+    if (Date.now() > tokenExpiry - 5 * 60 * 1000) {  // quedan menos de 5 min
+      await trySilentGoogleAuth();
+    }
+    loadStories();
+  }
+});
+
+// Refresca el token de Google en segundo plano cada 50 min (token dura 1h)
+setInterval(async () => {
+  if (accessToken && screenApp.style.display !== 'none') {
+    await trySilentGoogleAuth();
+  }
+}, 50 * 60 * 1000);
+
+// Refresca la lista de historias cada 60 s
 setInterval(() => { if (accessToken) loadStories(); }, 60000);
