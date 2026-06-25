@@ -155,26 +155,35 @@ window.addEventListener('load', () => {
   }, 100);
 });
 
-function initAuth() {
+async function initAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CONFIG.CLIENT_ID,
     scope: CONFIG.SCOPES,
     callback: async (resp) => {
       if (resp.error) return console.error('Auth error:', resp.error);
       saveToken(resp.access_token, resp.expires_in);
-      await onAuthSuccess(true); // true = first Google login → register biometric
+      await onAuthSuccess();
     }
   });
 
-  // On load: decide which screen to show
-  if (localStorage.getItem(CRED_KEY) && webAuthnAvailable()) {
-    showBiometricScreen();
-  } else {
-    showSignInScreen();
+  // 1. Token guardado y válido → entrar directo
+  if (loadSavedToken()) {
+    await onAuthSuccess();
+    return;
   }
+
+  // 2. Intentar renovación silenciosa de Google (sin popup)
+  const silentOk = await trySilentGoogleAuth();
+  if (silentOk) {
+    await onAuthSuccess();
+    return;
+  }
+
+  // 3. Todo falló → mostrar botón de login
+  showSignInScreen();
 }
 
-btnSignIn.addEventListener('click', () => tokenClient.requestAccessToken({ prompt: 'consent' }));
+btnSignIn.addEventListener('click', () => tokenClient.requestAccessToken({ prompt: '' }));
 
 // Biometric button
 btnBiometric.addEventListener('click', async () => {
@@ -248,7 +257,7 @@ async function ensureToken() {
   });
 }
 
-async function onAuthSuccess(registerBio = false) {
+async function onAuthSuccess() {
   screenBiometric.style.display = 'none';
   screenSignIn.style.display    = 'none';
   screenApp.style.display       = '';
@@ -262,12 +271,6 @@ async function onAuthSuccess(registerBio = false) {
     userInfoEl.textContent = u.name || u.email || '';
     localStorage.setItem(USER_KEY, JSON.stringify({ name: u.name, email: u.email }));
   } catch {}
-
-  // Register biometric on first Google login
-  if (registerBio && webAuthnAvailable() && !localStorage.getItem(CRED_KEY)) {
-    const registered = await registerBiometric();
-    if (registered) console.log('Biometric registered ✅');
-  }
 
   await initSheet();
   setDefaultDateTime();
