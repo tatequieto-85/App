@@ -55,6 +55,14 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #F5EDD8; colo
 .signin-card p  { font-size: 15px; color: var(--text-sub); line-height: 1.6; margin-bottom: 28px; }
 .signin-note    { font-size: 12px; color: var(--text-sub); margin-top: 14px; margin-bottom: 0; }
 
+.btn-link {
+  display: block; width: 100%; margin-top: 12px;
+  background: none; border: none;
+  color: var(--text-sub); font-size: 13px; cursor: pointer;
+  text-decoration: underline; padding: 6px;
+}
+.btn-link:hover { color: var(--orange); }
+
 .btn-google {
   display: flex; align-items: center; justify-content: center; gap: 10px;
   width: 100%; padding: 12px 20px;

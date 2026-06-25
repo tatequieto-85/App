@@ -3,9 +3,17 @@ let accessToken    = null;
 let tokenExpiry    = null;
 let tokenClient    = null;
 let selectedFile   = null;
-let storiesSheetId = null;   // numeric sheetId for the Stories tab (used for row deletion)
+let storiesSheetId = null;
+
+const CRED_KEY = 'ss_credId';    // WebAuthn credential ID in localStorage
+const USER_KEY = 'ss_userInfo';  // cached user name/email
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
+const screenBiometric  = document.getElementById('screenBiometric');
+const btnBiometric     = document.getElementById('btnBiometric');
+const btnFallbackGoogle= document.getElementById('btnFallbackGoogle');
+const bioIcon          = document.getElementById('bioIcon');
+const bioSubtitle      = document.getElementById('bioSubtitle');
 const screenSignIn  = document.getElementById('screenSignIn');
 const screenApp     = document.getElementById('screenApp');
 const btnSignIn     = document.getElementById('btnSignIn');
@@ -36,6 +44,87 @@ const settingsApikey   = document.getElementById('settingsApikey');
 const btnSaveSettings  = document.getElementById('btnSaveSettings');
 const settingsFeedback = document.getElementById('settingsFeedback');
 
+// ── WebAuthn / Biometric ──────────────────────────────────────────────────────
+
+function webAuthnAvailable() {
+  return !!(window.PublicKeyCredential && navigator.credentials?.create);
+}
+
+async function registerBiometric() {
+  if (!webAuthnAvailable()) return false;
+  try {
+    const cred = await navigator.credentials.create({ publicKey: {
+      challenge:  crypto.getRandomValues(new Uint8Array(32)),
+      rp:         { name: 'Story Scheduler TateQuieto', id: window.location.hostname },
+      user:       { id: crypto.getRandomValues(new Uint8Array(16)), name: 'user', displayName: 'TateQuieto' },
+      pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+      authenticatorSelection: { userVerification: 'required', residentKey: 'preferred' },
+      timeout: 60000
+    }});
+    localStorage.setItem(CRED_KEY, btoa(String.fromCharCode(...new Uint8Array(cred.rawId))));
+    return true;
+  } catch (e) {
+    console.log('Biometric registration skipped:', e.message);
+    return false;
+  }
+}
+
+async function verifyBiometric() {
+  const stored = localStorage.getItem(CRED_KEY);
+  if (!stored || !webAuthnAvailable()) return false;
+  try {
+    const credId = Uint8Array.from(atob(stored), c => c.charCodeAt(0));
+    const result = await navigator.credentials.get({ publicKey: {
+      challenge:        crypto.getRandomValues(new Uint8Array(32)),
+      rpId:             window.location.hostname,
+      userVerification: 'required',
+      allowCredentials: [{ type: 'public-key', id: credId }],
+      timeout:          60000
+    }});
+    return !!result;
+  } catch (e) {
+    console.log('Biometric failed:', e.message);
+    return false;
+  }
+}
+
+// Try Google silent token refresh (works if browser still has active Google session)
+async function trySilentGoogleAuth() {
+  if (!tokenClient) return false;
+  return new Promise(resolve => {
+    const timeout = setTimeout(() => resolve(false), 8000);
+    const saved   = tokenClient.callback;
+    tokenClient.callback = resp => {
+      clearTimeout(timeout);
+      tokenClient.callback = saved;
+      if (resp.error || !resp.access_token) { resolve(false); return; }
+      accessToken = resp.access_token;
+      tokenExpiry = Date.now() + resp.expires_in * 1000;
+      resolve(true);
+    };
+    tokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+function showBiometricScreen() {
+  screenBiometric.style.display = '';
+  screenSignIn.style.display    = 'none';
+  screenApp.style.display       = 'none';
+
+  // Restore cached user info as greeting
+  const info = JSON.parse(localStorage.getItem(USER_KEY) || '{}');
+  if (info.name) bioSubtitle.textContent = `Hola, ${info.name.split(' ')[0]} 👋`;
+}
+
+function showSignInScreen() {
+  screenBiometric.style.display = 'none';
+  screenSignIn.style.display    = '';
+  screenApp.style.display       = 'none';
+  btnSettings.style.display     = 'none';
+  btnSignOut.style.display      = 'none';
+  userInfoEl.textContent        = '';
+}
+
 // ── Google Auth ───────────────────────────────────────────────────────────────
 
 window.addEventListener('load', () => {
@@ -50,23 +139,65 @@ function initAuth() {
     scope: CONFIG.SCOPES,
     callback: async (resp) => {
       if (resp.error) return console.error('Auth error:', resp.error);
-      accessToken  = resp.access_token;
-      tokenExpiry  = Date.now() + resp.expires_in * 1000;
-      await onAuthSuccess();
+      accessToken = resp.access_token;
+      tokenExpiry = Date.now() + resp.expires_in * 1000;
+      await onAuthSuccess(true); // true = first Google login → register biometric
     }
   });
+
+  // On load: decide which screen to show
+  if (localStorage.getItem(CRED_KEY) && webAuthnAvailable()) {
+    showBiometricScreen();
+  } else {
+    showSignInScreen();
+  }
 }
 
 btnSignIn.addEventListener('click', () => tokenClient.requestAccessToken({ prompt: 'consent' }));
 
+// Biometric button
+btnBiometric.addEventListener('click', async () => {
+  btnBiometric.disabled = true;
+  btnBiometric.textContent = 'Verificando…';
+  bioIcon.textContent = '⏳';
+
+  const ok = await verifyBiometric();
+  if (!ok) {
+    bioIcon.textContent = '❌';
+    bioSubtitle.textContent = 'No se pudo verificar. Intenta de nuevo.';
+    btnBiometric.disabled = false;
+    btnBiometric.textContent = 'Intentar de nuevo';
+    return;
+  }
+
+  bioIcon.textContent = '✅';
+  bioSubtitle.textContent = 'Verificado. Conectando…';
+
+  // Try to refresh Google token silently
+  const silentOk = await trySilentGoogleAuth();
+  if (silentOk) {
+    await onAuthSuccess(false); // false = don't re-register biometric
+  } else {
+    // Silent auth failed — Google session expired, need full login
+    bioIcon.textContent = '🔐';
+    bioSubtitle.textContent = 'Sesión de Google expirada. Inicia sesión de nuevo.';
+    btnBiometric.style.display = 'none';
+    btnFallbackGoogle.style.display = '';
+    btnBiometric.disabled = false;
+  }
+});
+
+// Fallback to Google login from biometric screen
+btnFallbackGoogle.addEventListener('click', () => {
+  showSignInScreen();
+});
+
 btnSignOut.addEventListener('click', () => {
   google.accounts.oauth2.revoke(accessToken, () => {
     accessToken = null;
-    screenApp.style.display   = 'none';
-    screenSignIn.style.display = '';
-    btnSettings.style.display  = 'none';
-    btnSignOut.style.display   = 'none';
-    userInfoEl.textContent     = '';
+    localStorage.removeItem(CRED_KEY);
+    localStorage.removeItem(USER_KEY);
+    showSignInScreen();
   });
 });
 
@@ -85,18 +216,26 @@ async function ensureToken() {
   });
 }
 
-async function onAuthSuccess() {
-  screenSignIn.style.display = 'none';
-  screenApp.style.display    = '';
-  btnSettings.style.display  = '';
-  btnSignOut.style.display   = '';
+async function onAuthSuccess(registerBio = false) {
+  screenBiometric.style.display = 'none';
+  screenSignIn.style.display    = 'none';
+  screenApp.style.display       = '';
+  btnSettings.style.display     = '';
+  btnSignOut.style.display      = '';
 
   try {
     const u = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` }
     }).then(r => r.json());
     userInfoEl.textContent = u.name || u.email || '';
+    localStorage.setItem(USER_KEY, JSON.stringify({ name: u.name, email: u.email }));
   } catch {}
+
+  // Register biometric on first Google login
+  if (registerBio && webAuthnAvailable() && !localStorage.getItem(CRED_KEY)) {
+    const registered = await registerBiometric();
+    if (registered) console.log('Biometric registered ✅');
+  }
 
   await initSheet();
   setDefaultDateTime();

@@ -25,6 +25,17 @@
     </div>
   </header>
 
+  <!-- Pantalla biométrica (FaceID / huella) -->
+  <div id="screenBiometric" class="screen-signin" style="display:none">
+    <div class="signin-card">
+      <div class="signin-logo" id="bioIcon">🔐</div>
+      <h1>Bienvenido de nuevo</h1>
+      <p id="bioSubtitle">Usa FaceID o tu huella para entrar</p>
+      <button class="btn-primary" id="btnBiometric">Usar FaceID / Huella</button>
+      <button class="btn-link" id="btnFallbackGoogle">Iniciar sesión con Google</button>
+    </div>
+  </div>
+
   <!-- Pantalla de inicio de sesión -->
   <div id="screenSignIn" class="screen-signin">
     <div class="signin-card">
