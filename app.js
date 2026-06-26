@@ -2,7 +2,7 @@
 let accessToken    = null;
 let tokenExpiry    = null;
 let tokenClient    = null;
-let selectedFile   = null;
+let selectedFiles  = [];
 let storiesSheetId = null;
 
 const CRED_KEY   = 'ss_credId';
@@ -11,11 +11,11 @@ const TOKEN_KEY  = 'ss_token';
 const EXPIRY_KEY = 'ss_tokenExpiry';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
-const screenBiometric  = document.getElementById('screenBiometric');
-const btnBiometric     = document.getElementById('btnBiometric');
-const btnFallbackGoogle= document.getElementById('btnFallbackGoogle');
-const bioIcon          = document.getElementById('bioIcon');
-const bioSubtitle      = document.getElementById('bioSubtitle');
+const screenBiometric   = document.getElementById('screenBiometric');
+const btnBiometric      = document.getElementById('btnBiometric');
+const btnFallbackGoogle = document.getElementById('btnFallbackGoogle');
+const bioIcon           = document.getElementById('bioIcon');
+const bioSubtitle       = document.getElementById('bioSubtitle');
 const screenSignIn  = document.getElementById('screenSignIn');
 const screenApp     = document.getElementById('screenApp');
 const btnSignIn     = document.getElementById('btnSignIn');
@@ -38,6 +38,7 @@ const btnAdd        = document.getElementById('btnAddStory');
 const formFeedback  = document.getElementById('formFeedback');
 const storiesList   = document.getElementById('storiesList');
 const pendingBadge  = document.getElementById('pendingBadge');
+const todayAlert    = document.getElementById('todayAlert');
 
 const settingsOverlay  = document.getElementById('settingsOverlay');
 const btnCloseSettings = document.getElementById('btnCloseSettings');
@@ -90,7 +91,6 @@ async function verifyBiometric() {
   }
 }
 
-// Guarda el token en localStorage para reutilizarlo en la próxima apertura
 function saveToken(token, expiresIn) {
   accessToken = token;
   tokenExpiry = Date.now() + expiresIn * 1000;
@@ -98,7 +98,6 @@ function saveToken(token, expiresIn) {
   localStorage.setItem(EXPIRY_KEY, tokenExpiry.toString());
 }
 
-// Carga el token guardado; retorna true si aún es válido (quedan >5 min)
 function loadSavedToken() {
   const token  = localStorage.getItem(TOKEN_KEY);
   const expiry = parseInt(localStorage.getItem(EXPIRY_KEY) || '0');
@@ -110,8 +109,6 @@ function loadSavedToken() {
   return false;
 }
 
-// Refresca el token de Google silenciosamente (funciona en Chrome/Android;
-// puede fallar en iOS Safari por bloqueo de cookies de terceros)
 async function trySilentGoogleAuth() {
   if (!tokenClient) return false;
   return new Promise(resolve => {
@@ -132,8 +129,6 @@ function showBiometricScreen() {
   screenBiometric.style.display = '';
   screenSignIn.style.display    = 'none';
   screenApp.style.display       = 'none';
-
-  // Restore cached user info as greeting
   const info = JSON.parse(localStorage.getItem(USER_KEY) || '{}');
   if (info.name) bioSubtitle.textContent = `Hola, ${info.name.split(' ')[0]} 👋`;
 }
@@ -166,26 +161,14 @@ async function initAuth() {
     }
   });
 
-  // 1. Token guardado y válido → entrar directo
-  if (loadSavedToken()) {
-    await onAuthSuccess();
-    return;
-  }
-
-  // 2. Intentar renovación silenciosa de Google (sin popup)
+  if (loadSavedToken()) { await onAuthSuccess(); return; }
   const silentOk = await trySilentGoogleAuth();
-  if (silentOk) {
-    await onAuthSuccess();
-    return;
-  }
-
-  // 3. Todo falló → mostrar botón de login
+  if (silentOk) { await onAuthSuccess(); return; }
   showSignInScreen();
 }
 
 btnSignIn.addEventListener('click', () => tokenClient.requestAccessToken({ prompt: '' }));
 
-// Biometric button
 btnBiometric.addEventListener('click', async () => {
   btnBiometric.disabled = true;
   btnBiometric.textContent = 'Verificando…';
@@ -203,21 +186,10 @@ btnBiometric.addEventListener('click', async () => {
   bioIcon.textContent     = '✅';
   bioSubtitle.textContent = 'Verificado. Conectando…';
 
-  // 1. Token guardado aún válido → entrar directo (sin tocar Google)
-  if (loadSavedToken()) {
-    await onAuthSuccess(false);
-    return;
-  }
-
-  // 2. Token expirado → intentar renovación silenciosa (funciona en Chrome/Android)
+  if (loadSavedToken()) { await onAuthSuccess(false); return; }
   const silentOk = await trySilentGoogleAuth();
-  if (silentOk) {
-    await onAuthSuccess(false);
-    return;
-  }
+  if (silentOk) { await onAuthSuccess(false); return; }
 
-  // 3. Todo falló → pedir login de Google (pasa solo cuando el token expiró
-  //    Y la sesión de Google también expiró — muy poco frecuente)
   bioIcon.textContent = '🔐';
   bioSubtitle.textContent = 'Sesión expirada. Inicia sesión con Google una vez.';
   btnBiometric.style.display     = 'none';
@@ -225,10 +197,7 @@ btnBiometric.addEventListener('click', async () => {
   btnBiometric.disabled = false;
 });
 
-// Fallback to Google login from biometric screen
-btnFallbackGoogle.addEventListener('click', () => {
-  showSignInScreen();
-});
+btnFallbackGoogle.addEventListener('click', () => { showSignInScreen(); });
 
 btnSignOut.addEventListener('click', () => {
   google.accounts.oauth2.revoke(accessToken, () => {
@@ -243,7 +212,6 @@ btnSignOut.addEventListener('click', () => {
 
 async function ensureToken() {
   if (accessToken && Date.now() < tokenExpiry - 60000) return;
-  // Intentar token guardado primero
   if (loadSavedToken()) return;
   await new Promise((resolve, reject) => {
     const saved = tokenClient.callback;
@@ -283,9 +251,9 @@ const SHEETS_BASE = () => `https://sheets.googleapis.com/v4/spreadsheets/${CONFI
 
 async function sheetsReq(path, opts = {}) {
   await ensureToken();
-  const url      = path.startsWith('http') ? path : `${SHEETS_BASE()}${path}`;
-  const isGet    = !opts.method || opts.method === 'GET';
-  const headers  = {
+  const url     = path.startsWith('http') ? path : `${SHEETS_BASE()}${path}`;
+  const isGet   = !opts.method || opts.method === 'GET';
+  const headers = {
     Authorization: `Bearer ${accessToken}`,
     ...(isGet ? {} : { 'Content-Type': 'application/json' }),
     ...(opts.headers || {})
@@ -298,12 +266,11 @@ async function sheetsReq(path, opts = {}) {
   return resp.json();
 }
 
-// Initialise the spreadsheet: create "Stories" and "Config" tabs if missing, add headers.
 async function initSheet() {
-  const info   = await sheetsReq('');
-  const tabs   = info.sheets || [];
-  const hasS   = tabs.find(s => s.properties.title === 'Stories');
-  const hasC   = tabs.find(s => s.properties.title === 'Config');
+  const info = await sheetsReq('');
+  const tabs  = info.sheets || [];
+  const hasS  = tabs.find(s => s.properties.title === 'Stories');
+  const hasC  = tabs.find(s => s.properties.title === 'Config');
 
   if (hasS) storiesSheetId = hasS.properties.sheetId;
 
@@ -321,7 +288,6 @@ async function initSheet() {
     });
   }
 
-  // Stories headers
   const sd = await sheetsReq('/values/Stories!A1').catch(() => ({}));
   if (!sd.values) {
     await sheetsReq('/values/Stories!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
@@ -330,7 +296,6 @@ async function initSheet() {
     });
   }
 
-  // Config rows (phone + apikey)
   const cd = await sheetsReq('/values/Config!A1').catch(() => ({}));
   if (!cd.values) {
     await sheetsReq('/values/Config!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
@@ -342,27 +307,38 @@ async function initSheet() {
 
 // ── Stories CRUD ──────────────────────────────────────────────────────────────
 
+function parseArr(val) {
+  if (!val) return [];
+  try {
+    const a = JSON.parse(val);
+    return Array.isArray(a) ? a : [val];
+  } catch {
+    return val ? [val] : [];
+  }
+}
+
 async function loadStories() {
   try {
-    const data   = await sheetsReq('/values/Stories!A:K');
-    const rows   = (data.values || []).slice(1);   // skip header
+    const data = await sheetsReq('/values/Stories!A:K');
+    const rows = (data.values || []).slice(1);
 
     const stories = rows
       .filter(r => r[0])
       .map((r, i) => ({
-        id:          r[0]  || '',
-        title:       r[1]  || '',
-        actions:     r[2]  || '',
-        scheduledAt: r[3]  || '',
-        driveFileId: r[4]  || '',
-        origName:    r[5]  || '',
-        mimeType:    r[6]  || '',
-        thumbUrl:    r[7]  || '',
-        sent:        r[8] === 'TRUE',
-        sentAt:      r[9]  || '',
-        createdAt:   r[10] || '',
-        rowIndex:    i + 2   // 1-based + header row
+        id:           r[0]  || '',
+        title:        r[1]  || '',
+        actions:      r[2]  || '',
+        scheduledAt:  r[3]  || '',
+        driveFileIds: parseArr(r[4]),
+        origNames:    parseArr(r[5]),
+        mimeTypes:    parseArr(r[6]),
+        thumbUrls:    parseArr(r[7]),
+        sent:         r[8] === 'TRUE',
+        sentAt:       r[9]  || '',
+        createdAt:    r[10] || '',
+        rowIndex:     i + 2
       }))
+      .filter(s => !s.sent)
       .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
 
     renderStories(stories);
@@ -383,7 +359,6 @@ async function appendStory(story) {
 }
 
 async function deleteRow(rowIndex) {
-  // Resolve numeric sheetId if we somehow don't have it
   if (storiesSheetId === null) {
     const info = await sheetsReq('');
     const tab  = info.sheets.find(s => s.properties.title === 'Stories');
@@ -396,15 +371,22 @@ async function deleteRow(rowIndex) {
         range: {
           sheetId:    storiesSheetId,
           dimension:  'ROWS',
-          startIndex: rowIndex - 1,   // 0-indexed, inclusive
-          endIndex:   rowIndex        // 0-indexed, exclusive
+          startIndex: rowIndex - 1,
+          endIndex:   rowIndex
         }
       }
     }]})
   });
 }
 
-// ── Config (phone + apikey stored in Config sheet) ────────────────────────────
+async function deleteStory(story) {
+  for (const fid of (story.driveFileIds || [])) {
+    await deleteDriveFile(fid);
+  }
+  await deleteRow(story.rowIndex);
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
 
 async function loadConfig() {
   const data = await sheetsReq('/values/Config!A:B');
@@ -420,18 +402,17 @@ async function saveConfig(phone, apikey) {
   });
 }
 
-// ── Google Drive upload (resumable) ───────────────────────────────────────────
+// ── Google Drive ──────────────────────────────────────────────────────────────
 
 async function uploadToDrive(file, onProgress) {
   await ensureToken();
 
-  // Initiate resumable session
   const initResp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
     method: 'POST',
     headers: {
-      Authorization:            `Bearer ${accessToken}`,
-      'Content-Type':           'application/json',
-      'X-Upload-Content-Type':  file.type,
+      Authorization:             `Bearer ${accessToken}`,
+      'Content-Type':            'application/json',
+      'X-Upload-Content-Type':   file.type,
       'X-Upload-Content-Length': String(file.size)
     },
     body: JSON.stringify({ name: file.name, mimeType: file.type })
@@ -439,7 +420,6 @@ async function uploadToDrive(file, onProgress) {
   if (!initResp.ok) throw new Error('No se pudo iniciar la subida a Drive');
   const uploadUrl = initResp.headers.get('Location');
 
-  // Upload with progress via XHR
   const fileData = await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', uploadUrl);
@@ -455,7 +435,6 @@ async function uploadToDrive(file, onProgress) {
     xhr.send(file);
   });
 
-  // Make publicly readable so thumbnails render in <img> tags
   await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -465,57 +444,126 @@ async function uploadToDrive(file, onProgress) {
   return fileData;
 }
 
-function thumbUrl(fileId, mimeType) {
+function thumbUrl(fileId) {
   if (!fileId) return '';
   return `https://drive.google.com/thumbnail?id=${fileId}&sz=w200`;
 }
 
-// ── Dropzone ──────────────────────────────────────────────────────────────────
+async function deleteDriveFile(fileId) {
+  if (!fileId) return;
+  try {
+    await ensureToken();
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+  } catch (e) {
+    console.warn('Drive delete failed:', fileId, e.message);
+  }
+}
+
+async function downloadDriveFile(fileId, origName) {
+  await ensureToken();
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!resp.ok) throw new Error(`Error ${resp.status} al descargar`);
+  const blob = await resp.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = origName || fileId;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ── Multi-file dropzone ───────────────────────────────────────────────────────
+
+function addFiles(files) {
+  for (const f of files) selectedFiles.push(f);
+  renderFilePreview();
+}
+
+function removeFileAt(idx) {
+  selectedFiles.splice(idx, 1);
+  renderFilePreview();
+}
+
+function clearFiles() {
+  selectedFiles = [];
+  fileInput.value = '';
+  renderFilePreview();
+}
+
+function renderFilePreview() {
+  previewEl.innerHTML = '';
+  if (!selectedFiles.length) {
+    dropzoneInner.style.display = '';
+    return;
+  }
+  dropzoneInner.style.display = 'none';
+
+  selectedFiles.forEach((file, idx) => {
+    const item = document.createElement('div');
+    item.className = 'preview-item';
+
+    if (file.type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      item.appendChild(img);
+    } else if (file.type.startsWith('video/')) {
+      const vid = document.createElement('video');
+      vid.src = URL.createObjectURL(file);
+      vid.muted = true;
+      item.appendChild(vid);
+    } else {
+      const icon = document.createElement('div');
+      icon.className = 'preview-icon';
+      icon.textContent = '📎';
+      item.appendChild(icon);
+    }
+
+    const nm = document.createElement('div');
+    nm.className = 'preview-name';
+    nm.textContent = file.name;
+    item.appendChild(nm);
+
+    const rm = document.createElement('button');
+    rm.className = 'preview-remove';
+    rm.textContent = '✕';
+    rm.title = 'Quitar';
+    rm.addEventListener('click', e => { e.stopPropagation(); removeFileAt(idx); });
+    item.appendChild(rm);
+
+    previewEl.appendChild(item);
+  });
+}
 
 dropzone.addEventListener('click', e => {
-  if (!e.target.closest('#uploadProgress')) fileInput.click();
+  if (!e.target.closest('#uploadProgress') && !e.target.closest('.preview-remove')) {
+    fileInput.click();
+  }
 });
 dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
 dropzone.addEventListener('dragleave', ()  => dropzone.classList.remove('drag-over'));
 dropzone.addEventListener('drop', e => {
   e.preventDefault(); dropzone.classList.remove('drag-over');
-  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  if (e.dataTransfer.files.length) addFiles(Array.from(e.dataTransfer.files));
 });
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
-
-function setFile(file) {
-  selectedFile = file;
-  previewEl.innerHTML = '';
-  dropzoneInner.style.display = 'none';
-
-  if (file.type.startsWith('image/')) {
-    const img = document.createElement('img');
-    img.src = URL.createObjectURL(file);
-    previewEl.appendChild(img);
-  } else if (file.type.startsWith('video/')) {
-    const vid = document.createElement('video');
-    vid.src = URL.createObjectURL(file);
-    vid.controls = true; vid.muted = true;
-    previewEl.appendChild(vid);
-  }
-  const nm = document.createElement('div');
-  nm.className = 'file-name'; nm.textContent = file.name;
-  previewEl.appendChild(nm);
-}
-
-function resetFile() {
-  selectedFile = null;
-  previewEl.innerHTML = '';
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) addFiles(Array.from(fileInput.files));
   fileInput.value = '';
-  dropzoneInner.style.display = '';
-}
+});
 
 // ── Add story ─────────────────────────────────────────────────────────────────
 
 btnAdd.addEventListener('click', async () => {
-  const title    = fTitle.value.trim();
-  const actions  = fActions.value.trim();
-  const sched    = fSchedule.value;
+  const title   = fTitle.value.trim();
+  const actions = fActions.value.trim();
+  const sched   = fSchedule.value;
 
   if (!title) return setFb(formFeedback, 'El título es obligatorio.', 'err');
   if (!sched) return setFb(formFeedback, 'La fecha es obligatoria.',  'err');
@@ -523,25 +571,29 @@ btnAdd.addEventListener('click', async () => {
   btnAdd.disabled = true; btnAdd.textContent = 'Guardando…';
 
   try {
-    let fileId = '', mimeType = '', origName = '', thumb = '';
+    const fileIds = [], origNames = [], mimeTypes = [], thumbUrls = [];
 
-    if (selectedFile) {
+    if (selectedFiles.length) {
       uploadProg.style.display = '';
       progressFill.style.width = '0%';
-      progressText.textContent = 'Subiendo a Google Drive…';
 
-      const fd = await uploadToDrive(selectedFile, pct => {
-        progressFill.style.width = `${pct}%`;
-        progressText.textContent = `Subiendo… ${pct}%`;
-      });
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        progressText.textContent = `Subiendo archivo ${i + 1} de ${selectedFiles.length}…`;
 
-      fileId   = fd.id;
-      mimeType = selectedFile.type;
-      origName = selectedFile.name;
-      thumb    = thumbUrl(fileId, mimeType);
+        const fd = await uploadToDrive(file, pct => {
+          const overall = ((i + pct / 100) / selectedFiles.length) * 100;
+          progressFill.style.width = `${Math.round(overall)}%`;
+        });
+
+        fileIds.push(fd.id);
+        origNames.push(file.name);
+        mimeTypes.push(file.type);
+        thumbUrls.push(thumbUrl(fd.id));
+      }
 
       progressFill.style.width = '100%';
-      progressText.textContent = '✅ Guardado en Drive';
+      progressText.textContent = `✅ ${fileIds.length} archivo${fileIds.length !== 1 ? 's' : ''} guardado${fileIds.length !== 1 ? 's' : ''} en Drive`;
       await delay(1000);
       uploadProg.style.display = 'none';
     }
@@ -550,12 +602,16 @@ btnAdd.addEventListener('click', async () => {
       id:          crypto.randomUUID(),
       title, actions,
       scheduledAt: new Date(sched).toISOString(),
-      driveFileId: fileId, origName, mimeType, thumbUrl: thumb,
+      driveFileId: JSON.stringify(fileIds),
+      origName:    JSON.stringify(origNames),
+      mimeType:    JSON.stringify(mimeTypes),
+      thumbUrl:    JSON.stringify(thumbUrls),
       createdAt:   new Date().toISOString()
     });
 
     setFb(formFeedback, '✅ Historia programada correctamente.', 'ok');
-    fTitle.value = ''; fActions.value = ''; resetFile();
+    fTitle.value = ''; fActions.value = ''; clearFiles();
+    setDefaultDateTime();
     await loadStories();
   } catch (e) {
     console.error(e);
@@ -566,11 +622,30 @@ btnAdd.addEventListener('click', async () => {
   }
 });
 
+// ── Today check ───────────────────────────────────────────────────────────────
+
+function isToday(isoDate) {
+  if (!isoDate) return false;
+  const opts  = { timeZone: 'America/Bogota' };
+  const toDay = d => new Date(d).toLocaleDateString('en-CA', opts);
+  return toDay(isoDate) === toDay(new Date());
+}
+
 // ── Render ────────────────────────────────────────────────────────────────────
 
 function renderStories(stories) {
-  const pending = stories.filter(s => !s.sent).length;
+  const pending      = stories.length;
+  const todayStories = stories.filter(s => isToday(s.scheduledAt));
+
   pendingBadge.textContent = `${pending} pendiente${pending !== 1 ? 's' : ''}`;
+
+  if (todayStories.length) {
+    const n = todayStories.length;
+    todayAlert.textContent   = `📣 ${n === 1 ? 'Tienes 1 historia para publicar HOY' : `Tienes ${n} historias para publicar HOY`}`;
+    todayAlert.style.display = '';
+  } else {
+    todayAlert.style.display = 'none';
+  }
 
   if (!stories.length) {
     storiesList.innerHTML = '<div class="empty-state">Aún no hay historias programadas</div>';
@@ -579,47 +654,94 @@ function renderStories(stories) {
 
   storiesList.innerHTML = stories.map(storyCardHTML).join('');
 
-  storiesList.querySelectorAll('[data-delete]').forEach(btn => {
+  storiesList.querySelectorAll('[data-delete-row]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (!confirm('¿Eliminar esta historia?')) return;
-      try { await deleteRow(+btn.dataset.delete); await loadStories(); }
-      catch (e) { alert(`Error al eliminar: ${e.message}`); }
+      if (!confirm('¿Eliminar esta historia y sus archivos de Drive?')) return;
+      const rowIndex = +btn.dataset.deleteRow;
+      const story    = stories.find(s => s.rowIndex === rowIndex);
+      btn.disabled   = true;
+      try { await deleteStory(story); await loadStories(); }
+      catch (e) { alert(`Error al eliminar: ${e.message}`); btn.disabled = false; }
     });
   });
 
-  storiesList.querySelectorAll('[data-drive]').forEach(btn => {
+  storiesList.querySelectorAll('[data-drive-id]').forEach(btn => {
     btn.addEventListener('click', () =>
-      window.open(`https://drive.google.com/file/d/${btn.dataset.drive}/view`, '_blank')
+      window.open(`https://drive.google.com/file/d/${btn.dataset.driveId}/view`, '_blank')
     );
+  });
+
+  storiesList.querySelectorAll('[data-download-row]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const rowIndex = +btn.dataset.downloadRow;
+      const story    = stories.find(s => s.rowIndex === rowIndex);
+      btn.disabled   = true;
+      btn.textContent = '⏳';
+      try {
+        for (let i = 0; i < story.driveFileIds.length; i++) {
+          await downloadDriveFile(story.driveFileIds[i], story.origNames[i]);
+          if (i < story.driveFileIds.length - 1) await delay(400);
+        }
+      } catch (e) { alert(`Error al descargar: ${e.message}`); }
+      finally { btn.disabled = false; btn.textContent = '⬇️'; }
+    });
+  });
+
+  storiesList.querySelectorAll('[data-publish-row]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Marcar como publicada? Esto eliminará la historia y sus archivos de Drive.')) return;
+      const rowIndex = +btn.dataset.publishRow;
+      const story    = stories.find(s => s.rowIndex === rowIndex);
+      btn.disabled   = true;
+      try { await deleteStory(story); await loadStories(); }
+      catch (e) { alert(`Error: ${e.message}`); btn.disabled = false; }
+    });
   });
 }
 
 function storyCardHTML(s) {
-  const thumb = s.thumbUrl
-    ? `<img src="${s.thumbUrl}" alt="" loading="lazy" onerror="this.outerHTML='<span style=font-size:28px>🖼</span>'">`
-    : (s.mimeType?.startsWith('video/') ? '🎬' : '🖼');
+  const today      = isToday(s.scheduledAt);
+  const firstThumb = s.thumbUrls[0];
+  const extraCount = s.driveFileIds.length > 1
+    ? `<span class="thumb-count">${s.driveFileIds.length}</span>` : '';
+
+  let thumbContent;
+  if (firstThumb) {
+    thumbContent = `<img src="${firstThumb}" alt="" loading="lazy" onerror="this.style.display='none'">${extraCount}`;
+  } else if (s.mimeTypes[0]?.startsWith('video/')) {
+    thumbContent = '🎬';
+  } else if (s.driveFileIds.length) {
+    thumbContent = '🖼';
+  } else {
+    thumbContent = '';
+  }
 
   const actions = s.actions
     ? esc(s.actions)
     : '<em style="opacity:.55">Sin acciones especificadas</em>';
 
-  const driveBtn = s.driveFileId
-    ? `<button class="btn-drive" data-drive="${s.driveFileId}" title="Ver en Drive">📂</button>` : '';
+  const driveBtn = s.driveFileIds[0]
+    ? `<button class="btn-sm" data-drive-id="${s.driveFileIds[0]}" title="Ver en Drive">📂</button>` : '';
+
+  const dlBtn = s.driveFileIds.length
+    ? `<button class="btn-sm btn-dl" data-download-row="${s.rowIndex}" title="Descargar archivo(s)">⬇️</button>` : '';
+
+  const todayBadge = today ? '<span class="today-badge">HOY</span>' : '';
 
   return `
-    <div class="story-card ${s.sent ? 'sent' : ''}">
-      <div class="story-thumb">${thumb}</div>
+    <div class="story-card${today ? ' today' : ''}">
+      <div class="story-thumb">${thumbContent}</div>
       <div class="story-body">
-        <div class="story-title">${esc(s.title)}</div>
+        <div class="story-title">${todayBadge}${esc(s.title)}</div>
         <div class="story-date">📅 ${fmtDate(s.scheduledAt)}</div>
         <div class="story-actions">${actions}</div>
         <div class="story-footer">
-          <span class="story-status ${s.sent ? 'done' : 'pending'}">${s.sent ? '✅ Enviada' : '⏳ Pendiente'}</span>
-          ${driveBtn}
+          <button class="btn-pub" data-publish-row="${s.rowIndex}">✅ Publicada</button>
+          <div class="story-footer-icons">${driveBtn}${dlBtn}</div>
         </div>
       </div>
       <div class="story-actions-btn">
-        <button class="story-delete" data-delete="${s.rowIndex}" title="Eliminar">🗑</button>
+        <button class="story-delete" data-delete-row="${s.rowIndex}" title="Eliminar">🗑</button>
       </div>
     </div>`;
 }
@@ -683,22 +805,15 @@ function setDefaultDateTime() {
   fSchedule.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
-// Refresca el token cuando el usuario vuelve a la app desde segundo plano
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && accessToken) {
-    if (Date.now() > tokenExpiry - 5 * 60 * 1000) {  // quedan menos de 5 min
-      await trySilentGoogleAuth();
-    }
+    if (Date.now() > tokenExpiry - 5 * 60 * 1000) await trySilentGoogleAuth();
     loadStories();
   }
 });
 
-// Refresca el token de Google en segundo plano cada 50 min (token dura 1h)
 setInterval(async () => {
-  if (accessToken && screenApp.style.display !== 'none') {
-    await trySilentGoogleAuth();
-  }
+  if (accessToken && screenApp.style.display !== 'none') await trySilentGoogleAuth();
 }, 50 * 60 * 1000);
 
-// Refresca la lista de historias cada 60 s
 setInterval(() => { if (accessToken) loadStories(); }, 60000);

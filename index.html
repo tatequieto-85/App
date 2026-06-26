@@ -64,7 +64,7 @@
         <h2 class="section-title">Nueva historia</h2>
 
         <div id="dropzone" class="dropzone">
-          <input type="file" id="fileInput" accept="image/*,video/*" hidden />
+          <input type="file" id="fileInput" accept="image/*,video/*" multiple hidden />
           <div class="dropzone-inner" id="dropzoneInner">
             <div class="dropzone-icon">📎</div>
             <div class="dropzone-label">Arrastra tu imagen o video<br/><span>o haz clic para seleccionar</span></div>
@@ -96,6 +96,7 @@
           <h2 class="section-title">Historias programadas</h2>
           <span class="badge" id="pendingBadge">–</span>
         </div>
+        <div class="today-alert" id="todayAlert" style="display:none"></div>
         <div id="storiesList" class="stories-list">
           <div class="loading-state">Cargando desde Google Sheets…</div>
         </div>
