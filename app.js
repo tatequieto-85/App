@@ -5,6 +5,26 @@ let tokenClient    = null;
 let selectedFiles  = [];
 let storiesSheetId = null;
 
+// Kanban state
+let kanbanColumns      = [];
+let kanbanAreas        = [];
+let kanbanTasks        = [];
+let kanbanTasksSheetId = null;
+let kanbanEditId       = null;
+let draggedId          = null;
+let showTerminal       = false;
+
+const TERMINAL_STATES = ['Realizado', 'Cancelado', 'Postpuesto'];
+const DEFAULT_COLUMNS = [
+  { name: 'Pendiente',   color: '#6B5050', terminal: false },
+  { name: 'En proceso',  color: '#F05B22', terminal: false },
+  { name: 'En revisión', color: '#7A9C3E', terminal: false },
+  { name: 'Realizado',   color: '#2E7D32', terminal: true  },
+  { name: 'Cancelado',   color: '#C62828', terminal: true  },
+  { name: 'Postpuesto',  color: '#546E7A', terminal: true  },
+];
+const DEFAULT_AREAS = ['Marketing', 'Ventas', 'Producción', 'Administración'];
+
 const CRED_KEY   = 'ss_credId';
 const USER_KEY   = 'ss_userInfo';
 const TOKEN_KEY  = 'ss_token';
@@ -241,6 +261,7 @@ async function onAuthSuccess() {
   } catch {}
 
   await initSheet();
+  await initKanbanSheets();
   setDefaultDateTime();
   await loadStories();
 }
@@ -817,3 +838,579 @@ setInterval(async () => {
 }, 50 * 60 * 1000);
 
 setInterval(() => { if (accessToken) loadStories(); }, 60000);
+
+// ── Kanban Sheet Init ─────────────────────────────────────────────────────────
+
+async function initKanbanSheets() {
+  const info = await sheetsReq('');
+  const tabs  = info.sheets || [];
+  const hasTasks = tabs.find(s => s.properties.title === 'KanbanTasks');
+  const hasConf  = tabs.find(s => s.properties.title === 'KanbanConfig');
+
+  if (hasTasks) kanbanTasksSheetId = hasTasks.properties.sheetId;
+
+  const reqs = [];
+  if (!hasTasks) reqs.push({ addSheet: { properties: { title: 'KanbanTasks'  } } });
+  if (!hasConf)  reqs.push({ addSheet: { properties: { title: 'KanbanConfig' } } });
+
+  if (reqs.length) {
+    const res = await sheetsReq(':batchUpdate', {
+      method: 'POST', body: JSON.stringify({ requests: reqs })
+    });
+    res.replies?.forEach(r => {
+      if (r.addSheet?.properties?.title === 'KanbanTasks')
+        kanbanTasksSheetId = r.addSheet.properties.sheetId;
+    });
+  }
+
+  const td = await sheetsReq('/values/KanbanTasks!A1').catch(() => ({}));
+  if (!td.values) {
+    await sheetsReq('/values/KanbanTasks!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+      method: 'POST',
+      body: JSON.stringify({ values: [['ID','Area','Title','Description','DueDate','Status','CreatedAt','UpdatedAt']] })
+    });
+  }
+
+  const kd = await sheetsReq('/values/KanbanConfig!A1').catch(() => ({}));
+  if (!kd.values) {
+    await sheetsReq('/values/KanbanConfig!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+      method: 'POST',
+      body: JSON.stringify({ values: [
+        ['columns', JSON.stringify(DEFAULT_COLUMNS)],
+        ['areas',   JSON.stringify(DEFAULT_AREAS)]
+      ]})
+    });
+    kanbanColumns = DEFAULT_COLUMNS;
+    kanbanAreas   = DEFAULT_AREAS;
+  } else {
+    await loadKanbanConfig();
+  }
+}
+
+// ── Kanban Config ─────────────────────────────────────────────────────────────
+
+async function loadKanbanConfig() {
+  const data = await sheetsReq('/values/KanbanConfig!A:B');
+  const cfg  = {};
+  (data.values || []).forEach(r => { if (r[0]) cfg[r[0]] = r[1] || ''; });
+  try { kanbanColumns = JSON.parse(cfg.columns) || DEFAULT_COLUMNS; } catch { kanbanColumns = DEFAULT_COLUMNS; }
+  try { kanbanAreas   = JSON.parse(cfg.areas)   || DEFAULT_AREAS;   } catch { kanbanAreas   = DEFAULT_AREAS;   }
+}
+
+async function saveKanbanConfig() {
+  await sheetsReq('/values/KanbanConfig!A1:B2?valueInputOption=RAW', {
+    method: 'PUT',
+    body: JSON.stringify({ values: [
+      ['columns', JSON.stringify(kanbanColumns)],
+      ['areas',   JSON.stringify(kanbanAreas)]
+    ]})
+  });
+}
+
+// ── Kanban Tasks CRUD ─────────────────────────────────────────────────────────
+
+async function loadKanbanTasks() {
+  const data = await sheetsReq('/values/KanbanTasks!A:H');
+  const rows = (data.values || []).slice(1);
+  kanbanTasks = rows
+    .filter(r => r[0])
+    .map((r, i) => ({
+      id:        r[0] || '',
+      area:      r[1] || '',
+      title:     r[2] || '',
+      desc:      r[3] || '',
+      dueDate:   r[4] || '',
+      status:    r[5] || '',
+      createdAt: r[6] || '',
+      updatedAt: r[7] || '',
+      rowIndex:  i + 2
+    }));
+}
+
+async function appendKanbanTask(task) {
+  await sheetsReq('/values/KanbanTasks!A:H:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+    method: 'POST',
+    body: JSON.stringify({ values: [[
+      task.id, task.area, task.title, task.desc,
+      task.dueDate, task.status, task.createdAt, task.updatedAt
+    ]]})
+  });
+}
+
+async function updateKanbanTask(task) {
+  await sheetsReq(`/values/KanbanTasks!A${task.rowIndex}:H${task.rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[
+      task.id, task.area, task.title, task.desc,
+      task.dueDate, task.status, task.createdAt, new Date().toISOString()
+    ]]})
+  });
+}
+
+async function deleteKanbanTaskRow(rowIndex) {
+  if (!kanbanTasksSheetId) {
+    const info = await sheetsReq('');
+    const tab  = info.sheets.find(s => s.properties.title === 'KanbanTasks');
+    if (tab) kanbanTasksSheetId = tab.properties.sheetId;
+  }
+  await sheetsReq(':batchUpdate', {
+    method: 'POST',
+    body: JSON.stringify({ requests: [{
+      deleteDimension: {
+        range: {
+          sheetId:    kanbanTasksSheetId,
+          dimension:  'ROWS',
+          startIndex: rowIndex - 1,
+          endIndex:   rowIndex
+        }
+      }
+    }]})
+  });
+}
+
+// ── Kanban Render ─────────────────────────────────────────────────────────────
+
+function fmtDue(dateStr) {
+  if (!dateStr) return { text: '', cls: '' };
+  const d     = new Date(dateStr + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff  = Math.round((d - today) / 86400000);
+  const label = d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', timeZone: 'America/Bogota' });
+  if (diff < 0)  return { text: `⚠️ ${label}`, cls: 'overdue' };
+  if (diff === 0) return { text: `🔴 HOY`,      cls: 'today'  };
+  if (diff === 1) return { text: `🟡 Mañana`,   cls: ''       };
+  return { text: `📅 ${label}`, cls: '' };
+}
+
+function renderKanban() {
+  const board      = document.getElementById('kanbanBoard');
+  if (!board) return;
+  const areaFilter = document.getElementById('kanbanAreaFilter')?.value || '';
+
+  const tasks = areaFilter ? kanbanTasks.filter(t => t.area === areaFilter) : kanbanTasks;
+  const visibleCols = kanbanColumns.filter(c => !c.terminal || showTerminal);
+
+  board.innerHTML = '';
+
+  visibleCols.forEach(col => {
+    const colTasks = tasks.filter(t => t.status === col.name);
+    const colEl    = document.createElement('div');
+    colEl.className = 'kanban-col' + (col.terminal ? ' terminal' : '');
+
+    colEl.innerHTML = `
+      <div class="kanban-col-header">
+        <span class="kanban-col-dot" style="background:${esc(col.color)}"></span>
+        <span class="kanban-col-title">${esc(col.name)}</span>
+        <span class="kanban-col-count">${colTasks.length}</span>
+      </div>
+      <div class="kanban-col-body" data-col="${esc(col.name)}"></div>
+      ${col.terminal ? '' : `<div class="kanban-col-footer"><button class="kanban-add-card" data-col="${esc(col.name)}">+ Agregar</button></div>`}
+    `;
+
+    const colBody = colEl.querySelector('.kanban-col-body');
+
+    colTasks.forEach(task => {
+      const due  = fmtDue(task.dueDate);
+      const card = document.createElement('div');
+      card.className = 'kanban-card';
+      card.setAttribute('draggable', 'true');
+      card.dataset.id  = task.id;
+
+      card.innerHTML = `
+        <div class="kanban-card-area">${esc(task.area)}</div>
+        <div class="kanban-card-title">${esc(task.title)}</div>
+        ${task.desc ? `<div class="kanban-card-desc">${esc(task.desc)}</div>` : ''}
+        ${due.text   ? `<div class="kanban-card-due ${due.cls}">${due.text}</div>` : ''}
+        <div class="kanban-card-footer">
+          <button data-edit="${task.id}" title="Editar">✏️</button>
+          <button data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">🗑</button>
+        </div>
+      `;
+
+      card.addEventListener('dragstart', e => {
+        draggedId = task.id;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        document.querySelectorAll('.kanban-col-body.drag-over').forEach(el => el.classList.remove('drag-over'));
+        draggedId = null;
+      });
+
+      colBody.appendChild(card);
+    });
+
+    colBody.addEventListener('dragover', e => {
+      e.preventDefault();
+      colBody.classList.add('drag-over');
+    });
+    colBody.addEventListener('dragleave', e => {
+      if (!colBody.contains(e.relatedTarget)) colBody.classList.remove('drag-over');
+    });
+    colBody.addEventListener('drop', async e => {
+      e.preventDefault();
+      colBody.classList.remove('drag-over');
+      if (!draggedId) return;
+      const newStatus = colBody.dataset.col;
+      const task = kanbanTasks.find(t => t.id === draggedId);
+      if (!task || task.status === newStatus) return;
+      if (TERMINAL_STATES.includes(newStatus)) {
+        if (!confirm(`¿Finalizar la tarea como "${newStatus}"?`)) return;
+      }
+      task.status = newStatus;
+      renderKanban();
+      try { await updateKanbanTask(task); }
+      catch (err) { alert('Error al guardar: ' + err.message); await loadKanbanTasks(); renderKanban(); }
+    });
+
+    board.appendChild(colEl);
+  });
+
+  const termCount = kanbanTasks.filter(t => TERMINAL_STATES.includes(t.status)).length;
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'kanban-toggle-terminal';
+  toggleBtn.textContent = showTerminal
+    ? '⬆️ Ocultar finalizadas'
+    : `⬇️ Finalizadas (${termCount})`;
+  toggleBtn.addEventListener('click', () => { showTerminal = !showTerminal; renderKanban(); });
+  board.appendChild(toggleBtn);
+
+  board.querySelectorAll('[data-edit]').forEach(btn => {
+    btn.addEventListener('click', () => openTaskModal(null, btn.dataset.edit));
+  });
+  board.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar esta tarea?')) return;
+      btn.disabled = true;
+      try {
+        await deleteKanbanTaskRow(+btn.dataset.row);
+        await loadKanbanTasks();
+        renderKanban();
+      } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
+    });
+  });
+  board.querySelectorAll('.kanban-add-card').forEach(btn => {
+    btn.addEventListener('click', () => openTaskModal(btn.dataset.col, null));
+  });
+}
+
+// ── Lista Render ──────────────────────────────────────────────────────────────
+
+function renderKanbanList() {
+  const container    = document.getElementById('tasksList');
+  if (!container) return;
+  const areaFilter   = document.getElementById('listaAreaFilter')?.value   || '';
+  const statusFilter = document.getElementById('listaStatusFilter')?.value || '';
+
+  let tasks = [...kanbanTasks];
+  if (areaFilter)   tasks = tasks.filter(t => t.area   === areaFilter);
+  if (statusFilter) tasks = tasks.filter(t => t.status === statusFilter);
+  tasks.sort((a, b) => (a.dueDate || '9999') < (b.dueDate || '9999') ? -1 : 1);
+
+  if (!tasks.length) {
+    container.innerHTML = '<div class="empty-state">No hay tareas con estos filtros.</div>';
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'tasks-table';
+  table.innerHTML = `<thead><tr>
+    <th>Área</th><th>Tarea</th><th>Estado</th><th>Fecha límite</th><th></th>
+  </tr></thead><tbody></tbody>`;
+
+  const tbody = table.querySelector('tbody');
+  tasks.forEach(task => {
+    const col   = kanbanColumns.find(c => c.name === task.status);
+    const color = col ? col.color : '#999';
+    const due   = fmtDue(task.dueDate);
+    const tr    = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span style="font-size:12px;color:var(--text-sub)">${esc(task.area)}</span></td>
+      <td>
+        <strong style="font-size:13px;color:var(--vinotinto);display:block">${esc(task.title)}</strong>
+        ${task.desc ? `<span style="font-size:11px;color:var(--text-sub)">${esc(task.desc)}</span>` : ''}
+      </td>
+      <td><span class="status-pill" style="background:${color}22;color:${color}">${esc(task.status)}</span></td>
+      <td><span class="kanban-card-due ${due.cls}" style="font-size:12px">${due.text}</span></td>
+      <td style="white-space:nowrap">
+        <button class="task-action-btn" data-edit="${task.id}" title="Editar">✏️</button>
+        <button class="task-action-btn" data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">🗑</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  container.innerHTML = '';
+  container.appendChild(table);
+
+  container.querySelectorAll('[data-edit]').forEach(btn => {
+    btn.addEventListener('click', () => openTaskModal(null, btn.dataset.edit));
+  });
+  container.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar esta tarea?')) return;
+      btn.disabled = true;
+      try {
+        await deleteKanbanTaskRow(+btn.dataset.row);
+        await loadKanbanTasks();
+        renderKanbanList();
+      } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
+    });
+  });
+}
+
+// ── Selects population ────────────────────────────────────────────────────────
+
+function populateAreaSelects() {
+  ['kanbanAreaFilter', 'listaAreaFilter'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = `<option value="">Todas las áreas</option>` +
+      kanbanAreas.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+    if (cur) el.value = cur;
+  });
+  const taskAreaEl = document.getElementById('taskArea');
+  if (taskAreaEl) {
+    const cur = taskAreaEl.value;
+    taskAreaEl.innerHTML = kanbanAreas.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+    if (cur) taskAreaEl.value = cur;
+  }
+}
+
+function populateStatusSelects() {
+  const taskStatusEl = document.getElementById('taskStatus');
+  if (taskStatusEl) {
+    const cur = taskStatusEl.value;
+    taskStatusEl.innerHTML = kanbanColumns.map(c =>
+      `<option value="${esc(c.name)}">${esc(c.name)}${c.terminal ? ' ✓' : ''}</option>`
+    ).join('');
+    if (cur) taskStatusEl.value = cur;
+  }
+  const listaEl = document.getElementById('listaStatusFilter');
+  if (listaEl) {
+    const cur = listaEl.value;
+    listaEl.innerHTML = `<option value="">Todos los estados</option>` +
+      kanbanColumns.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
+    if (cur) listaEl.value = cur;
+  }
+}
+
+// ── Task modal ────────────────────────────────────────────────────────────────
+
+function openTaskModal(defaultStatus, editId) {
+  kanbanEditId = editId || null;
+  const overlay = document.getElementById('taskOverlay');
+  populateAreaSelects();
+  populateStatusSelects();
+
+  if (editId) {
+    const task = kanbanTasks.find(t => t.id === editId);
+    if (!task) return;
+    document.getElementById('taskModalTitle').textContent = 'Editar tarea';
+    document.getElementById('taskArea').value   = task.area;
+    document.getElementById('taskTitle').value  = task.title;
+    document.getElementById('taskDesc').value   = task.desc;
+    document.getElementById('taskDue').value    = task.dueDate;
+    document.getElementById('taskStatus').value = task.status;
+  } else {
+    document.getElementById('taskModalTitle').textContent = 'Nueva tarea';
+    document.getElementById('taskArea').value   = kanbanAreas[0] || '';
+    document.getElementById('taskTitle').value  = '';
+    document.getElementById('taskDesc').value   = '';
+    document.getElementById('taskDue').value    = '';
+    const firstNonTerm = kanbanColumns.find(c => !c.terminal);
+    document.getElementById('taskStatus').value = defaultStatus || firstNonTerm?.name || '';
+  }
+
+  document.getElementById('taskFeedback').textContent = '';
+  overlay.classList.add('open');
+  setTimeout(() => document.getElementById('taskTitle').focus(), 100);
+}
+
+document.getElementById('btnCloseTask').addEventListener('click', () => {
+  document.getElementById('taskOverlay').classList.remove('open');
+});
+document.getElementById('taskOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('taskOverlay'))
+    document.getElementById('taskOverlay').classList.remove('open');
+});
+
+document.getElementById('btnSaveTask').addEventListener('click', async () => {
+  const area   = document.getElementById('taskArea').value;
+  const title  = document.getElementById('taskTitle').value.trim();
+  const desc   = document.getElementById('taskDesc').value.trim();
+  const due    = document.getElementById('taskDue').value;
+  const status = document.getElementById('taskStatus').value;
+  const fb     = document.getElementById('taskFeedback');
+
+  if (!title) return setFb(fb, 'El título es obligatorio.', 'err');
+  if (!due)   return setFb(fb, 'La fecha límite es obligatoria.', 'err');
+
+  const btn = document.getElementById('btnSaveTask');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+
+  try {
+    if (kanbanEditId) {
+      const task = kanbanTasks.find(t => t.id === kanbanEditId);
+      if (task) {
+        task.area = area; task.title = title; task.desc = desc;
+        task.dueDate = due; task.status = status;
+        await updateKanbanTask(task);
+      }
+    } else {
+      const now = new Date().toISOString();
+      await appendKanbanTask({
+        id: crypto.randomUUID(), area, title, desc,
+        dueDate: due, status, createdAt: now, updatedAt: now
+      });
+    }
+    await loadKanbanTasks();
+    document.getElementById('taskOverlay').classList.remove('open');
+
+    const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+    if (activeTab === 'kanban') renderKanban();
+    else if (activeTab === 'lista') renderKanbanList();
+  } catch (e) {
+    setFb(fb, 'Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar tarea';
+  }
+});
+
+// ── Board management modal ────────────────────────────────────────────────────
+
+function renderColsList() {
+  const container = document.getElementById('colsList');
+  container.innerHTML = kanbanColumns.map(col => `
+    <div class="mgmt-item">
+      <span class="mgmt-item-dot" style="background:${esc(col.color)}"></span>
+      <span class="mgmt-item-name">${esc(col.name)}</span>
+      ${col.terminal
+        ? '<span class="mgmt-item-tag">Terminal</span>'
+        : `<button class="mgmt-item-del" data-del-col="${esc(col.name)}">✕</button>`}
+    </div>
+  `).join('');
+
+  container.querySelectorAll('[data-del-col]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const name = btn.dataset.delCol;
+      if (!confirm(`¿Eliminar el estado "${name}"?`)) return;
+      kanbanColumns = kanbanColumns.filter(c => c.name !== name);
+      try {
+        await saveKanbanConfig();
+        renderColsList();
+        populateStatusSelects();
+        setFb(document.getElementById('boardFeedback'), `✅ Estado eliminado.`, 'ok');
+      } catch (e) { setFb(document.getElementById('boardFeedback'), 'Error: ' + e.message, 'err'); }
+    });
+  });
+}
+
+function renderAreasList() {
+  const container = document.getElementById('areasList');
+  container.innerHTML = kanbanAreas.map(area => `
+    <div class="mgmt-item">
+      <span class="mgmt-item-name">${esc(area)}</span>
+      <button class="mgmt-item-del" data-del-area="${esc(area)}">✕</button>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('[data-del-area]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const name = btn.dataset.delArea;
+      if (!confirm(`¿Eliminar el área "${name}"?`)) return;
+      kanbanAreas = kanbanAreas.filter(a => a !== name);
+      try {
+        await saveKanbanConfig();
+        renderAreasList();
+        populateAreaSelects();
+        setFb(document.getElementById('boardFeedback'), `✅ Área eliminada.`, 'ok');
+      } catch (e) { setFb(document.getElementById('boardFeedback'), 'Error: ' + e.message, 'err'); }
+    });
+  });
+}
+
+document.getElementById('btnManageBoard').addEventListener('click', () => {
+  renderColsList();
+  renderAreasList();
+  document.getElementById('boardFeedback').textContent = '';
+  document.getElementById('boardOverlay').classList.add('open');
+});
+document.getElementById('btnCloseBoard').addEventListener('click', () => {
+  document.getElementById('boardOverlay').classList.remove('open');
+});
+document.getElementById('boardOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('boardOverlay'))
+    document.getElementById('boardOverlay').classList.remove('open');
+});
+
+document.getElementById('btnAddCol').addEventListener('click', async () => {
+  const name  = document.getElementById('newColName').value.trim();
+  const color = document.getElementById('newColColor').value;
+  const fb    = document.getElementById('boardFeedback');
+  if (!name) return setFb(fb, 'El nombre del estado es obligatorio.', 'err');
+  if (kanbanColumns.find(c => c.name.toLowerCase() === name.toLowerCase()))
+    return setFb(fb, 'Ya existe un estado con ese nombre.', 'err');
+
+  kanbanColumns.push({ name, color, terminal: false });
+  document.getElementById('newColName').value = '';
+  try {
+    await saveKanbanConfig();
+    renderColsList();
+    populateStatusSelects();
+    setFb(fb, `✅ Estado "${name}" agregado.`, 'ok');
+  } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); }
+});
+
+document.getElementById('btnAddArea').addEventListener('click', async () => {
+  const name = document.getElementById('newAreaName').value.trim();
+  const fb   = document.getElementById('boardFeedback');
+  if (!name) return setFb(fb, 'El nombre del área es obligatorio.', 'err');
+  if (kanbanAreas.includes(name)) return setFb(fb, 'Ya existe esa área.', 'err');
+
+  kanbanAreas.push(name);
+  document.getElementById('newAreaName').value = '';
+  try {
+    await saveKanbanConfig();
+    renderAreasList();
+    populateAreaSelects();
+    setFb(fb, `✅ Área "${name}" agregada.`, 'ok');
+  } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); }
+});
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+
+async function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('tabStories').style.display = tab === 'stories' ? '' : 'none';
+  document.getElementById('tabKanban').style.display  = tab === 'kanban'  ? '' : 'none';
+  document.getElementById('tabLista').style.display   = tab === 'lista'   ? '' : 'none';
+
+  if (tab === 'kanban') {
+    document.getElementById('kanbanBoard').innerHTML = '<div class="loading-state" style="padding:48px 0">Cargando…</div>';
+    await loadKanbanConfig();
+    await loadKanbanTasks();
+    populateAreaSelects();
+    populateStatusSelects();
+    renderKanban();
+  }
+  if (tab === 'lista') {
+    document.getElementById('tasksList').innerHTML = '<div class="loading-state">Cargando…</div>';
+    await loadKanbanConfig();
+    await loadKanbanTasks();
+    populateAreaSelects();
+    populateStatusSelects();
+    renderKanbanList();
+  }
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+document.getElementById('btnNewTask').addEventListener('click', () => openTaskModal(null, null));
+document.getElementById('kanbanAreaFilter').addEventListener('change', renderKanban);
+document.getElementById('listaAreaFilter').addEventListener('change', renderKanbanList);
+document.getElementById('listaStatusFilter').addEventListener('change', renderKanbanList);
