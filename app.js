@@ -19,6 +19,19 @@ let currentView   = 'home';
 let currentSubTab = 'kanban';
 let deferredInstallPrompt = null;
 
+// Procesos / Recetas state
+let recetas              = [];
+let ejecuciones          = [];
+let recetasSheetId       = null;
+let ejecucionesSheetId   = null;
+let currentProcesosTab   = 'recetas';
+let editRecetaId         = null;
+let executionState       = null;
+let evaluacionPendiente  = null;
+let evalRating           = 0;
+let taskDetailId         = null;
+let lastTapTime          = {};   // for double-tap detection on mobile
+
 const TERMINAL_STATES = ['Realizado', 'Cancelado', 'Postpuesto'];
 const DEFAULT_COLUMNS = [
   { name: 'Pendiente',   color: '#6B5050', terminal: false },
@@ -80,6 +93,7 @@ function navigateTo(view) {
   document.getElementById('viewHome').style.display      = view === 'home'      ? '' : 'none';
   document.getElementById('viewContenido').style.display = view === 'contenido' ? '' : 'none';
   document.getElementById('viewTareas').style.display    = view === 'tareas'    ? '' : 'none';
+  document.getElementById('viewProcesos').style.display  = view === 'procesos'  ? '' : 'none';
 
   // Back button: hidden on home, visible in modules
   document.getElementById('btnBack').style.display = view === 'home' ? 'none' : '';
@@ -99,6 +113,9 @@ function navigateTo(view) {
       if (currentSubTab === 'kanban') renderKanban();
       else renderKanbanList();
     });
+  }
+  if (view === 'procesos') {
+    loadProcesos();
   }
 
   window.scrollTo(0, 0);
@@ -352,6 +369,7 @@ async function onAuthSuccess() {
 
   await initSheet();
   await initKanbanSheets();
+  await initRecetasSheets();
   setDefaultDateTime();
   await loadStories();
 
@@ -911,6 +929,28 @@ function esc(s) {
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+function safeParseJSON(val, fallback) {
+  if (!val) return fallback;
+  try { return JSON.parse(val); } catch { return fallback; }
+}
+
+function fmtDueShort(dateStr) {
+  if (!dateStr) return '';
+  const d     = new Date(dateStr + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff  = Math.round((d - today) / 86400000);
+  if (diff < 0)  return `⚠️ vencida`;
+  if (diff === 0) return `🔴 hoy`;
+  if (diff === 1) return `🟡 mañana`;
+  return `📅 ${d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', timeZone: 'America/Bogota' })}`;
+}
+
+function fmtSeconds(sec) {
+  const m = Math.floor(sec / 60).toString().padStart(2, '0');
+  const s = (sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
 function setDefaultDateTime() {
   const d = new Date();
   d.setHours(d.getHours() + 1);
@@ -1002,39 +1042,45 @@ async function saveKanbanConfig() {
 // ── Kanban Tasks CRUD ─────────────────────────────────────────────────────────
 
 async function loadKanbanTasks() {
-  const data = await sheetsReq('/values/KanbanTasks!A:H');
+  const data = await sheetsReq('/values/KanbanTasks!A:J');
   const rows = (data.values || []).slice(1);
   kanbanTasks = rows
     .filter(r => r[0])
     .map((r, i) => ({
-      id:        r[0] || '',
-      area:      r[1] || '',
-      title:     r[2] || '',
-      desc:      r[3] || '',
-      dueDate:   r[4] || '',
-      status:    r[5] || '',
-      createdAt: r[6] || '',
-      updatedAt: r[7] || '',
-      rowIndex:  i + 2
+      id:           r[0] || '',
+      area:         r[1] || '',
+      title:        r[2] || '',
+      desc:         r[3] || '',
+      dueDate:      r[4] || '',
+      status:       r[5] || '',
+      createdAt:    r[6] || '',
+      updatedAt:    r[7] || '',
+      subtasks:     safeParseJSON(r[8], []),
+      observations: safeParseJSON(r[9], []),
+      rowIndex:     i + 2
     }));
 }
 
 async function appendKanbanTask(task) {
-  await sheetsReq('/values/KanbanTasks!A:H:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/KanbanTasks!A:J:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       task.id, task.area, task.title, task.desc,
-      task.dueDate, task.status, task.createdAt, task.updatedAt
+      task.dueDate, task.status, task.createdAt, task.updatedAt,
+      JSON.stringify(task.subtasks || []),
+      JSON.stringify(task.observations || [])
     ]]})
   });
 }
 
 async function updateKanbanTask(task) {
-  await sheetsReq(`/values/KanbanTasks!A${task.rowIndex}:H${task.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/KanbanTasks!A${task.rowIndex}:J${task.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
       task.id, task.area, task.title, task.desc,
-      task.dueDate, task.status, task.createdAt, new Date().toISOString()
+      task.dueDate, task.status, task.createdAt, new Date().toISOString(),
+      JSON.stringify(task.subtasks || []),
+      JSON.stringify(task.observations || [])
     ]]})
   });
 }
@@ -1108,16 +1154,38 @@ function renderKanban() {
       card.setAttribute('draggable', 'true');
       card.dataset.id  = task.id;
 
+      const subtasksBullets = (task.subtasks || []).map(s => {
+        const sdue = s.dueDate ? `<span class="subtask-bullet-date">${fmtDueShort(s.dueDate)}</span>` : '';
+        return `<div class="subtask-bullet${s.done ? ' done' : ''}">• ${esc(s.text)}${sdue}</div>`;
+      }).join('');
+
       card.innerHTML = `
         <div class="kanban-card-area">${esc(task.area)}</div>
         <div class="kanban-card-title">${esc(task.title)}</div>
         ${task.desc ? `<div class="kanban-card-desc">${esc(task.desc)}</div>` : ''}
+        ${subtasksBullets ? `<div class="kanban-card-subtasks">${subtasksBullets}</div>` : ''}
         ${due.text   ? `<div class="kanban-card-due ${due.cls}">${due.text}</div>` : ''}
         <div class="kanban-card-footer">
-          <button data-edit="${task.id}" title="Editar">✏️</button>
-          <button data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">🗑</button>
+          <span class="kanban-card-hint">doble clic = ver detalle</span>
+          <div style="display:flex;gap:4px">
+            <button data-edit="${task.id}" title="Editar">✏️</button>
+            <button data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">🗑</button>
+          </div>
         </div>
       `;
+
+      card.addEventListener('dblclick', (e) => {
+        if (e.target.closest('button')) return;
+        openTaskDetail(task.id);
+      });
+
+      card.addEventListener('touchend', (e) => {
+        if (e.target.closest('button')) return;
+        const now = Date.now();
+        const last = lastTapTime[task.id] || 0;
+        lastTapTime[task.id] = now;
+        if (now - last < 350) openTaskDetail(task.id);
+      });
 
       card.addEventListener('dragstart', e => {
         draggedId = task.id;
@@ -1216,26 +1284,37 @@ function renderKanbanList() {
     const col   = kanbanColumns.find(c => c.name === task.status);
     const color = col ? col.color : '#999';
     const due   = fmtDue(task.dueDate);
+    const stCount = (task.subtasks || []).length;
     const tr    = document.createElement('tr');
+    tr.style.cursor = 'pointer';
     tr.innerHTML = `
       <td><span style="font-size:12px;color:var(--text-sub)">${esc(task.area)}</span></td>
       <td>
         <strong style="font-size:13px;color:var(--vinotinto);display:block">${esc(task.title)}</strong>
         ${task.desc ? `<span style="font-size:11px;color:var(--text-sub)">${esc(task.desc)}</span>` : ''}
+        ${stCount ? `<span style="font-size:11px;color:var(--text-sub)">📋 ${stCount} sub-tarea${stCount !== 1 ? 's' : ''}</span>` : ''}
       </td>
       <td><span class="status-pill" style="background:${color}22;color:${color}">${esc(task.status)}</span></td>
       <td><span class="kanban-card-due ${due.cls}" style="font-size:12px">${due.text}</span></td>
       <td style="white-space:nowrap">
+        <button class="task-action-btn" data-view="${task.id}" title="Ver detalle">👁</button>
         <button class="task-action-btn" data-edit="${task.id}" title="Editar">✏️</button>
         <button class="task-action-btn" data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">🗑</button>
       </td>
     `;
+    tr.addEventListener('dblclick', (e) => {
+      if (e.target.closest('button')) return;
+      openTaskDetail(task.id);
+    });
     tbody.appendChild(tr);
   });
 
   container.innerHTML = '';
   container.appendChild(table);
 
+  container.querySelectorAll('[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => openTaskDetail(btn.dataset.view));
+  });
   container.querySelectorAll('[data-edit]').forEach(btn => {
     btn.addEventListener('click', () => openTaskModal(null, btn.dataset.edit));
   });
@@ -1306,6 +1385,7 @@ function openTaskModal(defaultStatus, editId) {
     document.getElementById('taskDesc').value   = task.desc;
     document.getElementById('taskDue').value    = task.dueDate;
     document.getElementById('taskStatus').value = task.status;
+    renderSubtasksList(task.subtasks || []);
   } else {
     document.getElementById('taskModalTitle').textContent = 'Nueva tarea';
     document.getElementById('taskArea').value   = kanbanAreas[0] || '';
@@ -1314,6 +1394,7 @@ function openTaskModal(defaultStatus, editId) {
     document.getElementById('taskDue').value    = '';
     const firstNonTerm = kanbanColumns.find(c => !c.terminal);
     document.getElementById('taskStatus').value = defaultStatus || firstNonTerm?.name || '';
+    renderSubtasksList([]);
   }
 
   document.getElementById('taskFeedback').textContent = '';
@@ -1330,12 +1411,13 @@ document.getElementById('taskOverlay').addEventListener('click', e => {
 });
 
 document.getElementById('btnSaveTask').addEventListener('click', async () => {
-  const area   = document.getElementById('taskArea').value;
-  const title  = document.getElementById('taskTitle').value.trim();
-  const desc   = document.getElementById('taskDesc').value.trim();
-  const due    = document.getElementById('taskDue').value;
-  const status = document.getElementById('taskStatus').value;
-  const fb     = document.getElementById('taskFeedback');
+  const area     = document.getElementById('taskArea').value;
+  const title    = document.getElementById('taskTitle').value.trim();
+  const desc     = document.getElementById('taskDesc').value.trim();
+  const due      = document.getElementById('taskDue').value;
+  const status   = document.getElementById('taskStatus').value;
+  const subtasks = collectSubtasks();
+  const fb       = document.getElementById('taskFeedback');
 
   if (!title) return setFb(fb, 'El título es obligatorio.', 'err');
   if (!due)   return setFb(fb, 'La fecha límite es obligatoria.', 'err');
@@ -1348,14 +1430,15 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
       const task = kanbanTasks.find(t => t.id === kanbanEditId);
       if (task) {
         task.area = area; task.title = title; task.desc = desc;
-        task.dueDate = due; task.status = status;
+        task.dueDate = due; task.status = status; task.subtasks = subtasks;
         await updateKanbanTask(task);
       }
     } else {
       const now = new Date().toISOString();
       await appendKanbanTask({
         id: crypto.randomUUID(), area, title, desc,
-        dueDate: due, status, createdAt: now, updatedAt: now
+        dueDate: due, status, createdAt: now, updatedAt: now,
+        subtasks, observations: []
       });
     }
     await loadKanbanTasks();
@@ -1471,6 +1554,137 @@ document.getElementById('btnAddArea').addEventListener('click', async () => {
   } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); }
 });
 
+// ── Subtasks (viñetas) helpers ────────────────────────────────────────────────
+
+function renderSubtasksList(items) {
+  const container = document.getElementById('subtasksList');
+  if (!container) return;
+  container.innerHTML = '';
+  items.forEach((item, idx) => {
+    container.appendChild(buildSubtaskRow(item, idx));
+  });
+}
+
+function buildSubtaskRow(item, idx) {
+  const row = document.createElement('div');
+  row.className = 'subtask-item';
+  row.dataset.idx = idx;
+  row.innerHTML = `
+    <span class="subtask-bullet-icon">•</span>
+    <input class="subtask-text-input field-input" type="text" value="${esc(item.text || '')}" placeholder="Descripción de la sub-tarea…" />
+    <input class="subtask-date-input field-input" type="date" value="${item.dueDate || ''}" title="Fecha límite de esta viñeta" />
+    <button class="subtask-remove" title="Quitar">✕</button>
+  `;
+  row.querySelector('.subtask-remove').addEventListener('click', () => row.remove());
+  return row;
+}
+
+function collectSubtasks() {
+  const rows = document.querySelectorAll('#subtasksList .subtask-item');
+  return Array.from(rows).map(row => ({
+    text:    row.querySelector('.subtask-text-input').value.trim(),
+    dueDate: row.querySelector('.subtask-date-input').value || '',
+    done:    false
+  })).filter(s => s.text);
+}
+
+document.getElementById('btnAddSubtask').addEventListener('click', () => {
+  const container = document.getElementById('subtasksList');
+  const idx = container.querySelectorAll('.subtask-item').length;
+  container.appendChild(buildSubtaskRow({ text: '', dueDate: '' }, idx));
+  container.lastElementChild.querySelector('.subtask-text-input').focus();
+});
+
+// ── Task detail view (read-only + observations) ───────────────────────────────
+
+function openTaskDetail(taskId) {
+  const task = kanbanTasks.find(t => t.id === taskId);
+  if (!task) return;
+  taskDetailId = taskId;
+
+  const col   = kanbanColumns.find(c => c.name === task.status);
+  const color = col ? col.color : '#999';
+  const due   = fmtDue(task.dueDate);
+
+  const subtasksHTML = (task.subtasks || []).length
+    ? `<div class="detail-subtasks">
+        ${(task.subtasks).map(s => {
+          const sd = s.dueDate ? `<span class="subtask-bullet-date">${fmtDueShort(s.dueDate)}</span>` : '';
+          return `<div class="detail-subtask-item${s.done ? ' done' : ''}">
+            <span class="detail-subtask-bullet">•</span>
+            <span>${esc(s.text)}</span>${sd}
+          </div>`;
+        }).join('')}
+      </div>`
+    : '';
+
+  document.getElementById('taskDetailModalTitle').textContent = task.title;
+  document.getElementById('taskDetailContent').innerHTML = `
+    <div class="detail-row"><span class="detail-label">Área</span><span class="detail-value">${esc(task.area)}</span></div>
+    <div class="detail-row"><span class="detail-label">Estado</span><span class="status-pill" style="background:${color}22;color:${color}">${esc(task.status)}</span></div>
+    <div class="detail-row"><span class="detail-label">Fecha límite</span><span class="kanban-card-due ${due.cls}">${due.text || '—'}</span></div>
+    ${task.desc ? `<div class="detail-row detail-row--col"><span class="detail-label">Descripción</span><span class="detail-value">${esc(task.desc)}</span></div>` : ''}
+    ${subtasksHTML ? `<div class="detail-row detail-row--col"><span class="detail-label">Sub-tareas</span>${subtasksHTML}</div>` : ''}
+    <div class="detail-row detail-row--meta"><span class="detail-label">Creada</span><span class="detail-value">${fmtDate(task.createdAt)}</span></div>
+    <div class="detail-row detail-row--meta"><span class="detail-label">Actualizada</span><span class="detail-value">${fmtDate(task.updatedAt)}</span></div>
+  `;
+
+  renderObservations(task);
+
+  document.getElementById('obsInput').value = '';
+  document.getElementById('taskDetailOverlay').classList.add('open');
+}
+
+function renderObservations(task) {
+  const list = document.getElementById('observationsList');
+  const obs  = task.observations || [];
+  if (!obs.length) {
+    list.innerHTML = '<div class="obs-empty">Aún sin observaciones</div>';
+    return;
+  }
+  list.innerHTML = obs.map(o => `
+    <div class="obs-item">
+      <div class="obs-text">${esc(o.text)}</div>
+      <div class="obs-date">${fmtDate(o.createdAt)}</div>
+    </div>
+  `).join('');
+  list.scrollTop = list.scrollHeight;
+}
+
+document.getElementById('btnCloseTaskDetail').addEventListener('click', () => {
+  document.getElementById('taskDetailOverlay').classList.remove('open');
+});
+document.getElementById('taskDetailOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('taskDetailOverlay'))
+    document.getElementById('taskDetailOverlay').classList.remove('open');
+});
+
+document.getElementById('btnEditFromDetail').addEventListener('click', () => {
+  document.getElementById('taskDetailOverlay').classList.remove('open');
+  openTaskModal(null, taskDetailId);
+});
+
+document.getElementById('btnAddObs').addEventListener('click', async () => {
+  const text = document.getElementById('obsInput').value.trim();
+  if (!text) return;
+  const task = kanbanTasks.find(t => t.id === taskDetailId);
+  if (!task) return;
+
+  const btn = document.getElementById('btnAddObs');
+  btn.disabled = true;
+  try {
+    task.observations = task.observations || [];
+    task.observations.push({ text, createdAt: new Date().toISOString() });
+    await updateKanbanTask(task);
+    document.getElementById('obsInput').value = '';
+    renderObservations(task);
+  } catch (e) {
+    alert('Error al guardar: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // ── Event listeners: navigation ───────────────────────────────────────────────
 
 document.getElementById('btnBack').addEventListener('click', () => navigateTo('home'));
@@ -1487,6 +1701,584 @@ document.getElementById('btnNewTask').addEventListener('click', () => openTaskMo
 document.getElementById('kanbanAreaFilter').addEventListener('change', renderKanban);
 document.getElementById('listaAreaFilter').addEventListener('change', renderKanbanList);
 document.getElementById('listaStatusFilter').addEventListener('change', renderKanbanList);
+
+// ── Procesos: Sheets init ─────────────────────────────────────────────────────
+
+async function initRecetasSheets() {
+  const info = await sheetsReq('');
+  const tabs  = info.sheets || [];
+  const hasR  = tabs.find(s => s.properties.title === 'RecetasPlantillas');
+  const hasE  = tabs.find(s => s.properties.title === 'RecetasEjecuciones');
+
+  if (hasR) recetasSheetId     = hasR.properties.sheetId;
+  if (hasE) ejecucionesSheetId = hasE.properties.sheetId;
+
+  const reqs = [];
+  if (!hasR) reqs.push({ addSheet: { properties: { title: 'RecetasPlantillas'  } } });
+  if (!hasE) reqs.push({ addSheet: { properties: { title: 'RecetasEjecuciones' } } });
+
+  if (reqs.length) {
+    const res = await sheetsReq(':batchUpdate', {
+      method: 'POST', body: JSON.stringify({ requests: reqs })
+    });
+    res.replies?.forEach(r => {
+      if (r.addSheet?.properties?.title === 'RecetasPlantillas')
+        recetasSheetId = r.addSheet.properties.sheetId;
+      if (r.addSheet?.properties?.title === 'RecetasEjecuciones')
+        ejecucionesSheetId = r.addSheet.properties.sheetId;
+    });
+  }
+
+  const rd = await sheetsReq('/values/RecetasPlantillas!A1').catch(() => ({}));
+  if (!rd.values) {
+    await sheetsReq('/values/RecetasPlantillas!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+      method: 'POST',
+      body: JSON.stringify({ values: [['ID','Nombre','Descripcion','Etapas','CreadoEn']] })
+    });
+  }
+
+  const ed = await sheetsReq('/values/RecetasEjecuciones!A1').catch(() => ({}));
+  if (!ed.values) {
+    await sheetsReq('/values/RecetasEjecuciones!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+      method: 'POST',
+      body: JSON.stringify({ values: [['ID','RecetaID','NombreReceta','LoteID','FechaInicio','FechaFin','Estado','DuracionTotal','EtapasData','Evaluacion','CreadoEn']] })
+    });
+  }
+}
+
+// ── Procesos: CRUD ────────────────────────────────────────────────────────────
+
+async function loadRecetasData() {
+  const data = await sheetsReq('/values/RecetasPlantillas!A:E');
+  const rows = (data.values || []).slice(1);
+  recetas = rows.filter(r => r[0]).map((r, i) => ({
+    id:          r[0] || '',
+    nombre:      r[1] || '',
+    descripcion: r[2] || '',
+    etapas:      safeParseJSON(r[3], []),
+    creadoEn:    r[4] || '',
+    rowIndex:    i + 2
+  }));
+}
+
+async function appendReceta(rec) {
+  await sheetsReq('/values/RecetasPlantillas!A:E:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+    method: 'POST',
+    body: JSON.stringify({ values: [[
+      rec.id, rec.nombre, rec.descripcion, JSON.stringify(rec.etapas), rec.creadoEn
+    ]]})
+  });
+}
+
+async function updateReceta(rec) {
+  await sheetsReq(`/values/RecetasPlantillas!A${rec.rowIndex}:E${rec.rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[
+      rec.id, rec.nombre, rec.descripcion, JSON.stringify(rec.etapas), rec.creadoEn
+    ]]})
+  });
+}
+
+async function deleteRecetaRow(rowIndex) {
+  if (!recetasSheetId) {
+    const info = await sheetsReq('');
+    const tab  = info.sheets.find(s => s.properties.title === 'RecetasPlantillas');
+    if (tab) recetasSheetId = tab.properties.sheetId;
+  }
+  await sheetsReq(':batchUpdate', {
+    method: 'POST',
+    body: JSON.stringify({ requests: [{ deleteDimension: {
+      range: { sheetId: recetasSheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex }
+    }}]})
+  });
+}
+
+async function loadEjecucionesData() {
+  const data = await sheetsReq('/values/RecetasEjecuciones!A:K');
+  const rows = (data.values || []).slice(1);
+  ejecuciones = rows.filter(r => r[0]).map((r, i) => ({
+    id:            r[0]  || '',
+    recetaId:      r[1]  || '',
+    nombreReceta:  r[2]  || '',
+    loteId:        r[3]  || '',
+    fechaInicio:   r[4]  || '',
+    fechaFin:      r[5]  || '',
+    estado:        r[6]  || '',
+    duracionTotal: r[7]  || '',
+    etapasData:    safeParseJSON(r[8], []),
+    evaluacion:    safeParseJSON(r[9], {}),
+    creadoEn:      r[10] || '',
+    rowIndex:      i + 2
+  }));
+}
+
+async function appendEjecucion(ej) {
+  await sheetsReq('/values/RecetasEjecuciones!A:K:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+    method: 'POST',
+    body: JSON.stringify({ values: [[
+      ej.id, ej.recetaId, ej.nombreReceta, ej.loteId,
+      ej.fechaInicio, ej.fechaFin, ej.estado, ej.duracionTotal,
+      JSON.stringify(ej.etapasData), JSON.stringify(ej.evaluacion), ej.creadoEn
+    ]]})
+  });
+}
+
+// ── Procesos: Render ──────────────────────────────────────────────────────────
+
+async function loadProcesos() {
+  try {
+    await loadRecetasData();
+    await loadEjecucionesData();
+    renderRecetasList();
+    renderEjecucionesList();
+  } catch (e) {
+    console.error('loadProcesos:', e);
+  }
+}
+
+function renderRecetasList() {
+  const container = document.getElementById('recetasList');
+  if (!container) return;
+
+  if (!recetas.length) {
+    container.innerHTML = '<div class="empty-state">No hay recetas. Crea la primera con "+ Nueva receta".</div>';
+    return;
+  }
+
+  container.innerHTML = recetas.map(r => `
+    <div class="receta-card" data-id="${esc(r.id)}">
+      <div class="receta-card-body">
+        <div class="receta-card-title">${esc(r.nombre)}</div>
+        ${r.descripcion ? `<div class="receta-card-desc">${esc(r.descripcion)}</div>` : ''}
+        <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="receta-card-actions">
+        <button class="btn-primary btn-sm" data-ejecutar="${esc(r.id)}">▶ Ejecutar</button>
+        <button class="btn-outline btn-sm" data-edit-receta="${esc(r.id)}">✏️</button>
+        <button class="btn-outline btn-sm" data-del-receta="${esc(r.id)}" data-row="${r.rowIndex}">🗑</button>
+      </div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('[data-ejecutar]').forEach(btn => {
+    btn.addEventListener('click', () => startExecution(btn.dataset.ejecutar));
+  });
+  container.querySelectorAll('[data-edit-receta]').forEach(btn => {
+    btn.addEventListener('click', () => openRecetaModal(btn.dataset.editReceta));
+  });
+  container.querySelectorAll('[data-del-receta]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar esta receta?')) return;
+      btn.disabled = true;
+      try {
+        await deleteRecetaRow(+btn.dataset.row);
+        await loadRecetasData();
+        renderRecetasList();
+      } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
+    });
+  });
+}
+
+function renderEjecucionesList() {
+  const container = document.getElementById('ejecucionesList');
+  if (!container) return;
+
+  if (!ejecuciones.length) {
+    container.innerHTML = '<div class="empty-state">Aún no hay ejecuciones registradas.</div>';
+    return;
+  }
+
+  const sorted = [...ejecuciones].sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio));
+
+  container.innerHTML = sorted.map(ej => {
+    const ev = ej.evaluacion || {};
+    const stars = ev.calificacion ? '★'.repeat(ev.calificacion) + '☆'.repeat(5 - ev.calificacion) : '—';
+    const durMin = ej.duracionTotal ? Math.round(+ej.duracionTotal / 60) + ' min' : '—';
+    return `
+      <div class="ejecucion-card">
+        <div class="ejecucion-card-header">
+          <span class="ejecucion-lote">${esc(ej.loteId || 'Sin lote')}</span>
+          <span class="ejecucion-estado estado-${ej.estado === 'Completada' ? 'ok' : 'prog'}">${esc(ej.estado)}</span>
+        </div>
+        <div class="ejecucion-receta">${esc(ej.nombreReceta)}</div>
+        <div class="ejecucion-meta">
+          📅 ${fmtDate(ej.fechaInicio)} &nbsp;·&nbsp; ⏱ ${durMin}
+          ${ev.calificacion ? `&nbsp;·&nbsp; <span class="ejecucion-stars">${stars}</span>` : ''}
+        </div>
+        ${ev.observaciones ? `<div class="ejecucion-obs">${esc(ev.observaciones)}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Procesos: Sub-tab navigation ──────────────────────────────────────────────
+
+document.querySelectorAll('[data-procesostab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentProcesosTab = btn.dataset.procesostab;
+    document.querySelectorAll('[data-procesostab]').forEach(b =>
+      b.classList.toggle('active', b.dataset.procesostab === currentProcesosTab)
+    );
+    document.getElementById('subTabRecetas').style.display     = currentProcesosTab === 'recetas'     ? '' : 'none';
+    document.getElementById('subTabEjecuciones').style.display = currentProcesosTab === 'ejecuciones' ? '' : 'none';
+    document.getElementById('btnNewReceta').style.display      = currentProcesosTab === 'recetas'     ? '' : 'none';
+  });
+});
+
+// ── Procesos: Receta modal (crear / editar) ───────────────────────────────────
+
+function openRecetaModal(editId) {
+  editRecetaId = editId || null;
+  const overlay = document.getElementById('recetaOverlay');
+  document.getElementById('recetaFeedback').textContent = '';
+
+  if (editId) {
+    const rec = recetas.find(r => r.id === editId);
+    if (!rec) return;
+    document.getElementById('recetaModalTitle').textContent = 'Editar receta';
+    document.getElementById('recetaNombre').value = rec.nombre;
+    document.getElementById('recetaDesc').value   = rec.descripcion || '';
+    renderEtapasList(rec.etapas);
+  } else {
+    document.getElementById('recetaModalTitle').textContent = 'Nueva receta';
+    document.getElementById('recetaNombre').value = '';
+    document.getElementById('recetaDesc').value   = '';
+    renderEtapasList([]);
+  }
+
+  overlay.classList.add('open');
+  setTimeout(() => document.getElementById('recetaNombre').focus(), 100);
+}
+
+function renderEtapasList(etapas) {
+  const container = document.getElementById('etapasList');
+  container.innerHTML = '';
+  etapas.forEach((et, idx) => addEtapaToList(et, idx));
+}
+
+function addEtapaToList(etapa, idx) {
+  const container = document.getElementById('etapasList');
+  const num = idx !== undefined ? idx : container.querySelectorAll('.etapa-item').length;
+
+  const item = document.createElement('div');
+  item.className = 'etapa-item';
+
+  const insumosHTML = (etapa.insumos || []).map((ins, iIdx) => buildInsumoRow(ins, iIdx)).map(el => el.outerHTML).join('');
+
+  item.innerHTML = `
+    <div class="etapa-header">
+      <span class="etapa-num">Etapa ${num + 1}</span>
+      <button class="etapa-del" title="Eliminar etapa">✕</button>
+    </div>
+    <label class="field-label">Nombre de la etapa *</label>
+    <input class="field-input etapa-nombre" type="text" value="${esc(etapa.nombre || '')}" placeholder="Ej: Lavado de materia prima" />
+    <label class="field-label">Instrucciones</label>
+    <textarea class="field-textarea etapa-instrucciones" rows="2" placeholder="Pasos a seguir en esta etapa…" style="min-height:50px">${esc(etapa.instrucciones || '')}</textarea>
+    <label class="field-label">Tiempo estimado (minutos)</label>
+    <input class="field-input etapa-tiempo" type="number" min="1" value="${etapa.tiempoEstimado || ''}" placeholder="15" style="width:120px" />
+    <label class="field-label">Insumos / ingredientes</label>
+    <div class="insumos-list">${insumosHTML}</div>
+    <button class="btn-outline btn-sm btn-add-insumo" style="margin-top:4px">+ Agregar insumo</button>
+  `;
+
+  item.querySelector('.etapa-del').addEventListener('click', () => {
+    item.remove();
+    renumberEtapas();
+  });
+  item.querySelector('.btn-add-insumo').addEventListener('click', () => {
+    const insList = item.querySelector('.insumos-list');
+    insList.appendChild(buildInsumoRow({}, insList.children.length));
+  });
+
+  container.appendChild(item);
+}
+
+function buildInsumoRow(ins, idx) {
+  const row = document.createElement('div');
+  row.className = 'insumo-row';
+  row.innerHTML = `
+    <input class="field-input insumo-nombre" type="text" value="${esc(ins.nombre || '')}" placeholder="Insumo" style="flex:2" />
+    <input class="field-input insumo-cantidad" type="number" value="${ins.cantidad || ''}" placeholder="Cant." style="flex:1;min-width:70px" min="0" step="any" />
+    <input class="field-input insumo-unidad" type="text" value="${esc(ins.unidad || '')}" placeholder="Unidad (g, L…)" style="flex:1;min-width:70px" />
+    <button class="subtask-remove" title="Quitar">✕</button>
+  `;
+  row.querySelector('.subtask-remove').addEventListener('click', () => row.remove());
+  return row;
+}
+
+function renumberEtapas() {
+  document.querySelectorAll('#etapasList .etapa-item').forEach((item, i) => {
+    const span = item.querySelector('.etapa-num');
+    if (span) span.textContent = `Etapa ${i + 1}`;
+  });
+}
+
+function collectEtapas() {
+  return Array.from(document.querySelectorAll('#etapasList .etapa-item')).map(item => {
+    const insumos = Array.from(item.querySelectorAll('.insumo-row')).map(row => ({
+      nombre:   row.querySelector('.insumo-nombre').value.trim(),
+      cantidad: parseFloat(row.querySelector('.insumo-cantidad').value) || 0,
+      unidad:   row.querySelector('.insumo-unidad').value.trim()
+    })).filter(ins => ins.nombre);
+    return {
+      id:              crypto.randomUUID(),
+      nombre:          item.querySelector('.etapa-nombre').value.trim(),
+      instrucciones:   item.querySelector('.etapa-instrucciones').value.trim(),
+      tiempoEstimado:  parseInt(item.querySelector('.etapa-tiempo').value) || 0,
+      insumos
+    };
+  }).filter(et => et.nombre);
+}
+
+document.getElementById('btnAddEtapa').addEventListener('click', () => {
+  addEtapaToList({}, undefined);
+});
+
+document.getElementById('btnCloseReceta').addEventListener('click', () => {
+  document.getElementById('recetaOverlay').classList.remove('open');
+});
+document.getElementById('recetaOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('recetaOverlay'))
+    document.getElementById('recetaOverlay').classList.remove('open');
+});
+
+document.getElementById('btnSaveReceta').addEventListener('click', async () => {
+  const nombre = document.getElementById('recetaNombre').value.trim();
+  const desc   = document.getElementById('recetaDesc').value.trim();
+  const etapas = collectEtapas();
+  const fb     = document.getElementById('recetaFeedback');
+
+  if (!nombre) return setFb(fb, 'El nombre de la receta es obligatorio.', 'err');
+  if (!etapas.length) return setFb(fb, 'Agrega al menos una etapa.', 'err');
+
+  const btn = document.getElementById('btnSaveReceta');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+
+  try {
+    if (editRecetaId) {
+      const rec = recetas.find(r => r.id === editRecetaId);
+      if (rec) {
+        rec.nombre = nombre; rec.descripcion = desc; rec.etapas = etapas;
+        await updateReceta(rec);
+      }
+    } else {
+      await appendReceta({
+        id: crypto.randomUUID(), nombre, descripcion: desc, etapas,
+        creadoEn: new Date().toISOString()
+      });
+    }
+    await loadRecetasData();
+    renderRecetasList();
+    document.getElementById('recetaOverlay').classList.remove('open');
+    setFb(fb, '✅ Receta guardada.', 'ok');
+  } catch (e) {
+    setFb(fb, 'Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar receta';
+  }
+});
+
+document.getElementById('btnNewReceta').addEventListener('click', () => openRecetaModal(null));
+
+// ── Procesos: Recipe execution with stage timer ───────────────────────────────
+
+function startExecution(recetaId) {
+  const receta = recetas.find(r => r.id === recetaId);
+  if (!receta || !receta.etapas.length) return alert('Esta receta no tiene etapas definidas.');
+
+  executionState = {
+    receta,
+    currentStageIndex: 0,
+    stageStartTime: Date.now(),
+    timerInterval: null,
+    stagesData: []
+  };
+
+  document.getElementById('ejecutarTitle').textContent = `Receta: ${receta.nombre}`;
+  document.getElementById('ejecutarOverlay').classList.add('open');
+  renderExecutionStep();
+}
+
+function renderExecutionStep() {
+  if (!executionState) return;
+  const { receta, currentStageIndex } = executionState;
+  const etapa = receta.etapas[currentStageIndex];
+  const total = receta.etapas.length;
+  const isLast = currentStageIndex === total - 1;
+
+  if (executionState.timerInterval) clearInterval(executionState.timerInterval);
+  executionState.stageStartTime = Date.now();
+
+  const body = document.getElementById('ejecutarBody');
+  body.innerHTML = `
+    <div class="exec-progress">
+      <div class="exec-progress-bar" style="width:${((currentStageIndex + 1) / total * 100).toFixed(0)}%"></div>
+    </div>
+    <div class="exec-step-label">Etapa ${currentStageIndex + 1} de ${total}</div>
+    <h3 class="exec-stage-name">${esc(etapa.nombre)}</h3>
+    ${etapa.instrucciones ? `<div class="exec-instrucciones">${esc(etapa.instrucciones)}</div>` : ''}
+    ${etapa.tiempoEstimado ? `<div class="exec-time-hint">⏱ Tiempo estimado: ${etapa.tiempoEstimado} min</div>` : ''}
+
+    <div class="exec-timer" id="execTimer">00:00</div>
+
+    ${etapa.insumos && etapa.insumos.length ? `
+      <div class="exec-insumos-section">
+        <h4 class="exec-insumos-title">Confirmar insumos usados</h4>
+        <p class="exec-insumos-note">Verifica o ajusta las cantidades reales antes de continuar.</p>
+        <div class="exec-insumos-list">
+          ${etapa.insumos.map((ins, i) => `
+            <div class="exec-insumo-row">
+              <span class="exec-insumo-nombre">${esc(ins.nombre)}</span>
+              <span class="exec-insumo-planned">(planeado: ${ins.cantidad} ${esc(ins.unidad)})</span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <input class="field-input exec-insumo-real" data-idx="${i}" type="number" value="${ins.cantidad}" min="0" step="any" style="width:90px" />
+                <span>${esc(ins.unidad)}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <div style="margin-top:20px">
+      <button class="btn-primary exec-next-btn" id="btnNextStage">
+        ${isLast ? '✅ Finalizar receta' : '➡️ Siguiente etapa'}
+      </button>
+    </div>
+  `;
+
+  executionState.timerInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - executionState.stageStartTime) / 1000);
+    const timerEl = document.getElementById('execTimer');
+    if (timerEl) timerEl.textContent = fmtSeconds(elapsed);
+  }, 1000);
+
+  document.getElementById('btnNextStage').addEventListener('click', () => advanceStage());
+}
+
+function advanceStage() {
+  if (!executionState) return;
+  const { receta, currentStageIndex } = executionState;
+  const etapa = receta.etapas[currentStageIndex];
+
+  clearInterval(executionState.timerInterval);
+  const duracion = Math.floor((Date.now() - executionState.stageStartTime) / 1000);
+
+  const insumosConfirmados = (etapa.insumos || []).map((ins, i) => {
+    const realInput = document.querySelector(`.exec-insumo-real[data-idx="${i}"]`);
+    return {
+      nombre:              ins.nombre,
+      cantidadPlanificada: ins.cantidad,
+      cantidadReal:        realInput ? parseFloat(realInput.value) || 0 : ins.cantidad,
+      unidad:              ins.unidad
+    };
+  });
+
+  executionState.stagesData.push({
+    nombre:              etapa.nombre,
+    duracionReal:        duracion,
+    insumosConfirmados
+  });
+
+  if (currentStageIndex < receta.etapas.length - 1) {
+    executionState.currentStageIndex++;
+    renderExecutionStep();
+  } else {
+    finishExecution();
+  }
+}
+
+function finishExecution() {
+  if (!executionState) return;
+  if (executionState.timerInterval) clearInterval(executionState.timerInterval);
+
+  const { receta, stagesData } = executionState;
+  const durTotal = stagesData.reduce((sum, s) => sum + s.duracionReal, 0);
+
+  evaluacionPendiente = {
+    id:           crypto.randomUUID(),
+    recetaId:     receta.id,
+    nombreReceta: receta.nombre,
+    loteId:       '',
+    fechaInicio:  new Date(Date.now() - durTotal * 1000).toISOString(),
+    fechaFin:     new Date().toISOString(),
+    estado:       'Completada',
+    duracionTotal: durTotal,
+    etapasData:   stagesData,
+    evaluacion:   {},
+    creadoEn:     new Date().toISOString()
+  };
+
+  executionState = null;
+  document.getElementById('ejecutarOverlay').classList.remove('open');
+
+  const durMin = Math.round(durTotal / 60);
+  document.getElementById('evalResumen').innerHTML =
+    `✅ <strong>${esc(receta.nombre)}</strong> completada.<br/>
+     Duración total: <strong>${durMin} min</strong> · ${stagesData.length} etapa${stagesData.length !== 1 ? 's' : ''} registrada${stagesData.length !== 1 ? 's' : ''}.`;
+
+  document.getElementById('evalLoteId').value = '';
+  document.getElementById('evalObs').value    = '';
+  document.getElementById('evaluacionFeedback').textContent = '';
+  setEvalStars(0);
+  document.getElementById('evaluacionOverlay').classList.add('open');
+}
+
+document.getElementById('btnCancelEjecutar').addEventListener('click', () => {
+  if (!confirm('¿Cancelar la ejecución? Se perderán los datos de las etapas ya registradas.')) return;
+  if (executionState?.timerInterval) clearInterval(executionState.timerInterval);
+  executionState = null;
+  document.getElementById('ejecutarOverlay').classList.remove('open');
+});
+
+// ── Procesos: Evaluación de lote ──────────────────────────────────────────────
+
+function setEvalStars(val) {
+  evalRating = val;
+  document.querySelectorAll('.star-btn').forEach(btn => {
+    btn.classList.toggle('active', +btn.dataset.val <= val);
+  });
+}
+
+document.querySelectorAll('.star-btn').forEach(btn => {
+  btn.addEventListener('click', () => setEvalStars(+btn.dataset.val));
+});
+
+document.getElementById('btnCloseEvaluacion').addEventListener('click', () => {
+  document.getElementById('evaluacionOverlay').classList.remove('open');
+});
+
+document.getElementById('btnSaveEvaluacion').addEventListener('click', async () => {
+  const loteId = document.getElementById('evalLoteId').value.trim();
+  const obs    = document.getElementById('evalObs').value.trim();
+  const fb     = document.getElementById('evaluacionFeedback');
+
+  if (!loteId) return setFb(fb, 'El número de lote es obligatorio.', 'err');
+  if (!evaluacionPendiente) return;
+
+  const btn = document.getElementById('btnSaveEvaluacion');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+
+  try {
+    evaluacionPendiente.loteId = loteId;
+    evaluacionPendiente.evaluacion = {
+      calificacion: evalRating,
+      observaciones: obs
+    };
+
+    await appendEjecucion(evaluacionPendiente);
+    await loadEjecucionesData();
+    renderEjecucionesList();
+
+    setFb(fb, `✅ Lote ${loteId} guardado exitosamente.`, 'ok');
+    setTimeout(() => document.getElementById('evaluacionOverlay').classList.remove('open'), 2000);
+    evaluacionPendiente = null;
+  } catch (e) {
+    setFb(fb, 'Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar y finalizar lote';
+  }
+});
 
 // ── Service Worker ────────────────────────────────────────────────────────────
 
