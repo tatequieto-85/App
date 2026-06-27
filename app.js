@@ -14,6 +14,11 @@ let kanbanEditId       = null;
 let draggedId          = null;
 let showTerminal       = false;
 
+// Navigation state
+let currentView   = 'home';
+let currentSubTab = 'kanban';
+let deferredInstallPrompt = null;
+
 const TERMINAL_STATES = ['Realizado', 'Cancelado', 'Postpuesto'];
 const DEFAULT_COLUMNS = [
   { name: 'Pendiente',   color: '#6B5050', terminal: false },
@@ -66,6 +71,85 @@ const settingsPhone    = document.getElementById('settingsPhone');
 const settingsApikey   = document.getElementById('settingsApikey');
 const btnSaveSettings  = document.getElementById('btnSaveSettings');
 const settingsFeedback = document.getElementById('settingsFeedback');
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+
+function navigateTo(view) {
+  currentView = view;
+
+  document.getElementById('viewHome').style.display      = view === 'home'      ? '' : 'none';
+  document.getElementById('viewContenido').style.display = view === 'contenido' ? '' : 'none';
+  document.getElementById('viewTareas').style.display    = view === 'tareas'    ? '' : 'none';
+
+  // Back button: hidden on home, visible in modules
+  document.getElementById('btnBack').style.display = view === 'home' ? 'none' : '';
+
+  // Sidebar active state
+  document.querySelectorAll('.sidebar-item[data-nav]').forEach(item => {
+    item.classList.toggle('active', item.dataset.nav === view);
+  });
+
+  // Load data for the selected view
+  if (view === 'tareas') {
+    document.getElementById('kanbanBoard').innerHTML =
+      '<div class="loading-state" style="padding:48px 0">Cargando…</div>';
+    loadKanbanConfig().then(() => loadKanbanTasks()).then(() => {
+      populateAreaSelects();
+      populateStatusSelects();
+      if (currentSubTab === 'kanban') renderKanban();
+      else renderKanbanList();
+    });
+  }
+
+  window.scrollTo(0, 0);
+}
+
+async function switchSubTab(subtab) {
+  currentSubTab = subtab;
+
+  document.querySelectorAll('.sub-tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.subtab === subtab);
+  });
+  document.getElementById('subTabKanban').style.display  = subtab === 'kanban' ? '' : 'none';
+  document.getElementById('subTabLista').style.display   = subtab === 'lista'  ? '' : 'none';
+  document.getElementById('kanbanToolbar').style.display = subtab === 'kanban' ? '' : 'none';
+
+  await loadKanbanConfig();
+  await loadKanbanTasks();
+  populateAreaSelects();
+  populateStatusSelects();
+  if (subtab === 'kanban') renderKanban();
+  else renderKanbanList();
+}
+
+// ── PWA install prompt ────────────────────────────────────────────────────────
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  document.getElementById('installBanner').style.display = '';
+  document.getElementById('sidebarInstall').style.display = '';
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  document.getElementById('installBanner').style.display = 'none';
+  document.getElementById('sidebarInstall').style.display = 'none';
+});
+
+async function triggerInstall() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  if (outcome === 'accepted') {
+    deferredInstallPrompt = null;
+    document.getElementById('installBanner').style.display = 'none';
+    document.getElementById('sidebarInstall').style.display = 'none';
+  }
+}
+
+document.getElementById('btnInstall').addEventListener('click', triggerInstall);
+document.getElementById('sidebarInstall').addEventListener('click', triggerInstall);
 
 // ── WebAuthn / Biometric ──────────────────────────────────────────────────────
 
@@ -150,7 +234,7 @@ function showBiometricScreen() {
   screenSignIn.style.display    = 'none';
   screenApp.style.display       = 'none';
   const info = JSON.parse(localStorage.getItem(USER_KEY) || '{}');
-  if (info.name) bioSubtitle.textContent = `Hola, ${info.name.split(' ')[0]} 👋`;
+  if (info.name) bioSubtitle.textContent = `Hola, ${info.name.split(' ')[0]}`;
 }
 
 function showSignInScreen() {
@@ -258,12 +342,20 @@ async function onAuthSuccess() {
     }).then(r => r.json());
     userInfoEl.textContent = u.name || u.email || '';
     localStorage.setItem(USER_KEY, JSON.stringify({ name: u.name, email: u.email }));
-  } catch {}
+    const firstName = (u.name || '').split(' ')[0];
+    if (firstName) document.getElementById('homeGreeting').textContent = `Hola, ${firstName}`;
+  } catch {
+    const saved = JSON.parse(localStorage.getItem(USER_KEY) || '{}');
+    const firstName = (saved.name || '').split(' ')[0];
+    if (firstName) document.getElementById('homeGreeting').textContent = `Hola, ${firstName}`;
+  }
 
   await initSheet();
   await initKanbanSheets();
   setDefaultDateTime();
   await loadStories();
+
+  navigateTo('home');
 }
 
 // ── Sheets API helpers ────────────────────────────────────────────────────────
@@ -652,7 +744,7 @@ function isToday(isoDate) {
   return toDay(isoDate) === toDay(new Date());
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
+// ── Render stories ────────────────────────────────────────────────────────────
 
 function renderStories(stories) {
   const pending      = stories.length;
@@ -1269,9 +1361,8 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
     await loadKanbanTasks();
     document.getElementById('taskOverlay').classList.remove('open');
 
-    const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
-    if (activeTab === 'kanban') renderKanban();
-    else if (activeTab === 'lista') renderKanbanList();
+    if (currentSubTab === 'kanban') renderKanban();
+    else renderKanbanList();
   } catch (e) {
     setFb(fb, 'Error: ' + e.message, 'err');
   } finally {
@@ -1380,37 +1471,25 @@ document.getElementById('btnAddArea').addEventListener('click', async () => {
   } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); }
 });
 
-// ── Tab switching ─────────────────────────────────────────────────────────────
+// ── Event listeners: navigation ───────────────────────────────────────────────
 
-async function switchTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.getElementById('tabStories').style.display = tab === 'stories' ? '' : 'none';
-  document.getElementById('tabKanban').style.display  = tab === 'kanban'  ? '' : 'none';
-  document.getElementById('tabLista').style.display   = tab === 'lista'   ? '' : 'none';
+document.getElementById('btnBack').addEventListener('click', () => navigateTo('home'));
 
-  if (tab === 'kanban') {
-    document.getElementById('kanbanBoard').innerHTML = '<div class="loading-state" style="padding:48px 0">Cargando…</div>';
-    await loadKanbanConfig();
-    await loadKanbanTasks();
-    populateAreaSelects();
-    populateStatusSelects();
-    renderKanban();
-  }
-  if (tab === 'lista') {
-    document.getElementById('tasksList').innerHTML = '<div class="loading-state">Cargando…</div>';
-    await loadKanbanConfig();
-    await loadKanbanTasks();
-    populateAreaSelects();
-    populateStatusSelects();
-    renderKanbanList();
-  }
-}
+document.querySelectorAll('[data-nav]').forEach(el => {
+  el.addEventListener('click', () => navigateTo(el.dataset.nav));
+});
 
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+document.querySelectorAll('.sub-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchSubTab(btn.dataset.subtab));
 });
 
 document.getElementById('btnNewTask').addEventListener('click', () => openTaskModal(null, null));
 document.getElementById('kanbanAreaFilter').addEventListener('change', renderKanban);
 document.getElementById('listaAreaFilter').addEventListener('change', renderKanbanList);
 document.getElementById('listaStatusFilter').addEventListener('change', renderKanbanList);
+
+// ── Service Worker ────────────────────────────────────────────────────────────
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW:', err));
+}

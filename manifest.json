@@ -1,0 +1,18 @@
+{
+  "name": "Story Scheduler — TateQuieto",
+  "short_name": "Story Sched",
+  "description": "Programa historias de Instagram y gestiona tareas con Kanban",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F4F5F9",
+  "theme_color": "#361214",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
