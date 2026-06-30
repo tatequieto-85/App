@@ -471,7 +471,7 @@
         <label class="field-label">Número de lote <span class="field-label-hint">· auto-generado, editable</span></label>
         <input class="field-input" id="evalLoteId" type="text" />
 
-        <div class="eval-lot-meta-grid">
+        <div class="eval-lot-meta-grid" style="grid-template-columns:1fr 1fr">
           <div>
             <label class="field-label">Fecha de elaboración</label>
             <input class="field-input" id="evalFechaElaboracion" type="date" />
@@ -479,21 +479,6 @@
           <div>
             <label class="field-label">Vencimiento estimado</label>
             <input class="field-input" id="evalFechaVencimiento" type="date" />
-          </div>
-          <div>
-            <label class="field-label">Sabor / Variante</label>
-            <input class="field-input" id="evalSabor" type="text" placeholder="Ej: Habanero Original" />
-          </div>
-          <div>
-            <label class="field-label">Nivel de picante</label>
-            <select class="field-input field-select" id="evalPicante">
-              <option value="">— Seleccionar —</option>
-              <option value="Suave">Suave</option>
-              <option value="Medio">Medio</option>
-              <option value="Picante">Picante</option>
-              <option value="Muy picante">Muy picante</option>
-              <option value="Extremo (Habanero)">Extremo (Habanero)</option>
-            </select>
           </div>
         </div>
 
@@ -509,8 +494,7 @@
           <div class="eval-scale">
             <button class="eval-scale-btn" data-dim="D4" data-val="1"><span class="esb-num">1</span><span class="esb-hint">&lt;1 seg<br>Acuoso</span></button>
             <button class="eval-scale-btn" data-dim="D4" data-val="2"><span class="esb-num">2</span><span class="esb-hint">1–2 seg<br>Muy fluido</span></button>
-            <button class="eval-scale-btn" data-dim="D4" data-val="3"><span class="esb-num">3</span><span class="esb-hint">2–3 seg<br>Borde</span></button>
-            <button class="eval-scale-btn eval-scale-btn--target" data-dim="D4" data-val="4"><span class="esb-num">4 ✓</span><span class="esb-hint">2–4 seg<br>OBJETIVO</span></button>
+<button class="eval-scale-btn eval-scale-btn--target" data-dim="D4" data-val="4"><span class="esb-num">4 ✓</span><span class="esb-hint">2–4 seg<br>OBJETIVO</span></button>
             <button class="eval-scale-btn" data-dim="D4" data-val="5"><span class="esb-num">5</span><span class="esb-hint">&gt;4 seg<br>Muy denso</span></button>
           </div>
         </div>
@@ -614,27 +598,10 @@
           </div>
         </div>
 
-        <!-- I-09: Rendimiento -->
+        <!-- Envasado & Rendimiento I-09 -->
         <div class="eval-dim">
-          <div class="eval-dim-title">Rendimiento de lote <span class="eval-dim-code">I-09</span></div>
-          <div class="eval-dim-desc">Pesar producto terminado antes de envasar. (g terminado / g ingredientes crudos) × 100. Documentar por lote para detectar pérdidas anormales.</div>
-          <div class="eval-rendimiento-inputs">
-            <div class="eval-rendimiento-field">
-              <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Ingredientes crudos (g)</label>
-              <input class="field-input" id="evalPesoIngredientes" type="number" min="0" step="1" placeholder="0" style="margin:0" />
-            </div>
-            <span class="eval-rendimiento-arrow">→</span>
-            <div class="eval-rendimiento-field">
-              <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Producto terminado (g)</label>
-              <input class="field-input" id="evalPesoTerminado" type="number" min="0" step="1" placeholder="0" style="margin:0" />
-            </div>
-            <div class="eval-rendimiento-result" id="evalRendimientoResult"></div>
-          </div>
-        </div>
-
-        <!-- Frascos -->
-        <div class="eval-dim">
-          <div class="eval-dim-title">Frascos llenados del lote</div>
+          <div class="eval-dim-title">Envasado y Rendimiento <span class="eval-dim-code">I-09</span></div>
+          <div class="eval-insumos-total" id="evalInsumosTotal">Cargando insumos usados…</div>
           <div class="eval-frascos-grid">
             <div class="eval-frasco-field">
               <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Frascos 230 ml</label>
@@ -644,8 +611,13 @@
               <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Frascos 180 ml</label>
               <input class="field-input" id="evalFrascos180" type="number" min="0" step="1" placeholder="0" style="margin:0" />
             </div>
-            <div class="eval-frascos-total" id="evalFrascosTotal">—</div>
+            <div class="eval-frasco-field">
+              <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Excedente (ml)</label>
+              <input class="field-input" id="evalExcedente" type="number" min="0" step="1" placeholder="0" style="margin:0" />
+            </div>
           </div>
+          <div class="eval-frascos-total" id="evalFrascosTotal">—</div>
+          <div class="eval-rendimiento-result" id="evalRendimientoResult"></div>
         </div>
 
         <!-- Score -->

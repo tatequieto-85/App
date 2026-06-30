@@ -30,6 +30,7 @@ let executionState       = null;
 let evaluacionPendiente  = null;
 let evalRating           = 0;
 let evalScores           = { D1: 0, D2: 0, D3: 0, D4: 0, D5: 0, D6: 0 };
+let evaluacionTotalInsumosG = 0;
 let taskDetailId         = null;
 let ejecucionDetailId    = null;
 let lastTapTime          = {};   // for double-tap detection on mobile
@@ -2284,7 +2285,7 @@ function generateEjecucionAnalysis(ej) {
     const color = ev.rendimiento >= 80 ? '#10B981' : ev.rendimiento >= 65 ? '#F59E0B' : '#EF4444';
     html += `<div class="analysis-row">
       <span class="analysis-label">Rendimiento</span>
-      <span class="analysis-value" style="color:${color}">${ev.rendimiento.toFixed(1)}% (${ev.pesoTerminado}g de ${ev.pesoIngredientes}g)</span>
+      <span class="analysis-value" style="color:${color}">${ev.rendimiento.toFixed(1)}% (${(ev.frascos230||0)*230+(ev.frascos180||0)*180+(ev.excedente||0)} ml de ${ev.totalInsumosG || '?'} g)</span>
     </div>`;
   }
   if (ev.frascos230 || ev.frascos180) {
@@ -2332,8 +2333,6 @@ function openEjecucionDetail(ejId) {
   document.getElementById('ejecucionDetailTitle').textContent = ej.nombreReceta;
   document.getElementById('ejecucionDetailContent').innerHTML = `
     <div class="detail-row"><span class="detail-label">Lote</span><span class="detail-value">${esc(ej.loteId || '—')}</span></div>
-    ${ev.sabor ? `<div class="detail-row"><span class="detail-label">Sabor</span><span class="detail-value">${esc(ev.sabor)}</span></div>` : ''}
-    ${ev.picante ? `<div class="detail-row"><span class="detail-label">Picante</span><span class="detail-value">${esc(ev.picante)}</span></div>` : ''}
     ${ev.fechaVencimiento ? `<div class="detail-row"><span class="detail-label">Vencimiento</span><span class="detail-value">${esc(ev.fechaVencimiento)}</span></div>` : ''}
     <div class="detail-row"><span class="detail-label">Estado</span><span class="status-pill" style="background:#2E7D3222;color:#2E7D32">${esc(ej.estado)}</span></div>
     <div class="detail-row"><span class="detail-label">Inicio</span><span class="detail-value">${fmtDate(ej.fechaInicio)}</span></div>
@@ -2885,14 +2884,29 @@ function finishExecution() {
   document.getElementById('evalFechaElaboracion').value = todayIso;
   const expDate = new Date(); expDate.setMonth(expDate.getMonth() + 6);
   document.getElementById('evalFechaVencimiento').value = expDate.toISOString().slice(0, 10);
-  document.getElementById('evalSabor').value = receta.nombre || '';
-  document.getElementById('evalPicante').value = '';
-  document.getElementById('evalPesoIngredientes').value = '';
-  document.getElementById('evalPesoTerminado').value = '';
-  document.getElementById('evalRendimientoResult').textContent = '';
+
+  // Sum all insumos from stages (all units treated as grams/ml equivalently)
+  evaluacionTotalInsumosG = stagesData.reduce((sum, stage) =>
+    sum + (stage.insumosConfirmados || []).reduce((s, ins) => {
+      const u   = (ins.unidad || '').toLowerCase().trim();
+      const qty = parseFloat(ins.cantidadReal) || 0;
+      if (u === 'kg') return s + qty * 1000;
+      if (u === 'l')  return s + qty * 1000;
+      return s + qty;
+    }, 0)
+  , 0);
+
+  const insEl = document.getElementById('evalInsumosTotal');
+  insEl.textContent = evaluacionTotalInsumosG > 0
+    ? `Total ingredientes usados (suma de etapas): ${evaluacionTotalInsumosG} g`
+    : 'No se registraron insumos con cantidad en las etapas.';
+
   document.getElementById('evalFrascos230').value = '';
   document.getElementById('evalFrascos180').value = '';
+  document.getElementById('evalExcedente').value = '';
   document.getElementById('evalFrascosTotal').textContent = '—';
+  document.getElementById('evalRendimientoResult').textContent = '';
+  document.getElementById('evalRendimientoResult').className = 'eval-rendimiento-result';
 
   document.getElementById('evaluacionOverlay').classList.add('open');
 }
@@ -2953,19 +2967,21 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
         olor: document.getElementById('evalSelloOlor').checked,
       },
       sineresis,
-      sabor:             document.getElementById('evalSabor').value.trim(),
-      picante:           document.getElementById('evalPicante').value,
       fechaElaboracion:  document.getElementById('evalFechaElaboracion').value,
       fechaVencimiento:  document.getElementById('evalFechaVencimiento').value,
-      pesoIngredientes:  parseFloat(document.getElementById('evalPesoIngredientes').value) || null,
-      pesoTerminado:     parseFloat(document.getElementById('evalPesoTerminado').value) || null,
-      rendimiento:       (() => {
-        const pi = parseFloat(document.getElementById('evalPesoIngredientes').value);
-        const pt = parseFloat(document.getElementById('evalPesoTerminado').value);
-        return (pi > 0 && pt > 0) ? Math.round((pt / pi) * 10000) / 100 : null;
-      })(),
       frascos230:        parseInt(document.getElementById('evalFrascos230').value) || 0,
-      frascos180:        parseInt(document.getElementById('evalFrascos180').value) || 0
+      frascos180:        parseInt(document.getElementById('evalFrascos180').value) || 0,
+      excedente:         parseInt(document.getElementById('evalExcedente').value) || 0,
+      totalInsumosG:     evaluacionTotalInsumosG,
+      rendimiento:       (() => {
+        const f230 = parseInt(document.getElementById('evalFrascos230').value) || 0;
+        const f180 = parseInt(document.getElementById('evalFrascos180').value) || 0;
+        const exc  = parseInt(document.getElementById('evalExcedente').value) || 0;
+        const ml   = f230 * 230 + f180 * 180 + exc;
+        return (ml > 0 && evaluacionTotalInsumosG > 0)
+          ? Math.round(ml / evaluacionTotalInsumosG * 10000) / 100
+          : null;
+      })()
     };
 
     await appendEjecucion(evaluacionPendiente);
@@ -3017,34 +3033,30 @@ document.getElementById('evalPH').addEventListener('input', function () {
 
 // ── Rendimiento & Frascos auto-calc ───────────────────────────────────────────
 
-function updateRendimientoResult() {
-  const pi  = parseFloat(document.getElementById('evalPesoIngredientes').value);
-  const pt  = parseFloat(document.getElementById('evalPesoTerminado').value);
-  const el  = document.getElementById('evalRendimientoResult');
-  if (pi > 0 && pt > 0) {
-    const pct = (pt / pi * 100).toFixed(1);
-    el.textContent = `${pct}%`;
-    el.className   = 'eval-rendimiento-result' + (pct >= 70 ? ' ok' : ' warn');
-  } else {
-    el.textContent = '';
-    el.className   = 'eval-rendimiento-result';
-  }
-}
-
 function updateFrascosTotal() {
   const f230 = parseInt(document.getElementById('evalFrascos230').value) || 0;
   const f180 = parseInt(document.getElementById('evalFrascos180').value) || 0;
-  const tot  = f230 + f180;
-  const el   = document.getElementById('evalFrascosTotal');
-  el.textContent = tot > 0
-    ? `Total: ${tot} frasco${tot !== 1 ? 's' : ''} · ${f230 * 230 + f180 * 180} ml`
+  const exc  = parseInt(document.getElementById('evalExcedente').value) || 0;
+  const totalMl = f230 * 230 + f180 * 180 + exc;
+  const fTot = f230 + f180;
+
+  const totEl = document.getElementById('evalFrascosTotal');
+  totEl.textContent = (fTot > 0 || exc > 0)
+    ? `${fTot} frasco${fTot !== 1 ? 's' : ''} · ${totalMl} ml total`
     : '—';
+
+  const rEl = document.getElementById('evalRendimientoResult');
+  if (totalMl > 0 && evaluacionTotalInsumosG > 0) {
+    const pct = (totalMl / evaluacionTotalInsumosG * 100).toFixed(1);
+    rEl.textContent = `Rendimiento I-09: ${pct}%`;
+    rEl.className   = 'eval-rendimiento-result ' + (parseFloat(pct) >= 70 ? 'ok' : 'warn');
+  } else {
+    rEl.textContent = '';
+    rEl.className   = 'eval-rendimiento-result';
+  }
 }
 
-['evalPesoIngredientes', 'evalPesoTerminado'].forEach(id =>
-  document.getElementById(id).addEventListener('input', updateRendimientoResult)
-);
-['evalFrascos230', 'evalFrascos180'].forEach(id =>
+['evalFrascos230', 'evalFrascos180', 'evalExcedente'].forEach(id =>
   document.getElementById(id).addEventListener('input', updateFrascosTotal)
 );
 
@@ -3059,11 +3071,13 @@ function ejecucionToText(ej) {
     `Duración: ${Math.round((ej.duracionTotal || 0) / 60)} min`,
   ];
   if (ev.fechaElaboracion) lines.push(`Elaboración: ${ev.fechaElaboracion}  |  Vencimiento: ${ev.fechaVencimiento || '—'}`);
-  if (ev.sabor) lines.push(`Sabor/Variante: ${ev.sabor}  |  Picante: ${ev.picante || '—'}`);
-  if (ev.rendimiento != null) lines.push(`Rendimiento I-09: ${ev.rendimiento}%  (${ev.pesoIngredientes}g → ${ev.pesoTerminado}g)`);
   if (ev.frascos230 != null || ev.frascos180 != null) {
-    const f230 = ev.frascos230 || 0, f180 = ev.frascos180 || 0;
-    lines.push(`Frascos: ${f230} × 230ml + ${f180} × 180ml = ${f230 + f180} total`);
+    const f230 = ev.frascos230 || 0, f180 = ev.frascos180 || 0, exc = ev.excedente || 0;
+    const ml = f230 * 230 + f180 * 180 + exc;
+    lines.push(`Frascos: ${f230}×230ml + ${f180}×180ml + ${exc}ml excedente = ${ml} ml total`);
+  }
+  if (ev.rendimiento != null) {
+    lines.push(`Rendimiento I-09: ${ev.rendimiento}% (${(ev.frascos230||0)*230+(ev.frascos180||0)*180+(ev.excedente||0)} ml de ${ev.totalInsumosG || '?'} g insumos)`);
   }
   if (ev.ph != null) lines.push(`pH: ${ev.ph}`);
   if (ev.sineresis) lines.push(`Sinéresis: ${ev.sineresis}`);

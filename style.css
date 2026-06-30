@@ -1247,3 +1247,10 @@ body {
   font-size: 13px; font-weight: 700; color: var(--text-main);
   padding-bottom: 8px; white-space: nowrap;
 }
+
+/* ── Eval insumos total display ──────────────────────────────────────────── */
+.eval-insumos-total {
+  font-size: 12px; color: var(--text-sub);
+  background: var(--border); border-radius: 6px;
+  padding: 6px 10px; margin-bottom: 10px;
+}
