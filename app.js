@@ -29,8 +29,12 @@ let editRecetaId         = null;
 let executionState       = null;
 let evaluacionPendiente  = null;
 let evalRating           = 0;
+let evalScores           = { D1: 0, D2: 0, D3: 0, D4: 0, D5: 0, D6: 0 };
 let taskDetailId         = null;
+let ejecucionDetailId    = null;
 let lastTapTime          = {};   // for double-tap detection on mobile
+let draggedColName       = null; // for kanban column drag-reorder
+let recetaDetailId       = null; // for recipe detail view
 
 const TERMINAL_STATES = ['Realizado', 'Cancelado', 'Postpuesto'];
 const DEFAULT_COLUMNS = [
@@ -374,6 +378,91 @@ async function onAuthSuccess() {
   await loadStories();
 
   navigateTo('home');
+  startNotificationScheduler();
+  registerPeriodicSync();
+}
+
+// ── WhatsApp notification scheduler ──────────────────────────────────────────
+
+function startNotificationScheduler() {
+  checkAndSendNotification();
+  setInterval(checkAndSendNotification, 60000);
+}
+
+async function checkAndSendNotification() {
+  if (!accessToken) return;
+  try {
+    const opts  = { timeZone: 'America/Bogota' };
+    const now   = new Date();
+    const h     = parseInt(now.toLocaleString('en-CA', { ...opts, hour: '2-digit', hour12: false }));
+    const m     = parseInt(now.toLocaleString('en-CA', { ...opts, minute: '2-digit' }));
+    const today = now.toLocaleDateString('en-CA', opts);
+
+    if (!((h === 9 && m === 0) || (h === 16 && m === 0))) return;
+
+    const key = `ss_notif_${today}_${h}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+
+    await sendDailyReminder(h);
+  } catch (e) {
+    console.warn('checkAndSendNotification:', e);
+  }
+}
+
+async function sendDailyReminder(hour) {
+  try {
+    const cfg = await loadConfig();
+    if (!cfg.phone || !cfg.apikey) return;
+
+    const opts  = { timeZone: 'America/Bogota' };
+    const today = new Date().toLocaleDateString('en-CA', opts);
+
+    let todayStories = [];
+    try {
+      const data = await sheetsReq('/values/Stories!A:K');
+      const rows = (data.values || []).slice(1);
+      todayStories = rows
+        .filter(r => r[0] && r[8] !== 'TRUE' && r[3])
+        .filter(r => new Date(r[3]).toLocaleDateString('en-CA', opts) === today)
+        .map(r => ({ title: r[1] || '' }));
+    } catch {}
+
+    const emoji = hour === 9 ? '🌅' : '🌆';
+    const saludo = hour === 9 ? 'Buenos días' : 'Buenas tardes';
+    let msg = `${emoji} *TateQuieto* — ${saludo}!\n`;
+
+    if (todayStories.length) {
+      msg += `\n📣 ${todayStories.length} historia${todayStories.length !== 1 ? 's' : ''} programada${todayStories.length !== 1 ? 's' : ''} para hoy:\n`;
+      todayStories.forEach(s => { msg += `• ${s.title}\n`; });
+    } else {
+      msg += `\n✅ No hay historias programadas para hoy.`;
+    }
+
+    const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(cfg.phone)}&text=${encodeURIComponent(msg)}&apikey=${encodeURIComponent(cfg.apikey)}`;
+    await fetch(url, { mode: 'no-cors' });
+
+    // Cache config for service worker periodic sync
+    try {
+      const cache = await caches.open('ss-config');
+      await cache.put('whatsapp-config', new Response(JSON.stringify({ phone: cfg.phone, apikey: cfg.apikey }), {
+        headers: { 'Content-Type': 'application/json' }
+      }));
+    } catch {}
+  } catch (e) {
+    console.warn('sendDailyReminder:', e);
+  }
+}
+
+async function registerPeriodicSync() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const reg  = await navigator.serviceWorker.ready;
+    if (!('periodicSync' in reg)) return;
+    const perm = await navigator.permissions.query({ name: 'periodic-background-sync' });
+    if (perm.state !== 'granted') return;
+    await reg.periodicSync.register('whatsapp-reminder', { minInterval: 4 * 60 * 60 * 1000 });
+  } catch {}
 }
 
 // ── Sheets API helpers ────────────────────────────────────────────────────────
@@ -908,6 +997,58 @@ btnSaveSettings.addEventListener('click', async () => {
   }
 });
 
+// ── Instagram Emoji Picker ────────────────────────────────────────────────────
+
+const INSTAGRAM_EMOJIS = [
+  '❤️','🧡','💛','💚','💙','💜','🖤','❤️‍🔥','💔','💕','💞','💓','💗','💖','💝',
+  '🔥','✨','💫','⭐','🌟','💥','🎉','🎊','🎁','🏆','🥇','🎯','💎','🔑','🌈',
+  '😍','🥰','😘','🤩','😎','😁','😊','🤗','🥳','😂','🤣','😏','🤭','🫶','🙌',
+  '👍','👏','💪','✌️','🤞','👌','🫰','💯','🙏','👇','👆','➡️','⬇️','📌','📍',
+  '📸','📷','🎬','🎥','📲','💬','🗣️','📢','📣','🛒','🏷️','💳','🤑','💰','🔗',
+  '🌶️','🫑','🧄','🧅','🌮','🍕','🥑','🍅','🥥','🫙','🧃','🍯','🫕','🥘','🍲',
+  '🌺','🌸','🌻','🌼','🌿','🍃','🌱','🪴','🌾','🍀','🎋','🌵','🌴','🦋','🐝',
+  '🚀','⚡','🌊','🏔️','🎶','🎵','🎸','🎤','🎧','🎨','✍️','📚','💡','🛠️','⚙️',
+];
+
+function initEmojiPicker() {
+  const panel = document.getElementById('emojiPanel');
+  const btn   = document.getElementById('btnToggleEmoji');
+  if (!panel || !btn) return;
+
+  panel.innerHTML = INSTAGRAM_EMOJIS.map(e =>
+    `<button class="emoji-btn" type="button">${e}</button>`
+  ).join('');
+
+  panel.querySelectorAll('.emoji-btn').forEach(emojiBtn => {
+    emojiBtn.addEventListener('click', () => {
+      insertEmoji(emojiBtn.textContent);
+    });
+  });
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    panel.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#emojiPanel') && !e.target.closest('#btnToggleEmoji')) {
+      panel.classList.remove('open');
+    }
+  });
+}
+
+function insertEmoji(emoji) {
+  const ta    = fActions;
+  const start = ta.selectionStart;
+  const end   = ta.selectionEnd;
+  ta.value = ta.value.substring(0, start) + emoji + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + emoji.length;
+  ta.focus();
+  document.getElementById('emojiPanel')?.classList.remove('open');
+}
+
+window.addEventListener('load', initEmojiPicker);
+
 // ── Utils ─────────────────────────────────────────────────────────────────────
 
 function setFb(el, msg, type) {
@@ -1120,6 +1261,18 @@ function fmtDue(dateStr) {
   return { text: `📅 ${label}`, cls: '' };
 }
 
+function getTrafficLight(dateStr) {
+  if (!dateStr) return null;
+  const d     = new Date(dateStr + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff  = Math.round((d - today) / 86400000);
+  if (diff < 0)  return { cls: 'traffic-red',    tip: `Vencida hace ${Math.abs(diff)} día${Math.abs(diff) !== 1 ? 's' : ''}` };
+  if (diff === 0) return { cls: 'traffic-orange', tip: 'Vence HOY' };
+  if (diff <= 2)  return { cls: 'traffic-yellow', tip: `${diff} día${diff !== 1 ? 's' : ''} restante${diff !== 1 ? 's' : ''}` };
+  if (diff <= 7)  return { cls: 'traffic-green',  tip: `${diff} días restantes` };
+  return { cls: 'traffic-gray', tip: `${diff} días restantes` };
+}
+
 function renderKanban() {
   const board      = document.getElementById('kanbanBoard');
   if (!board) return;
@@ -1136,19 +1289,55 @@ function renderKanban() {
     colEl.className = 'kanban-col' + (col.terminal ? ' terminal' : '');
 
     colEl.innerHTML = `
-      <div class="kanban-col-header">
+      <div class="kanban-col-header" draggable="true" title="Arrastra para reordenar columna">
         <span class="kanban-col-dot" style="background:${esc(col.color)}"></span>
         <span class="kanban-col-title">${esc(col.name)}</span>
         <span class="kanban-col-count">${colTasks.length}</span>
+        <span class="col-drag-handle" title="Mover columna">⠿</span>
       </div>
       <div class="kanban-col-body" data-col="${esc(col.name)}"></div>
       ${col.terminal ? '' : `<div class="kanban-col-footer"><button class="kanban-add-card" data-col="${esc(col.name)}">+ Agregar</button></div>`}
     `;
 
+    // ── Column drag-to-reorder ────────────────────────────────────────────
+    const colHeader = colEl.querySelector('.kanban-col-header');
+    colHeader.addEventListener('dragstart', e => {
+      draggedColName = col.name;
+      colEl.classList.add('col-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.stopPropagation();
+    });
+    colHeader.addEventListener('dragend', () => {
+      colEl.classList.remove('col-dragging');
+      document.querySelectorAll('.kanban-col.col-drag-over').forEach(c => c.classList.remove('col-drag-over'));
+      draggedColName = null;
+    });
+    colEl.addEventListener('dragover', e => {
+      if (!draggedColName || draggedColName === col.name) return;
+      e.preventDefault();
+      colEl.classList.add('col-drag-over');
+    });
+    colEl.addEventListener('dragleave', e => {
+      if (!colEl.contains(e.relatedTarget)) colEl.classList.remove('col-drag-over');
+    });
+    colEl.addEventListener('drop', async e => {
+      colEl.classList.remove('col-drag-over');
+      if (!draggedColName || draggedColName === col.name) return;
+      e.preventDefault(); e.stopPropagation();
+      const fromIdx = kanbanColumns.findIndex(c => c.name === draggedColName);
+      const toIdx   = kanbanColumns.findIndex(c => c.name === col.name);
+      if (fromIdx === -1 || toIdx === -1) return;
+      const [moved] = kanbanColumns.splice(fromIdx, 1);
+      kanbanColumns.splice(toIdx, 0, moved);
+      renderKanban();
+      try { await saveKanbanConfig(); } catch {}
+    });
+
     const colBody = colEl.querySelector('.kanban-col-body');
 
     colTasks.forEach(task => {
-      const due  = fmtDue(task.dueDate);
+      const due = fmtDue(task.dueDate);
+      const tl  = getTrafficLight(task.dueDate);
       const card = document.createElement('div');
       card.className = 'kanban-card';
       card.setAttribute('draggable', 'true');
@@ -1172,6 +1361,7 @@ function renderKanban() {
             <button data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">🗑</button>
           </div>
         </div>
+        ${tl ? `<div class="kanban-traffic-bar ${tl.cls}" title="${tl.tip}"></div>` : ''}
       `;
 
       card.addEventListener('dblclick', (e) => {
@@ -1188,6 +1378,7 @@ function renderKanban() {
       });
 
       card.addEventListener('dragstart', e => {
+        if (draggedColName) { e.preventDefault(); return; }
         draggedId = task.id;
         card.classList.add('dragging');
         e.dataTransfer.effectAllowed = 'move';
@@ -1202,6 +1393,7 @@ function renderKanban() {
     });
 
     colBody.addEventListener('dragover', e => {
+      if (draggedColName) return; // column drag takes priority
       e.preventDefault();
       colBody.classList.add('drag-over');
     });
@@ -1808,17 +2000,31 @@ async function loadEjecucionesData() {
     etapasData:    safeParseJSON(r[8], []),
     evaluacion:    safeParseJSON(r[9], {}),
     creadoEn:      r[10] || '',
+    observations:  safeParseJSON(r[11], []),
     rowIndex:      i + 2
   }));
 }
 
 async function appendEjecucion(ej) {
-  await sheetsReq('/values/RecetasEjecuciones!A:K:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/RecetasEjecuciones!A:L:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       ej.id, ej.recetaId, ej.nombreReceta, ej.loteId,
       ej.fechaInicio, ej.fechaFin, ej.estado, ej.duracionTotal,
-      JSON.stringify(ej.etapasData), JSON.stringify(ej.evaluacion), ej.creadoEn
+      JSON.stringify(ej.etapasData), JSON.stringify(ej.evaluacion), ej.creadoEn,
+      JSON.stringify(ej.observations || [])
+    ]]})
+  });
+}
+
+async function updateEjecucion(ej) {
+  await sheetsReq(`/values/RecetasEjecuciones!A${ej.rowIndex}:L${ej.rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[
+      ej.id, ej.recetaId, ej.nombreReceta, ej.loteId,
+      ej.fechaInicio, ej.fechaFin, ej.estado, ej.duracionTotal,
+      JSON.stringify(ej.etapasData), JSON.stringify(ej.evaluacion), ej.creadoEn,
+      JSON.stringify(ej.observations || [])
     ]]})
   });
 }
@@ -1846,20 +2052,33 @@ function renderRecetasList() {
   }
 
   container.innerHTML = recetas.map(r => `
-    <div class="receta-card" data-id="${esc(r.id)}">
+    <div class="receta-card" data-id="${esc(r.id)}" title="Doble clic para ver detalle">
       <div class="receta-card-body">
         <div class="receta-card-title">${esc(r.nombre)}</div>
         ${r.descripcion ? `<div class="receta-card-desc">${esc(r.descripcion)}</div>` : ''}
-        <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''}</div>
+        <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''} &nbsp;·&nbsp; doble clic = ver pasos</div>
       </div>
       <div class="receta-card-actions">
-        <button class="btn-primary btn-sm" data-ejecutar="${esc(r.id)}">▶ Ejecutar</button>
+        <button class="btn-ejecutar" data-ejecutar="${esc(r.id)}">▶ Ejecutar</button>
         <button class="btn-outline btn-sm" data-edit-receta="${esc(r.id)}">✏️</button>
         <button class="btn-outline btn-sm" data-del-receta="${esc(r.id)}" data-row="${r.rowIndex}">🗑</button>
       </div>
     </div>
   `).join('');
 
+  container.querySelectorAll('.receta-card[data-id]').forEach(card => {
+    card.addEventListener('dblclick', e => {
+      if (e.target.closest('button')) return;
+      openRecetaDetail(card.dataset.id);
+    });
+    card.addEventListener('touchend', e => {
+      if (e.target.closest('button')) return;
+      const now = Date.now();
+      const last = lastTapTime['rec_' + card.dataset.id] || 0;
+      lastTapTime['rec_' + card.dataset.id] = now;
+      if (now - last < 350) openRecetaDetail(card.dataset.id);
+    });
+  });
   container.querySelectorAll('[data-ejecutar]').forEach(btn => {
     btn.addEventListener('click', () => startExecution(btn.dataset.ejecutar));
   });
@@ -1895,7 +2114,7 @@ function renderEjecucionesList() {
     const stars = ev.calificacion ? '★'.repeat(ev.calificacion) + '☆'.repeat(5 - ev.calificacion) : '—';
     const durMin = ej.duracionTotal ? Math.round(+ej.duracionTotal / 60) + ' min' : '—';
     return `
-      <div class="ejecucion-card">
+      <div class="ejecucion-card" data-ej-id="${esc(ej.id)}" style="cursor:pointer">
         <div class="ejecucion-card-header">
           <span class="ejecucion-lote">${esc(ej.loteId || 'Sin lote')}</span>
           <span class="ejecucion-estado estado-${ej.estado === 'Completada' ? 'ok' : 'prog'}">${esc(ej.estado)}</span>
@@ -1906,10 +2125,280 @@ function renderEjecucionesList() {
           ${ev.calificacion ? `&nbsp;·&nbsp; <span class="ejecucion-stars">${stars}</span>` : ''}
         </div>
         ${ev.observaciones ? `<div class="ejecucion-obs">${esc(ev.observaciones)}</div>` : ''}
+        <div class="ejecucion-hint">doble clic = ver detalle</div>
       </div>
     `;
   }).join('');
+
+  container.querySelectorAll('[data-ej-id]').forEach(card => {
+    const ejId = card.dataset.ejId;
+    card.addEventListener('dblclick', () => openEjecucionDetail(ejId));
+    card.addEventListener('touchend', () => {
+      const now  = Date.now();
+      const last = lastTapTime['ej_' + ejId] || 0;
+      lastTapTime['ej_' + ejId] = now;
+      if (now - last < 350) openEjecucionDetail(ejId);
+    });
+  });
 }
+
+// ── Procesos: Recipe detail view ──────────────────────────────────────────────
+
+function openRecetaDetail(recetaId) {
+  const rec = recetas.find(r => r.id === recetaId);
+  if (!rec) return;
+  recetaDetailId = recetaId;
+
+  document.getElementById('recetaDetailTitle').textContent = rec.nombre;
+
+  const etapasHTML = rec.etapas.map((et, i) => {
+    const instrArr = parseInstrucciones(et.instrucciones);
+    let stepNum = 0;
+    const instrHTML = instrArr.map(item => {
+      const text = item.text || item;
+      const tipo = item.tipo || 'paso';
+      if (tipo === 'viñeta') {
+        return `<div class="exec-instruccion-row"><span class="exec-instruccion-num">•</span> ${esc(text)}</div>`;
+      }
+      stepNum++;
+      return `<div class="exec-instruccion-row"><span class="exec-instruccion-num">${stepNum}.</span> ${esc(text)}</div>`;
+    }).join('');
+
+    const insumosHTML = (et.insumos || []).filter(ins => ins.nombre).map(ins =>
+      `<div class="detail-insumo-row">• ${esc(ins.nombre)}: <strong>${ins.cantidad} ${esc(ins.unidad)}</strong></div>`
+    ).join('');
+
+    return `
+      <div class="receta-detail-etapa">
+        <div class="receta-detail-etapa-header">
+          <span class="etapa-num">Etapa ${i + 1}</span>
+          <span class="receta-detail-etapa-nombre">${esc(et.nombre)}</span>
+          ${et.tiempoEstimado ? `<span class="receta-detail-etapa-tiempo">⏱ ${et.tiempoEstimado} min</span>` : ''}
+        </div>
+        ${instrHTML ? `<div class="exec-instrucciones">${instrHTML}</div>` : ''}
+        ${insumosHTML ? `<div class="receta-detail-insumos"><div class="receta-detail-insumos-title">Insumos:</div>${insumosHTML}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('recetaDetailBody').innerHTML = `
+    ${rec.descripcion ? `<div class="info-box">${esc(rec.descripcion)}</div>` : ''}
+    <div class="receta-detail-etapas">${etapasHTML || '<div class="empty-state">Esta receta no tiene etapas.</div>'}</div>
+  `;
+
+  document.getElementById('btnEditFromRecetaDetail').onclick = () => {
+    document.getElementById('recetaDetailOverlay').classList.remove('open');
+    openRecetaModal(recetaId);
+  };
+  document.getElementById('recetaDetailOverlay').classList.add('open');
+}
+
+document.getElementById('btnCloseRecetaDetail').addEventListener('click', () => {
+  document.getElementById('recetaDetailOverlay').classList.remove('open');
+});
+document.getElementById('recetaDetailOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('recetaDetailOverlay'))
+    document.getElementById('recetaDetailOverlay').classList.remove('open');
+});
+
+// ── Procesos: Ejecucion analysis ──────────────────────────────────────────────
+
+function generateEjecucionAnalysis(ej) {
+  const ev     = ej.evaluacion || {};
+  const etapas = ej.etapasData || [];
+  if (!etapas.length && !ev.scoreTotal && !ev.rendimiento) return '';
+
+  let html = '<div class="analysis-block"><div class="analysis-title">📊 Análisis de la ejecución</div>';
+
+  // Time precision
+  const receta = recetas.find(r => r.id === ej.recetaId);
+  const durReal = +ej.duracionTotal || 0;
+  if (receta) {
+    const durPlan = receta.etapas.reduce((sum, et) => sum + (et.tiempoEstimado || 0) * 60, 0);
+    if (durPlan > 0) {
+      const prec = Math.max(0, Math.round(100 - Math.abs((durReal - durPlan) / durPlan * 100)));
+      const color = prec >= 80 ? '#10B981' : prec >= 60 ? '#F59E0B' : '#EF4444';
+      html += `<div class="analysis-row">
+        <span class="analysis-label">Precisión temporal</span>
+        <span class="analysis-value" style="color:${color};font-weight:700">${prec}%</span>
+      </div>`;
+      html += `<div class="analysis-row">
+        <span class="analysis-label">Tiempo real / planificado</span>
+        <span class="analysis-value">${Math.round(durReal/60)} min / ${Math.round(durPlan/60)} min</span>
+      </div>`;
+    }
+  }
+
+  // Stage breakdown
+  if (etapas.length > 0) {
+    html += '<div class="analysis-subtitle">Tiempo por etapa</div>';
+    etapas.forEach((et, i) => {
+      const planned = receta?.etapas.find(e => e.nombre === et.nombre)?.tiempoEstimado;
+      const realMin = Math.round(et.duracionReal / 60);
+      let diffStr   = '';
+      if (planned) {
+        const delta = Math.round(et.duracionReal / 60) - planned;
+        if (delta > 0) diffStr = `<span style="color:#F59E0B">+${delta} min</span>`;
+        else if (delta < 0) diffStr = `<span style="color:#10B981">${delta} min</span>`;
+        else diffStr = `<span style="color:#10B981">exacto ✓</span>`;
+      }
+      html += `<div class="analysis-stage-row">
+        <span class="analysis-stage-name">Etapa ${i+1}: ${esc(et.nombre)}</span>
+        <span>${realMin} min${planned ? ` / ${planned} min plan ${diffStr}` : ''}</span>
+      </div>`;
+    });
+  }
+
+  // Insumo variance
+  const variances = etapas.flatMap(et =>
+    (et.insumosConfirmados || []).filter(ins => Math.abs(ins.cantidadReal - ins.cantidadPlanificada) > 0.01)
+  );
+  if (variances.length) {
+    html += '<div class="analysis-subtitle">Variaciones en insumos</div>';
+    variances.forEach(ins => {
+      const delta = ins.cantidadReal - ins.cantidadPlanificada;
+      const pct   = Math.round(Math.abs(delta) / (ins.cantidadPlanificada || 1) * 100);
+      const color = pct > 10 ? '#F59E0B' : '#10B981';
+      html += `<div class="analysis-row">
+        <span class="analysis-label">${esc(ins.nombre)}</span>
+        <span style="color:${color}">${ins.cantidadReal} vs ${ins.cantidadPlanificada} ${esc(ins.unidad)} (${delta > 0 ? '+' : ''}${delta.toFixed(1)})</span>
+      </div>`;
+    });
+  }
+
+  // Quality summary
+  if (ev.scoreTotal !== undefined) {
+    const lvl = SCORE_LEVELS.find(l => ev.scoreTotal >= l.min) || SCORE_LEVELS[SCORE_LEVELS.length - 1];
+    html += `<div class="analysis-row" style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px">
+      <span class="analysis-label">Puntaje calidad</span>
+      <span class="analysis-value">${ev.scoreTotal}/30 — ${lvl.label}</span>
+    </div>`;
+  }
+  if (ev.ph !== undefined) {
+    html += `<div class="analysis-row">
+      <span class="analysis-label">pH medido</span>
+      <span class="analysis-value" style="color:${ev.ph <= 4.0 ? '#10B981' : '#EF4444'}">${ev.ph} ${ev.ph <= 4.0 ? '✓ Seguro' : '✗ Revisar'}</span>
+    </div>`;
+  }
+  if (ev.rendimiento) {
+    const color = ev.rendimiento >= 80 ? '#10B981' : ev.rendimiento >= 65 ? '#F59E0B' : '#EF4444';
+    html += `<div class="analysis-row">
+      <span class="analysis-label">Rendimiento</span>
+      <span class="analysis-value" style="color:${color}">${ev.rendimiento.toFixed(1)}% (${ev.pesoTerminado}g de ${ev.pesoIngredientes}g)</span>
+    </div>`;
+  }
+  if (ev.frascos230 || ev.frascos180) {
+    const total = (ev.frascos230 || 0) + (ev.frascos180 || 0);
+    html += `<div class="analysis-row">
+      <span class="analysis-label">Frascos producidos</span>
+      <span class="analysis-value">${total} total (${ev.frascos230 || 0}×230ml + ${ev.frascos180 || 0}×180ml)</span>
+    </div>`;
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ── Procesos: Ejecucion detail (read-only + observations) ────────────────────
+
+function openEjecucionDetail(ejId) {
+  const ej = ejecuciones.find(e => e.id === ejId);
+  if (!ej) return;
+  ejecucionDetailId = ejId;
+
+  const ev     = ej.evaluacion || {};
+  const stars  = ev.calificacion ? '★'.repeat(ev.calificacion) + '☆'.repeat(5 - ev.calificacion) : '';
+  const durMin = ej.duracionTotal ? Math.round(+ej.duracionTotal / 60) + ' min' : '—';
+
+  const etapasHTML = (ej.etapasData || []).length
+    ? `<div class="detail-etapas-list">
+        ${ej.etapasData.map((et, i) => {
+          const durEt = Math.floor(et.duracionReal / 60) + ':' + String(et.duracionReal % 60).padStart(2, '0') + ' min';
+          const insHTML = (et.insumosConfirmados || []).map(ins =>
+            `<div class="detail-insumo-row">• ${esc(ins.nombre)}: <strong>${ins.cantidadReal} ${esc(ins.unidad)}</strong><span class="detail-insumo-planned"> (plan: ${ins.cantidadPlanificada})</span></div>`
+          ).join('');
+          return `<div class="detail-etapa-item">
+            <div class="detail-etapa-nombre">Etapa ${i + 1}: ${esc(et.nombre)}</div>
+            <div class="detail-etapa-dur">⏱ ${durEt}</div>
+            ${insHTML}
+          </div>`;
+        }).join('')}
+      </div>`
+    : '';
+
+  // Generate analysis
+  const analysisHTML = generateEjecucionAnalysis(ej);
+
+  document.getElementById('ejecucionDetailTitle').textContent = ej.nombreReceta;
+  document.getElementById('ejecucionDetailContent').innerHTML = `
+    <div class="detail-row"><span class="detail-label">Lote</span><span class="detail-value">${esc(ej.loteId || '—')}</span></div>
+    ${ev.sabor ? `<div class="detail-row"><span class="detail-label">Sabor</span><span class="detail-value">${esc(ev.sabor)}</span></div>` : ''}
+    ${ev.picante ? `<div class="detail-row"><span class="detail-label">Picante</span><span class="detail-value">${esc(ev.picante)}</span></div>` : ''}
+    ${ev.fechaVencimiento ? `<div class="detail-row"><span class="detail-label">Vencimiento</span><span class="detail-value">${esc(ev.fechaVencimiento)}</span></div>` : ''}
+    <div class="detail-row"><span class="detail-label">Estado</span><span class="status-pill" style="background:#2E7D3222;color:#2E7D32">${esc(ej.estado)}</span></div>
+    <div class="detail-row"><span class="detail-label">Inicio</span><span class="detail-value">${fmtDate(ej.fechaInicio)}</span></div>
+    <div class="detail-row"><span class="detail-label">Fin</span><span class="detail-value">${fmtDate(ej.fechaFin)}</span></div>
+    <div class="detail-row"><span class="detail-label">Duración</span><span class="detail-value">${durMin}</span></div>
+    ${stars ? `<div class="detail-row"><span class="detail-label">Calificación</span><span class="detail-value ejecucion-stars">${stars}</span></div>` : ''}
+    ${ev.observaciones ? `<div class="detail-row detail-row--col"><span class="detail-label">Evaluación</span><span class="detail-value">${esc(ev.observaciones)}</span></div>` : ''}
+    ${etapasHTML ? `<div class="detail-row detail-row--col"><span class="detail-label">Etapas</span>${etapasHTML}</div>` : ''}
+    ${analysisHTML}
+    <div style="margin-top:12px">
+      <button class="btn-outline" id="btnDownloadEjecucionTxt" style="width:100%">⬇️ Descargar TXT de esta ejecución</button>
+    </div>
+  `;
+
+  document.getElementById('btnDownloadEjecucionTxt')?.addEventListener('click', () => downloadSingleEjecucionTxt(ej));
+
+  renderEjecucionObsList(ej);
+  document.getElementById('ejecucionObsInput').value = '';
+  document.getElementById('ejecucionDetailOverlay').classList.add('open');
+}
+
+function renderEjecucionObsList(ej) {
+  const list = document.getElementById('ejecucionObsList');
+  const obs  = ej.observations || [];
+  if (!obs.length) {
+    list.innerHTML = '<div class="obs-empty">Aún sin observaciones</div>';
+    return;
+  }
+  list.innerHTML = obs.map(o => `
+    <div class="obs-item">
+      <div class="obs-text">${esc(o.text)}</div>
+      <div class="obs-date">${fmtDate(o.createdAt)}</div>
+    </div>
+  `).join('');
+  list.scrollTop = list.scrollHeight;
+}
+
+document.getElementById('btnCloseEjecucionDetail').addEventListener('click', () => {
+  document.getElementById('ejecucionDetailOverlay').classList.remove('open');
+});
+document.getElementById('ejecucionDetailOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('ejecucionDetailOverlay'))
+    document.getElementById('ejecucionDetailOverlay').classList.remove('open');
+});
+
+document.getElementById('btnAddEjecucionObs').addEventListener('click', async () => {
+  const text = document.getElementById('ejecucionObsInput').value.trim();
+  if (!text) return;
+  const ej = ejecuciones.find(e => e.id === ejecucionDetailId);
+  if (!ej) return;
+
+  const btn = document.getElementById('btnAddEjecucionObs');
+  btn.disabled = true;
+  try {
+    ej.observations = ej.observations || [];
+    ej.observations.push({ text, createdAt: new Date().toISOString() });
+    await updateEjecucion(ej);
+    document.getElementById('ejecucionObsInput').value = '';
+    renderEjecucionObsList(ej);
+  } catch (e) {
+    alert('Error al guardar: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // ── Procesos: Sub-tab navigation ──────────────────────────────────────────────
 
@@ -1959,38 +2448,114 @@ function renderEtapasList(etapas) {
 function addEtapaToList(etapa, idx) {
   const container = document.getElementById('etapasList');
   const num = idx !== undefined ? idx : container.querySelectorAll('.etapa-item').length;
+  const instrArr = parseInstrucciones(etapa.instrucciones);
+  const isEditing = !!editRecetaId;
 
   const item = document.createElement('div');
   item.className = 'etapa-item';
 
-  const insumosHTML = (etapa.insumos || []).map((ins, iIdx) => buildInsumoRow(ins, iIdx)).map(el => el.outerHTML).join('');
-
   item.innerHTML = `
     <div class="etapa-header">
       <span class="etapa-num">Etapa ${num + 1}</span>
+      <button class="etapa-collapse-btn" title="Colapsar/Expandir etapa">▼</button>
       <button class="etapa-del" title="Eliminar etapa">✕</button>
     </div>
-    <label class="field-label">Nombre de la etapa *</label>
-    <input class="field-input etapa-nombre" type="text" value="${esc(etapa.nombre || '')}" placeholder="Ej: Lavado de materia prima" />
-    <label class="field-label">Instrucciones</label>
-    <textarea class="field-textarea etapa-instrucciones" rows="2" placeholder="Pasos a seguir en esta etapa…" style="min-height:50px">${esc(etapa.instrucciones || '')}</textarea>
-    <label class="field-label">Tiempo estimado (minutos)</label>
-    <input class="field-input etapa-tiempo" type="number" min="1" value="${etapa.tiempoEstimado || ''}" placeholder="15" style="width:120px" />
-    <label class="field-label">Insumos / ingredientes</label>
-    <div class="insumos-list">${insumosHTML}</div>
-    <button class="btn-outline btn-sm btn-add-insumo" style="margin-top:4px">+ Agregar insumo</button>
+    <div class="etapa-body">
+      <label class="field-label">Nombre de la etapa *</label>
+      <input class="field-input etapa-nombre" type="text" value="${esc(etapa.nombre || '')}" placeholder="Ej: Lavado de materia prima" />
+      <label class="field-label">Instrucciones <span class="field-label-hint">· # = paso numerado &nbsp;•  = viñeta</span></label>
+      <div class="instrucciones-list"></div>
+      <button class="btn-outline btn-sm btn-add-instruccion" style="margin-top:4px;margin-bottom:14px">+ Agregar instrucción</button>
+      <label class="field-label">Tiempo estimado (minutos)</label>
+      <input class="field-input etapa-tiempo" type="number" min="1" value="${etapa.tiempoEstimado || ''}" placeholder="15" style="width:120px" />
+      <label class="field-label">Insumos / ingredientes</label>
+      <div class="insumos-list"></div>
+      <button class="btn-outline btn-sm btn-add-insumo" style="margin-top:4px">+ Agregar insumo</button>
+    </div>
   `;
+
+  // Populate instruction rows
+  const instrList = item.querySelector('.instrucciones-list');
+  instrArr.forEach(item => instrList.appendChild(buildInstruccionRow(item.text, item.tipo)));
+
+  // Populate insumo rows
+  const insList = item.querySelector('.insumos-list');
+  (etapa.insumos || []).forEach((ins, iIdx) => insList.appendChild(buildInsumoRow(ins, iIdx)));
+
+  // Collapse/expand toggle
+  const collapseBtn = item.querySelector('.etapa-collapse-btn');
+  const etapaBody   = item.querySelector('.etapa-body');
+
+  // When editing an existing recipe, collapse stages except the first one
+  if (isEditing && idx !== undefined && idx > 0) {
+    etapaBody.style.display = 'none';
+    collapseBtn.textContent = '▶';
+  }
+
+  collapseBtn.addEventListener('click', () => {
+    if (!etapaBody) return;
+    const collapsed = etapaBody.style.display === 'none';
+    etapaBody.style.display = collapsed ? '' : 'none';
+    collapseBtn.textContent  = collapsed ? '▼' : '▶';
+  });
 
   item.querySelector('.etapa-del').addEventListener('click', () => {
     item.remove();
     renumberEtapas();
   });
+  item.querySelector('.btn-add-instruccion').addEventListener('click', () => {
+    instrList.appendChild(buildInstruccionRow('', 'paso'));
+    instrList.lastElementChild.querySelector('.instruccion-text').focus();
+  });
   item.querySelector('.btn-add-insumo').addEventListener('click', () => {
-    const insList = item.querySelector('.insumos-list');
     insList.appendChild(buildInsumoRow({}, insList.children.length));
   });
 
   container.appendChild(item);
+}
+
+function parseInstrucciones(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) {
+    return val.map(item => typeof item === 'string' ? { text: item, tipo: 'paso' } : item);
+  }
+  return val.split('\n').map(s => s.trim()).filter(Boolean).map(text => ({ text, tipo: 'paso' }));
+}
+
+function buildInstruccionesHTML(instrucciones) {
+  const arr = parseInstrucciones(instrucciones);
+  if (!arr.length) return '';
+  let stepNum = 0;
+  return `<div class="exec-instrucciones">
+    ${arr.map(item => {
+      const text = item.text || item;
+      const tipo = item.tipo || 'paso';
+      if (tipo === 'viñeta') {
+        return `<div class="exec-instruccion-row"><span class="exec-instruccion-num">•</span> ${esc(text)}</div>`;
+      }
+      stepNum++;
+      return `<div class="exec-instruccion-row"><span class="exec-instruccion-num">${stepNum}.</span> ${esc(text)}</div>`;
+    }).join('')}
+  </div>`;
+}
+
+function buildInstruccionRow(text, tipo = 'paso') {
+  const row = document.createElement('div');
+  row.className = 'instruccion-row';
+  row.innerHTML = `
+    <button class="instruccion-tipo-btn" data-tipo="${tipo}" type="button" title="${tipo === 'viñeta' ? 'Cambiar a paso numerado' : 'Cambiar a viñeta'}">${tipo === 'viñeta' ? '•' : '#'}</button>
+    <input class="field-input instruccion-text" type="text" value="${esc(text || '')}" placeholder="Describir el paso…" style="flex:1" />
+    <button class="subtask-remove" title="Quitar paso">✕</button>
+  `;
+  row.querySelector('.instruccion-tipo-btn').addEventListener('click', e => {
+    const btn    = e.currentTarget;
+    const newTipo = btn.dataset.tipo === 'viñeta' ? 'paso' : 'viñeta';
+    btn.dataset.tipo = newTipo;
+    btn.textContent  = newTipo === 'viñeta' ? '•' : '#';
+    btn.title        = newTipo === 'viñeta' ? 'Cambiar a paso numerado' : 'Cambiar a viñeta';
+  });
+  row.querySelector('.subtask-remove').addEventListener('click', () => row.remove());
+  return row;
 }
 
 function buildInsumoRow(ins, idx) {
@@ -2020,11 +2585,17 @@ function collectEtapas() {
       cantidad: parseFloat(row.querySelector('.insumo-cantidad').value) || 0,
       unidad:   row.querySelector('.insumo-unidad').value.trim()
     })).filter(ins => ins.nombre);
+    const instrucciones = Array.from(item.querySelectorAll('.instruccion-row'))
+      .map(row => ({
+        text: row.querySelector('.instruccion-text').value.trim(),
+        tipo: row.querySelector('.instruccion-tipo-btn')?.dataset.tipo || 'paso'
+      }))
+      .filter(i => i.text);
     return {
-      id:              crypto.randomUUID(),
-      nombre:          item.querySelector('.etapa-nombre').value.trim(),
-      instrucciones:   item.querySelector('.etapa-instrucciones').value.trim(),
-      tiempoEstimado:  parseInt(item.querySelector('.etapa-tiempo').value) || 0,
+      id:             crypto.randomUUID(),
+      nombre:         item.querySelector('.etapa-nombre').value.trim(),
+      instrucciones,
+      tiempoEstimado: parseInt(item.querySelector('.etapa-tiempo').value) || 0,
       insumos
     };
   }).filter(et => et.nombre);
@@ -2080,11 +2651,83 @@ document.getElementById('btnSaveReceta').addEventListener('click', async () => {
 
 document.getElementById('btnNewReceta').addEventListener('click', () => openRecetaModal(null));
 
+// ── Procesos: Lot utilities ───────────────────────────────────────────────────
+
+function generateLotId(recipeName) {
+  const now  = new Date();
+  const abbr = (recipeName || 'LOT').replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() || 'LOT';
+  const opts = { timeZone: 'America/Bogota' };
+  const date = now.toLocaleDateString('en-CA', opts).replace(/-/g, '');
+  const time = now.toLocaleTimeString('es-CO', { ...opts, hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '');
+  return `TQ-${abbr}-${date}-${time}`;
+}
+
+const SCORE_LEVELS = [
+  { min: 27, label: 'ÓPTIMO',         cls: 'level-opt' },
+  { min: 21, label: 'CORRECTO',       cls: 'level-ok'  },
+  { min: 15, label: 'ACEPTABLE',      cls: 'level-acc' },
+  { min:  9, label: 'EN DESARROLLO',  cls: 'level-dev' },
+  { min:  0, label: 'REFORMULAR',     cls: 'level-bad' },
+];
+
+function updateEvalScore() {
+  const filled = Object.values(evalScores).filter(v => v > 0).length;
+  const total  = Object.values(evalScores).reduce((a, b) => a + b, 0);
+  const valEl  = document.getElementById('evalScoreValue');
+  const lvlEl  = document.getElementById('evalScoreLevel');
+  if (!valEl) return;
+  valEl.textContent = filled > 0 ? `${total}/30` : '—/30';
+  if (filled === 6) {
+    const lvl = SCORE_LEVELS.find(l => total >= l.min) || SCORE_LEVELS[SCORE_LEVELS.length - 1];
+    lvlEl.textContent = lvl.label;
+    lvlEl.className   = `eval-score-level ${lvl.cls}`;
+  } else {
+    lvlEl.textContent = `${filled}/6 dimensiones evaluadas`;
+    lvlEl.className   = 'eval-score-level';
+  }
+}
+
 // ── Procesos: Recipe execution with stage timer ───────────────────────────────
+
+function saveExecutionProgress() {
+  if (!executionState) return;
+  try {
+    localStorage.setItem('ss_exec_progress', JSON.stringify({
+      recetaId:          executionState.receta.id,
+      currentStageIndex: executionState.currentStageIndex,
+      stagesData:        executionState.stagesData,
+      savedAt:           new Date().toISOString()
+    }));
+  } catch {}
+}
+
+function clearExecutionProgress() {
+  localStorage.removeItem('ss_exec_progress');
+}
 
 function startExecution(recetaId) {
   const receta = recetas.find(r => r.id === recetaId);
   if (!receta || !receta.etapas.length) return alert('Esta receta no tiene etapas definidas.');
+
+  // Check for saved in-progress execution
+  const saved = safeParseJSON(localStorage.getItem('ss_exec_progress'), null);
+  if (saved && saved.recetaId === recetaId) {
+    const elapsed = Math.round((Date.now() - new Date(saved.savedAt)) / 60000);
+    if (confirm(`Hay una ejecución guardada de esta receta (hace ${elapsed} min).\n¿Continuar desde la etapa ${saved.currentStageIndex + 1}?`)) {
+      executionState = {
+        receta,
+        currentStageIndex: saved.currentStageIndex,
+        stageStartTime:    Date.now(),
+        timerInterval:     null,
+        stagesData:        saved.stagesData
+      };
+      document.getElementById('ejecutarTitle').textContent = `Receta: ${receta.nombre}`;
+      document.getElementById('ejecutarOverlay').classList.add('open');
+      renderExecutionStep();
+      return;
+    }
+    clearExecutionProgress();
+  }
 
   executionState = {
     receta,
@@ -2116,7 +2759,7 @@ function renderExecutionStep() {
     </div>
     <div class="exec-step-label">Etapa ${currentStageIndex + 1} de ${total}</div>
     <h3 class="exec-stage-name">${esc(etapa.nombre)}</h3>
-    ${etapa.instrucciones ? `<div class="exec-instrucciones">${esc(etapa.instrucciones)}</div>` : ''}
+    ${buildInstruccionesHTML(etapa.instrucciones)}
     ${etapa.tiempoEstimado ? `<div class="exec-time-hint">⏱ Tiempo estimado: ${etapa.tiempoEstimado} min</div>` : ''}
 
     <div class="exec-timer" id="execTimer">00:00</div>
@@ -2180,6 +2823,8 @@ function advanceStage() {
     insumosConfirmados
   });
 
+  saveExecutionProgress();
+
   if (currentStageIndex < receta.etapas.length - 1) {
     executionState.currentStageIndex++;
     renderExecutionStep();
@@ -2217,10 +2862,38 @@ function finishExecution() {
     `✅ <strong>${esc(receta.nombre)}</strong> completada.<br/>
      Duración total: <strong>${durMin} min</strong> · ${stagesData.length} etapa${stagesData.length !== 1 ? 's' : ''} registrada${stagesData.length !== 1 ? 's' : ''}.`;
 
-  document.getElementById('evalLoteId').value = '';
+  // Reset evaluation form
+  evalScores = { D1: 0, D2: 0, D3: 0, D4: 0, D5: 0, D6: 0 };
+  document.querySelectorAll('.eval-scale-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('evalPH').value          = '';
+  document.getElementById('evalPHStatus').textContent = '';
+  document.getElementById('evalPHStatus').className   = 'eval-ph-status';
+  document.getElementById('evalSelloTapa').checked = false;
+  document.getElementById('evalSelloPop').checked  = false;
+  document.getElementById('evalSelloOlor').checked = false;
+  document.querySelectorAll('input[name="evalSineresis"]').forEach(r => r.checked = false);
+  document.getElementById('evalScoreValue').textContent = '—/30';
+  document.getElementById('evalScoreLevel').textContent  = '';
+  document.getElementById('evalScoreLevel').className    = 'eval-score-level';
   document.getElementById('evalObs').value    = '';
   document.getElementById('evaluacionFeedback').textContent = '';
   setEvalStars(0);
+
+  // Auto-fill lot metadata
+  document.getElementById('evalLoteId').value = generateLotId(receta.nombre);
+  const todayIso = new Date().toISOString().slice(0, 10);
+  document.getElementById('evalFechaElaboracion').value = todayIso;
+  const expDate = new Date(); expDate.setMonth(expDate.getMonth() + 6);
+  document.getElementById('evalFechaVencimiento').value = expDate.toISOString().slice(0, 10);
+  document.getElementById('evalSabor').value = receta.nombre || '';
+  document.getElementById('evalPicante').value = '';
+  document.getElementById('evalPesoIngredientes').value = '';
+  document.getElementById('evalPesoTerminado').value = '';
+  document.getElementById('evalRendimientoResult').textContent = '';
+  document.getElementById('evalFrascos230').value = '';
+  document.getElementById('evalFrascos180').value = '';
+  document.getElementById('evalFrascosTotal').textContent = '—';
+
   document.getElementById('evaluacionOverlay').classList.add('open');
 }
 
@@ -2228,6 +2901,7 @@ document.getElementById('btnCancelEjecutar').addEventListener('click', () => {
   if (!confirm('¿Cancelar la ejecución? Se perderán los datos de las etapas ya registradas.')) return;
   if (executionState?.timerInterval) clearInterval(executionState.timerInterval);
   executionState = null;
+  clearExecutionProgress();
   document.getElementById('ejecutarOverlay').classList.remove('open');
 });
 
@@ -2250,11 +2924,17 @@ document.getElementById('btnCloseEvaluacion').addEventListener('click', () => {
 
 document.getElementById('btnSaveEvaluacion').addEventListener('click', async () => {
   const loteId = document.getElementById('evalLoteId').value.trim();
+  const phVal  = parseFloat(document.getElementById('evalPH').value);
   const obs    = document.getElementById('evalObs').value.trim();
   const fb     = document.getElementById('evaluacionFeedback');
 
   if (!loteId) return setFb(fb, 'El número de lote es obligatorio.', 'err');
+  if (isNaN(phVal)) return setFb(fb, 'El pH es obligatorio antes de envasar (I-01).', 'err');
+  if (phVal > 4.0)  return setFb(fb, `⚠️ pH ${phVal.toFixed(2)} > 4.0 — agregar ácido cítrico 0.5 g y remedir. No se puede finalizar sin pH ≤ 4.0.`, 'err');
   if (!evaluacionPendiente) return;
+
+  const scoreTotal = Object.values(evalScores).reduce((a, b) => a + b, 0);
+  const sineresis  = document.querySelector('input[name="evalSineresis"]:checked')?.value || '';
 
   const btn = document.getElementById('btnSaveEvaluacion');
   btn.disabled = true; btn.textContent = 'Guardando…';
@@ -2262,16 +2942,40 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
   try {
     evaluacionPendiente.loteId = loteId;
     evaluacionPendiente.evaluacion = {
-      calificacion: evalRating,
-      observaciones: obs
+      calificacion:  evalRating,
+      observaciones: obs,
+      ph:            phVal,
+      scores:        { ...evalScores },
+      scoreTotal,
+      sello: {
+        tapa: document.getElementById('evalSelloTapa').checked,
+        pop:  document.getElementById('evalSelloPop').checked,
+        olor: document.getElementById('evalSelloOlor').checked,
+      },
+      sineresis,
+      sabor:             document.getElementById('evalSabor').value.trim(),
+      picante:           document.getElementById('evalPicante').value,
+      fechaElaboracion:  document.getElementById('evalFechaElaboracion').value,
+      fechaVencimiento:  document.getElementById('evalFechaVencimiento').value,
+      pesoIngredientes:  parseFloat(document.getElementById('evalPesoIngredientes').value) || null,
+      pesoTerminado:     parseFloat(document.getElementById('evalPesoTerminado').value) || null,
+      rendimiento:       (() => {
+        const pi = parseFloat(document.getElementById('evalPesoIngredientes').value);
+        const pt = parseFloat(document.getElementById('evalPesoTerminado').value);
+        return (pi > 0 && pt > 0) ? Math.round((pt / pi) * 10000) / 100 : null;
+      })(),
+      frascos230:        parseInt(document.getElementById('evalFrascos230').value) || 0,
+      frascos180:        parseInt(document.getElementById('evalFrascos180').value) || 0
     };
 
     await appendEjecucion(evaluacionPendiente);
+    clearExecutionProgress();
     await loadEjecucionesData();
     renderEjecucionesList();
 
-    setFb(fb, `✅ Lote ${loteId} guardado exitosamente.`, 'ok');
-    setTimeout(() => document.getElementById('evaluacionOverlay').classList.remove('open'), 2000);
+    const lvl = SCORE_LEVELS.find(l => scoreTotal >= l.min);
+    setFb(fb, `✅ Lote ${loteId} guardado. Puntaje técnico: ${scoreTotal}/30 — ${lvl?.label || ''}`, 'ok');
+    setTimeout(() => document.getElementById('evaluacionOverlay').classList.remove('open'), 2500);
     evaluacionPendiente = null;
   } catch (e) {
     setFb(fb, 'Error: ' + e.message, 'err');
@@ -2279,6 +2983,122 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
     btn.disabled = false; btn.textContent = 'Guardar y finalizar lote';
   }
 });
+
+// ── Evaluación técnica: scale buttons & pH ────────────────────────────────────
+
+document.querySelectorAll('.eval-scale-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const dim = btn.dataset.dim;
+    const val = +btn.dataset.val;
+    evalScores[dim] = val;
+    document.querySelectorAll(`.eval-scale-btn[data-dim="${dim}"]`).forEach(b => {
+      b.classList.toggle('active', +b.dataset.val === val);
+    });
+    updateEvalScore();
+  });
+});
+
+document.getElementById('evalPH').addEventListener('input', function () {
+  const val    = parseFloat(this.value);
+  const status = document.getElementById('evalPHStatus');
+  if (!isNaN(val)) {
+    if (val <= 4.0) {
+      status.textContent = '✓ pH seguro';
+      status.className   = 'eval-ph-status ok';
+    } else {
+      status.textContent = '✗ Ajustar — agregar ácido cítrico 0.5 g';
+      status.className   = 'eval-ph-status err';
+    }
+  } else {
+    status.textContent = '';
+    status.className   = 'eval-ph-status';
+  }
+});
+
+// ── Rendimiento & Frascos auto-calc ───────────────────────────────────────────
+
+function updateRendimientoResult() {
+  const pi  = parseFloat(document.getElementById('evalPesoIngredientes').value);
+  const pt  = parseFloat(document.getElementById('evalPesoTerminado').value);
+  const el  = document.getElementById('evalRendimientoResult');
+  if (pi > 0 && pt > 0) {
+    const pct = (pt / pi * 100).toFixed(1);
+    el.textContent = `${pct}%`;
+    el.className   = 'eval-rendimiento-result' + (pct >= 70 ? ' ok' : ' warn');
+  } else {
+    el.textContent = '';
+    el.className   = 'eval-rendimiento-result';
+  }
+}
+
+function updateFrascosTotal() {
+  const f230 = parseInt(document.getElementById('evalFrascos230').value) || 0;
+  const f180 = parseInt(document.getElementById('evalFrascos180').value) || 0;
+  const tot  = f230 + f180;
+  const el   = document.getElementById('evalFrascosTotal');
+  el.textContent = tot > 0
+    ? `Total: ${tot} frasco${tot !== 1 ? 's' : ''} · ${f230 * 230 + f180 * 180} ml`
+    : '—';
+}
+
+['evalPesoIngredientes', 'evalPesoTerminado'].forEach(id =>
+  document.getElementById(id).addEventListener('input', updateRendimientoResult)
+);
+['evalFrascos230', 'evalFrascos180'].forEach(id =>
+  document.getElementById(id).addEventListener('input', updateFrascosTotal)
+);
+
+// ── Download ejecuciones TXT ──────────────────────────────────────────────────
+
+function ejecucionToText(ej) {
+  const ev = ej.evaluacion || {};
+  const lines = [
+    `═══════════════════════════════════════`,
+    `LOTE: ${ej.loteId || '—'}  |  ${ej.nombreReceta}`,
+    `Fecha: ${new Date(ej.fechaFin || ej.creadoEn).toLocaleString('es-CO')}`,
+    `Duración: ${Math.round((ej.duracionTotal || 0) / 60)} min`,
+  ];
+  if (ev.fechaElaboracion) lines.push(`Elaboración: ${ev.fechaElaboracion}  |  Vencimiento: ${ev.fechaVencimiento || '—'}`);
+  if (ev.sabor) lines.push(`Sabor/Variante: ${ev.sabor}  |  Picante: ${ev.picante || '—'}`);
+  if (ev.rendimiento != null) lines.push(`Rendimiento I-09: ${ev.rendimiento}%  (${ev.pesoIngredientes}g → ${ev.pesoTerminado}g)`);
+  if (ev.frascos230 != null || ev.frascos180 != null) {
+    const f230 = ev.frascos230 || 0, f180 = ev.frascos180 || 0;
+    lines.push(`Frascos: ${f230} × 230ml + ${f180} × 180ml = ${f230 + f180} total`);
+  }
+  if (ev.ph != null) lines.push(`pH: ${ev.ph}`);
+  if (ev.sineresis) lines.push(`Sinéresis: ${ev.sineresis}`);
+  if (ev.scoreTotal != null) lines.push(`Puntaje técnico: ${ev.scoreTotal}/30`);
+  if (ev.observaciones) lines.push(`Observaciones: ${ev.observaciones}`);
+  if (ej.etapasData?.length) {
+    lines.push('', 'Etapas:');
+    ej.etapasData.forEach((s, i) => {
+      lines.push(`  ${i + 1}. ${s.nombre || '—'}  ${Math.round(s.duracionReal / 60)} min`);
+    });
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+function downloadSingleEjecucionTxt(ej) {
+  const text = ejecucionToText(ej);
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href = url;
+  a.download = `lote-${ej.loteId || ej.id?.slice(0,8)}.txt`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function downloadEjecucionesTxt() {
+  if (!ejecucionesData?.length) return;
+  const text = ejecucionesData.map(ejecucionToText).join('\n');
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href = url;
+  a.download = `ejecuciones-${new Date().toISOString().slice(0,10)}.txt`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+document.getElementById('btnDownloadEjecuciones').addEventListener('click', downloadEjecucionesTxt);
 
 // ── Service Worker ────────────────────────────────────────────────────────────
 

@@ -168,7 +168,11 @@
               </div>
               <label class="field-label">Título de la historia *</label>
               <input class="field-input" id="fTitle" type="text" placeholder="Ej: Historia lanzamiento Maíz Habanero" />
-              <label class="field-label">Acciones a realizar en Instagram</label>
+              <div class="field-label-emoji-row">
+                <label class="field-label" style="margin:0">Acciones a realizar en Instagram</label>
+                <button class="btn-emoji-toggle" id="btnToggleEmoji" type="button" title="Insertar emoji de Instagram">😊 Emojis</button>
+              </div>
+              <div class="emoji-panel" id="emojiPanel"></div>
               <textarea class="field-textarea" id="fActions" rows="4"
                 placeholder="Ej:&#10;• Agregar encuesta '¿Llegaste al Habanero?'&#10;• Poner link de Mercado Libre en el sticker de link&#10;• Agregar sticker de cuenta regresiva al lanzamiento"></textarea>
               <label class="field-label">Fecha y hora de publicación *</label>
@@ -268,6 +272,7 @@
               <section class="card">
                 <div class="section-header">
                   <h2 class="section-title">Historial de ejecuciones</h2>
+                  <button class="btn-outline btn-sm" id="btnDownloadEjecuciones" type="button">⬇ Descargar TXT</button>
                 </div>
                 <div id="ejecucionesList"><div class="loading-state">Cargando ejecuciones…</div></div>
               </section>
@@ -405,6 +410,20 @@
     </div>
   </div>
 
+  <!-- Modal: Detalle de receta (solo lectura) -->
+  <div class="modal-overlay" id="recetaDetailOverlay">
+    <div class="modal modal-receta-detail">
+      <div class="modal-header">
+        <h2 id="recetaDetailTitle">Detalle de receta</h2>
+        <div class="modal-header-actions">
+          <button class="btn-outline btn-sm" id="btnEditFromRecetaDetail">✏️ Editar</button>
+          <button class="btn-icon" id="btnCloseRecetaDetail">✕</button>
+        </div>
+      </div>
+      <div class="modal-body modal-body-scroll" id="recetaDetailBody"></div>
+    </div>
+  </div>
+
   <!-- Modal: Ejecutar Receta (paso a paso con cronómetro) -->
   <div class="modal-overlay" id="ejecutarOverlay">
     <div class="modal modal-ejecutar">
@@ -416,18 +435,229 @@
     </div>
   </div>
 
+  <!-- Modal: Detalle ejecución (solo lectura + observaciones) -->
+  <div class="modal-overlay" id="ejecucionDetailOverlay">
+    <div class="modal modal-task-detail">
+      <div class="modal-header">
+        <h2 id="ejecucionDetailTitle">Detalle de ejecución</h2>
+        <button class="btn-icon" id="btnCloseEjecucionDetail">✕</button>
+      </div>
+      <div class="task-detail-body">
+        <div class="task-detail-main" id="ejecucionDetailContent"></div>
+        <div class="task-detail-obs">
+          <div class="obs-header">
+            <h3 class="obs-title">Observaciones</h3>
+          </div>
+          <div id="ejecucionObsList" class="obs-list"></div>
+          <div class="obs-input-wrap">
+            <textarea class="field-textarea obs-textarea" id="ejecucionObsInput" rows="2" placeholder="Escribe una observación…"></textarea>
+            <button class="btn-primary obs-btn" id="btnAddEjecucionObs">Agregar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Evaluación de lote (al finalizar ejecución) -->
   <div class="modal-overlay" id="evaluacionOverlay">
     <div class="modal modal-evaluacion">
       <div class="modal-header">
-        <h2>Evaluación del lote</h2>
+        <h2>Evaluación técnica del lote</h2>
         <button class="btn-icon" id="btnCloseEvaluacion">✕</button>
       </div>
       <div class="modal-body modal-body-scroll">
         <div class="info-box" id="evalResumen"></div>
-        <label class="field-label">Número de lote *</label>
-        <input class="field-input" id="evalLoteId" type="text" placeholder="Ej: LOTE-2026-001" />
-        <label class="field-label">Calificación del lote</label>
+
+        <label class="field-label">Número de lote <span class="field-label-hint">· auto-generado, editable</span></label>
+        <input class="field-input" id="evalLoteId" type="text" />
+
+        <div class="eval-lot-meta-grid">
+          <div>
+            <label class="field-label">Fecha de elaboración</label>
+            <input class="field-input" id="evalFechaElaboracion" type="date" />
+          </div>
+          <div>
+            <label class="field-label">Vencimiento estimado</label>
+            <input class="field-input" id="evalFechaVencimiento" type="date" />
+          </div>
+          <div>
+            <label class="field-label">Sabor / Variante</label>
+            <input class="field-input" id="evalSabor" type="text" placeholder="Ej: Habanero Original" />
+          </div>
+          <div>
+            <label class="field-label">Nivel de picante</label>
+            <select class="field-input field-select" id="evalPicante">
+              <option value="">— Seleccionar —</option>
+              <option value="Suave">Suave</option>
+              <option value="Medio">Medio</option>
+              <option value="Picante">Picante</option>
+              <option value="Muy picante">Muy picante</option>
+              <option value="Extremo (Habanero)">Extremo (Habanero)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- FASE 1 -->
+        <div class="eval-phase-header">
+          <span class="eval-phase-badge eval-phase-badge--pre">Fase 1</span>
+          Antes de envasar
+        </div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">D4 · Prueba de inversión <span class="eval-dim-code">I-02</span></div>
+          <div class="eval-dim-desc">Invertir frasco — contar segundos hasta que el producto empiece a moverse.<br><strong>Objetivo: flujo continuo 2–4 seg.</strong></div>
+          <div class="eval-scale">
+            <button class="eval-scale-btn" data-dim="D4" data-val="1"><span class="esb-num">1</span><span class="esb-hint">&lt;1 seg<br>Acuoso</span></button>
+            <button class="eval-scale-btn" data-dim="D4" data-val="2"><span class="esb-num">2</span><span class="esb-hint">1–2 seg<br>Muy fluido</span></button>
+            <button class="eval-scale-btn" data-dim="D4" data-val="3"><span class="esb-num">3</span><span class="esb-hint">2–3 seg<br>Borde</span></button>
+            <button class="eval-scale-btn eval-scale-btn--target" data-dim="D4" data-val="4"><span class="esb-num">4 ✓</span><span class="esb-hint">2–4 seg<br>OBJETIVO</span></button>
+            <button class="eval-scale-btn" data-dim="D4" data-val="5"><span class="esb-num">5</span><span class="esb-hint">&gt;4 seg<br>Muy denso</span></button>
+          </div>
+        </div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">D1 · Adherencia al alimento <span class="eval-dim-code">I-03</span></div>
+          <div class="eval-dim-desc">1 cuchara sobre papa/arepa, inclinar 45°, observar 10 seg.</div>
+          <div class="eval-scale">
+            <button class="eval-scale-btn" data-dim="D1" data-val="1"><span class="esb-num">1</span><span class="esb-hint">Escurre<br>todo</span></button>
+            <button class="eval-scale-btn" data-dim="D1" data-val="2"><span class="esb-num">2</span><span class="esb-hint">Escurre<br>bastante</span></button>
+            <button class="eval-scale-btn" data-dim="D1" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Se adhiere<br>con rastro</span></button>
+            <button class="eval-scale-btn" data-dim="D1" data-val="4"><span class="esb-num">4</span><span class="esb-hint">Bien,<br>rastro mín.</span></button>
+            <button class="eval-scale-btn eval-scale-btn--target" data-dim="D1" data-val="5"><span class="esb-num">5 ✓</span><span class="esb-hint">Carga el<br>bocado</span></button>
+          </div>
+        </div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">D2 · Homogeneidad de textura <span class="eval-dim-code">I-05</span></div>
+          <div class="eval-dim-desc">Extender 1 cuchara en superficie plana con luz directa.</div>
+          <div class="eval-scale">
+            <button class="eval-scale-btn" data-dim="D2" data-val="1"><span class="esb-num">1</span><span class="esb-hint">Grumos<br>y fases sep.</span></button>
+            <button class="eval-scale-btn" data-dim="D2" data-val="2"><span class="esb-num">2</span><span class="esb-hint">Algún<br>grumo</span></button>
+            <button class="eval-scale-btn" data-dim="D2" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Mayor.<br>homogéneo</span></button>
+            <button class="eval-scale-btn" data-dim="D2" data-val="4"><span class="esb-num">4</span><span class="esb-hint">Homogéneo<br>sin fallas</span></button>
+            <button class="eval-scale-btn eval-scale-btn--target" data-dim="D2" data-val="5"><span class="esb-num">5 ✓</span><span class="esb-hint">Perfecto<br>sin grumos</span></button>
+          </div>
+        </div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">D5 · Brillo superficial <span class="eval-dim-code">I-04</span></div>
+          <div class="eval-dim-desc">Observar superficie en plato blanco con luz natural.</div>
+          <div class="eval-scale">
+            <button class="eval-scale-btn" data-dim="D5" data-val="1"><span class="esb-num">1</span><span class="esb-hint">Opaco<br>sin brillo</span></button>
+            <button class="eval-scale-btn" data-dim="D5" data-val="2"><span class="esb-num">2</span><span class="esb-hint">Leve<br>irregular</span></button>
+            <button class="eval-scale-btn" data-dim="D5" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Moderado<br>consistente</span></button>
+            <button class="eval-scale-btn" data-dim="D5" data-val="4"><span class="esb-num">4</span><span class="esb-hint">Claro<br>uniforme</span></button>
+            <button class="eval-scale-btn eval-scale-btn--target" data-dim="D5" data-val="5"><span class="esb-num">5 ✓</span><span class="esb-hint">Intenso<br>uniforme</span></button>
+          </div>
+        </div>
+
+        <div class="eval-dim eval-dim--ph">
+          <div class="eval-dim-title">pH <span class="eval-dim-code">I-01</span> <span class="eval-required">OBLIGATORIO</span></div>
+          <div class="eval-dim-desc">Medir ANTES de envasar. <strong>No sellar sin pH ≤ 4.0</strong>. Si pH &gt; 4.0: agregar ácido cítrico 0.5 g y remedir.</div>
+          <div class="eval-ph-row">
+            <input class="field-input eval-ph-input" id="evalPH" type="number" step="0.01" min="0" max="14" placeholder="Ej: 3.8" />
+            <span class="eval-ph-unit">pH</span>
+            <span class="eval-ph-status" id="evalPHStatus"></span>
+          </div>
+        </div>
+
+        <div class="eval-phase-sep">
+          <div class="eval-phase-sep-line"></div>
+          <span>Envasar · Pasteurizar · Sellar</span>
+          <div class="eval-phase-sep-line"></div>
+        </div>
+
+        <!-- FASE 2 -->
+        <div class="eval-phase-header">
+          <span class="eval-phase-badge eval-phase-badge--post">Fase 2</span>
+          Después de envasar
+        </div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">D3 · Prueba en frío <span class="eval-dim-code">I-06</span></div>
+          <div class="eval-dim-desc">Nevera 1 hora. Evaluar textura al sacar vs temperatura ambiente.</div>
+          <div class="eval-scale">
+            <button class="eval-scale-btn" data-dim="D3" data-val="1"><span class="esb-num">1</span><span class="esb-hint">Se solidifica<br>completo</span></button>
+            <button class="eval-scale-btn" data-dim="D3" data-val="2"><span class="esb-num">2</span><span class="esb-hint">Se endurece<br>notoria</span></button>
+            <button class="eval-scale-btn" data-dim="D3" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Leve cambio<br>recupera</span></button>
+            <button class="eval-scale-btn" data-dim="D3" data-val="4"><span class="esb-num">4</span><span class="esb-hint">Casi igual<br>en frío</span></button>
+            <button class="eval-scale-btn eval-scale-btn--target" data-dim="D3" data-val="5"><span class="esb-num">5 ✓</span><span class="esb-hint">Idéntica<br>en frío</span></button>
+          </div>
+        </div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">D6 · Estabilidad de color al aire <span class="eval-dim-code">I-07</span></div>
+          <div class="eval-dim-desc">1 cuchara en plato blanco, luz natural. Observar T+3, T+10, T+20 min.</div>
+          <div class="eval-scale">
+            <button class="eval-scale-btn" data-dim="D6" data-val="1"><span class="esb-num">1</span><span class="esb-hint">Cambia<br>antes T+3</span></button>
+            <button class="eval-scale-btn" data-dim="D6" data-val="2"><span class="esb-num">2</span><span class="esb-hint">T+3<br>a T+10</span></button>
+            <button class="eval-scale-btn" data-dim="D6" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Leve a<br>T+20</span></button>
+            <button class="eval-scale-btn eval-scale-btn--target" data-dim="D6" data-val="4"><span class="esb-num">4 ✓</span><span class="esb-hint">Sin cambio<br>a T+20</span></button>
+            <button class="eval-scale-btn eval-scale-btn--target" data-dim="D6" data-val="5"><span class="esb-num">5 ✓✓</span><span class="esb-hint">Sin cambio<br>a T+60</span></button>
+          </div>
+        </div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">Verificación de sello y vacío <span class="eval-dim-code">I-10</span></div>
+          <div class="eval-dim-desc">Verificar después de enfriar. Tapa convexa o sin pop = desechar.</div>
+          <label class="eval-check-row"><input type="checkbox" id="evalSelloTapa" class="eval-checkbox" /> Tapa cóncava sin rebote al presionar</label>
+          <label class="eval-check-row"><input type="checkbox" id="evalSelloPop" class="eval-checkbox" /> Vacío audible al abrir (pop)</label>
+          <label class="eval-check-row"><input type="checkbox" id="evalSelloOlor" class="eval-checkbox" /> Color y olor sin alteración</label>
+        </div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">Sinéresis — separación de agua <span class="eval-dim-code">I-08</span></div>
+          <div class="eval-dim-desc">Frasco abierto 24 h en nevera. ¿Acumulación de líquido en la superficie?</div>
+          <div class="eval-radio-group">
+            <label class="eval-radio-row"><input type="radio" name="evalSineresis" value="ok" /> Sin separación visible ✓</label>
+            <label class="eval-radio-row"><input type="radio" name="evalSineresis" value="fail" /> Separación visible ✗ — emulsión inestable</label>
+          </div>
+        </div>
+
+        <!-- I-09: Rendimiento -->
+        <div class="eval-dim">
+          <div class="eval-dim-title">Rendimiento de lote <span class="eval-dim-code">I-09</span></div>
+          <div class="eval-dim-desc">Pesar producto terminado antes de envasar. (g terminado / g ingredientes crudos) × 100. Documentar por lote para detectar pérdidas anormales.</div>
+          <div class="eval-rendimiento-inputs">
+            <div class="eval-rendimiento-field">
+              <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Ingredientes crudos (g)</label>
+              <input class="field-input" id="evalPesoIngredientes" type="number" min="0" step="1" placeholder="0" style="margin:0" />
+            </div>
+            <span class="eval-rendimiento-arrow">→</span>
+            <div class="eval-rendimiento-field">
+              <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Producto terminado (g)</label>
+              <input class="field-input" id="evalPesoTerminado" type="number" min="0" step="1" placeholder="0" style="margin:0" />
+            </div>
+            <div class="eval-rendimiento-result" id="evalRendimientoResult"></div>
+          </div>
+        </div>
+
+        <!-- Frascos -->
+        <div class="eval-dim">
+          <div class="eval-dim-title">Frascos llenados del lote</div>
+          <div class="eval-frascos-grid">
+            <div class="eval-frasco-field">
+              <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Frascos 230 ml</label>
+              <input class="field-input" id="evalFrascos230" type="number" min="0" step="1" placeholder="0" style="margin:0" />
+            </div>
+            <div class="eval-frasco-field">
+              <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Frascos 180 ml</label>
+              <input class="field-input" id="evalFrascos180" type="number" min="0" step="1" placeholder="0" style="margin:0" />
+            </div>
+            <div class="eval-frascos-total" id="evalFrascosTotal">—</div>
+          </div>
+        </div>
+
+        <!-- Score -->
+        <div class="eval-score-box">
+          <div>
+            <div class="eval-score-label">Puntaje técnico D1–D6</div>
+            <div class="eval-score-level" id="evalScoreLevel"></div>
+          </div>
+          <div class="eval-score-value" id="evalScoreValue">—/30</div>
+        </div>
+
+        <label class="field-label" style="margin-top:16px">Calificación general del lote</label>
         <div class="rating-stars" id="evalStars">
           <button class="star-btn" data-val="1">★</button>
           <button class="star-btn" data-val="2">★</button>
@@ -435,9 +665,11 @@
           <button class="star-btn" data-val="4">★</button>
           <button class="star-btn" data-val="5">★</button>
         </div>
-        <label class="field-label">Observaciones del lote</label>
-        <textarea class="field-textarea" id="evalObs" rows="3" placeholder="Notas de calidad, observaciones del proceso…"></textarea>
-        <button class="btn-primary" id="btnSaveEvaluacion">Guardar y finalizar lote</button>
+
+        <label class="field-label">Observaciones adicionales</label>
+        <textarea class="field-textarea" id="evalObs" rows="3" placeholder="Notas de calidad, ajustes para próximo lote…"></textarea>
+
+        <button class="btn-primary" id="btnSaveEvaluacion" style="margin-top:16px">Guardar y finalizar lote</button>
         <div class="feedback" id="evaluacionFeedback"></div>
       </div>
     </div>
