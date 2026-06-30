@@ -1071,6 +1071,41 @@ body {
 
 .exec-next-btn { margin-top: 0 !important; }
 
+/* ── Ingredient comparison table ───────────────────────────────────────────── */
+.comp-header,
+.comp-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.comp-header {
+  background: var(--bg);
+  border-radius: 8px 8px 0 0;
+  border: 1.5px solid var(--border);
+  border-bottom: none;
+  font-weight: 700;
+  color: var(--text-sub);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.comp-row {
+  border: 1.5px solid var(--border);
+  border-top: none;
+  background: var(--card);
+}
+.comp-row:last-child { border-radius: 0 0 8px 8px; }
+.comp-nombre  { font-weight: 600; color: var(--text); }
+.comp-plan    { color: var(--text-sub); }
+.comp-actual  { color: var(--text); }
+.comp-delta   { font-weight: 700; }
+.comp-delta--ok   { color: var(--brand); }
+.comp-delta--low  { color: #e06c00; }
+.comp-delta--high { color: #b34; }
+
 /* ── Instrucciones por fila (edición de etapa) ───────────────────────────── */
 .instrucciones-list { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
 .instruccion-row    { display: flex; align-items: center; gap: 6px; }

@@ -2440,7 +2440,7 @@ async function initRecetasSheets() {
   if (!rd.values) {
     await sheetsReq('/values/RecetasPlantillas!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID','Nombre','Descripcion','Etapas','CreadoEn']] })
+      body: JSON.stringify({ values: [['ID','Nombre','Descripcion','Etapas','CreadoEn','IngredientesMaestros']] })
     });
   }
 
@@ -2456,32 +2456,35 @@ async function initRecetasSheets() {
 // ── Procesos: CRUD ────────────────────────────────────────────────────────────
 
 async function loadRecetasData() {
-  const data = await sheetsReq('/values/RecetasPlantillas!A:E');
+  const data = await sheetsReq('/values/RecetasPlantillas!A:F');
   const rows = (data.values || []).slice(1);
   recetas = rows.filter(r => r[0]).map((r, i) => ({
-    id:          r[0] || '',
-    nombre:      r[1] || '',
-    descripcion: r[2] || '',
-    etapas:      safeParseJSON(r[3], []),
-    creadoEn:    r[4] || '',
-    rowIndex:    i + 2
+    id:                   r[0] || '',
+    nombre:               r[1] || '',
+    descripcion:          r[2] || '',
+    etapas:               safeParseJSON(r[3], []),
+    creadoEn:             r[4] || '',
+    ingredientesMaestros: safeParseJSON(r[5], []),
+    rowIndex:             i + 2
   }));
 }
 
 async function appendReceta(rec) {
-  await sheetsReq('/values/RecetasPlantillas!A:E:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/RecetasPlantillas!A:F:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
-      rec.id, rec.nombre, rec.descripcion, JSON.stringify(rec.etapas), rec.creadoEn
+      rec.id, rec.nombre, rec.descripcion, JSON.stringify(rec.etapas), rec.creadoEn,
+      JSON.stringify(rec.ingredientesMaestros || [])
     ]]})
   });
 }
 
 async function updateReceta(rec) {
-  await sheetsReq(`/values/RecetasPlantillas!A${rec.rowIndex}:E${rec.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/RecetasPlantillas!A${rec.rowIndex}:F${rec.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
-      rec.id, rec.nombre, rec.descripcion, JSON.stringify(rec.etapas), rec.creadoEn
+      rec.id, rec.nombre, rec.descripcion, JSON.stringify(rec.etapas), rec.creadoEn,
+      JSON.stringify(rec.ingredientesMaestros || [])
     ]]})
   });
 }
@@ -2972,6 +2975,42 @@ document.querySelectorAll('[data-procesostab]').forEach(btn => {
   });
 });
 
+// ── Procesos: Ingredientes maestros de receta ─────────────────────────────────
+
+function buildIngMaestroRow(ing) {
+  const row = document.createElement('div');
+  row.className = 'insumo-row ing-maestro-row';
+  row.innerHTML = `
+    <input class="field-input ing-maestro-nombre" type="text" value="${esc(ing.nombre || '')}" placeholder="Ingrediente" style="flex:2" autocomplete="off" />
+    <input class="field-input ing-maestro-cantidad" type="number" min="0" step="any" value="${ing.cantidadTotal != null ? ing.cantidadTotal : ''}" placeholder="Cant." style="width:80px" />
+    <input class="field-input ing-maestro-unidad" type="text" value="${esc(ing.unidad || '')}" placeholder="Unidad" style="width:72px" autocomplete="off" />
+    <button class="subtask-remove" title="Eliminar">✕</button>
+  `;
+  row.querySelector('.subtask-remove').addEventListener('click', () => row.remove());
+  attachIngredienteAutocomplete(row.querySelector('.ing-maestro-nombre'));
+  return row;
+}
+
+function renderIngredientesMaestrosList(ings) {
+  const container = document.getElementById('ingredientesMaestrosList');
+  if (!container) return;
+  container.innerHTML = '';
+  (ings || []).forEach(ing => container.appendChild(buildIngMaestroRow(ing)));
+}
+
+function collectIngredientesMaestros() {
+  return Array.from(document.querySelectorAll('.ing-maestro-row')).map(row => ({
+    nombre:        row.querySelector('.ing-maestro-nombre').value.trim(),
+    cantidadTotal: parseFloat(row.querySelector('.ing-maestro-cantidad').value) || 0,
+    unidad:        row.querySelector('.ing-maestro-unidad').value.trim()
+  })).filter(ing => ing.nombre);
+}
+
+document.getElementById('btnAddIngMaestro').addEventListener('click', () => {
+  const container = document.getElementById('ingredientesMaestrosList');
+  if (container) container.appendChild(buildIngMaestroRow({}));
+});
+
 // ── Procesos: Receta modal (crear / editar) ───────────────────────────────────
 
 function openRecetaModal(editId) {
@@ -2986,6 +3025,7 @@ function openRecetaModal(editId) {
     document.getElementById('recetaNombre').value = rec.nombre;
     document.getElementById('recetaDesc').value   = rec.descripcion || '';
     renderEtapasList(rec.etapas);
+    renderIngredientesMaestrosList(rec.ingredientesMaestros || []);
   } else {
     document.getElementById('recetaModalTitle').textContent = 'Nueva receta';
     document.getElementById('recetaNombre').value = '';
@@ -2994,6 +3034,7 @@ function openRecetaModal(editId) {
       { ...LIMPIEZA_ETAPA },
       { ...LIMPIEZA_ETAPA }
     ]);
+    renderIngredientesMaestrosList([]);
   }
 
   overlay.classList.add('open');
@@ -3247,16 +3288,20 @@ document.getElementById('btnSaveReceta').addEventListener('click', async () => {
   const btn = document.getElementById('btnSaveReceta');
   btn.disabled = true; btn.textContent = 'Guardando…';
 
+  const ingredientesMaestros = collectIngredientesMaestros();
+
   try {
     if (editRecetaId) {
       const rec = recetas.find(r => r.id === editRecetaId);
       if (rec) {
         rec.nombre = nombre; rec.descripcion = desc; rec.etapas = etapas;
+        rec.ingredientesMaestros = ingredientesMaestros;
         await updateReceta(rec);
       }
     } else {
       await appendReceta({
         id: crypto.randomUUID(), nombre, descripcion: desc, etapas,
+        ingredientesMaestros,
         creadoEn: new Date().toISOString()
       });
     }
@@ -3412,6 +3457,102 @@ function goBackStage() {
   renderExecutionStep();
 }
 
+function buildExecInsumosSection(receta, etapa) {
+  const maestros = receta.ingredientesMaestros || [];
+  if (maestros.length) {
+    const rows = maestros.map((ing, i) => `
+      <div class="exec-insumo-row">
+        <span class="exec-insumo-nombre">${esc(ing.nombre)}</span>
+        <span class="exec-insumo-planned">(total planeado: ${ing.cantidadTotal} ${esc(ing.unidad)})</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input class="field-input exec-insumo-real" data-ing-idx="${i}" type="number" value="" min="0" step="any" style="width:90px" placeholder="0" />
+          <span>${esc(ing.unidad)}</span>
+        </div>
+      </div>
+    `).join('');
+    return `
+      <div class="exec-insumos-section">
+        <h4 class="exec-insumos-title">¿Cuánto usaste en esta etapa?</h4>
+        <p class="exec-insumos-note">Ingresa la cantidad real de cada ingrediente usado en esta etapa. Déjalo en 0 si no lo usaste aquí.</p>
+        <div class="exec-insumos-list">${rows}</div>
+      </div>`;
+  }
+  if (etapa.insumos && etapa.insumos.length) {
+    const rows = etapa.insumos.map((ins, i) => `
+      <div class="exec-insumo-row">
+        <span class="exec-insumo-nombre">${esc(ins.nombre)}</span>
+        <span class="exec-insumo-planned">(planeado: ${ins.cantidad} ${esc(ins.unidad)})</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input class="field-input exec-insumo-real" data-idx="${i}" type="number" value="${ins.cantidad}" min="0" step="any" style="width:90px" />
+          <span>${esc(ins.unidad)}</span>
+        </div>
+      </div>
+    `).join('');
+    return `
+      <div class="exec-insumos-section">
+        <h4 class="exec-insumos-title">Confirmar insumos usados</h4>
+        <p class="exec-insumos-note">Verifica o ajusta las cantidades reales antes de continuar.</p>
+        <div class="exec-insumos-list">${rows}</div>
+      </div>`;
+  }
+  return '';
+}
+
+function maybeShowComparacion(receta, stagesData) {
+  const maestros = receta.ingredientesMaestros || [];
+  if (maestros.length) {
+    showComparacionIngredientes(receta, stagesData);
+  } else {
+    document.getElementById('evaluacionOverlay').classList.add('open');
+    startEvalClock();
+  }
+}
+
+function showComparacionIngredientes(receta, stagesData) {
+  const maestros = receta.ingredientesMaestros || [];
+  const totalReal = {};
+  stagesData.forEach(stage => {
+    (stage.insumosConfirmados || []).forEach(ins => {
+      const key = normalizeIngName(ins.nombre);
+      totalReal[key] = (totalReal[key] || { nombre: ins.nombre, cantidad: 0, unidad: ins.unidad });
+      totalReal[key].cantidad += parseFloat(ins.cantidadReal) || 0;
+    });
+  });
+
+  const rows = maestros.map(ing => {
+    const key    = normalizeIngName(ing.nombre);
+    const real   = totalReal[key] ? totalReal[key].cantidad : 0;
+    const plan   = parseFloat(ing.cantidadTotal) || 0;
+    const delta  = real - plan;
+    const sign   = delta > 0 ? '+' : '';
+    const cls    = Math.abs(delta) < 0.001 ? 'comp-delta--ok' : (delta < 0 ? 'comp-delta--low' : 'comp-delta--high');
+    return `
+      <div class="comp-row">
+        <span class="comp-nombre">${esc(ing.nombre)}</span>
+        <span class="comp-plan">${plan} ${esc(ing.unidad)}</span>
+        <span class="comp-actual">${real} ${esc(ing.unidad)}</span>
+        <span class="comp-delta ${cls}">${sign}${delta.toFixed(2)}</span>
+      </div>`;
+  }).join('');
+
+  document.getElementById('comparacionBody').innerHTML = `
+    <div class="comp-header">
+      <span class="comp-nombre">Ingrediente</span>
+      <span class="comp-plan">Planeado</span>
+      <span class="comp-actual">Usado</span>
+      <span class="comp-delta">Diferencia</span>
+    </div>
+    ${rows}
+  `;
+  document.getElementById('comparacionOverlay').classList.add('open');
+}
+
+document.getElementById('btnContinuarEval').addEventListener('click', () => {
+  document.getElementById('comparacionOverlay').classList.remove('open');
+  document.getElementById('evaluacionOverlay').classList.add('open');
+  startEvalClock();
+});
+
 function renderExecutionStep() {
   if (!executionState) return;
   const { receta, currentStageIndex } = executionState;
@@ -3437,24 +3578,7 @@ function renderExecutionStep() {
 
     <div class="exec-timer" id="execTimer">00:00</div>
 
-    ${etapa.insumos && etapa.insumos.length ? `
-      <div class="exec-insumos-section">
-        <h4 class="exec-insumos-title">Confirmar insumos usados</h4>
-        <p class="exec-insumos-note">Verifica o ajusta las cantidades reales antes de continuar.</p>
-        <div class="exec-insumos-list">
-          ${etapa.insumos.map((ins, i) => `
-            <div class="exec-insumo-row">
-              <span class="exec-insumo-nombre">${esc(ins.nombre)}</span>
-              <span class="exec-insumo-planned">(planeado: ${ins.cantidad} ${esc(ins.unidad)})</span>
-              <div style="display:flex;align-items:center;gap:6px">
-                <input class="field-input exec-insumo-real" data-idx="${i}" type="number" value="${ins.cantidad}" min="0" step="any" style="width:90px" />
-                <span>${esc(ins.unidad)}</span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    ` : ''}
+    ${buildExecInsumosSection(receta, etapa)}
 
     <div style="margin-top:20px">
       <button class="btn-primary exec-next-btn" id="btnNextStage">
@@ -3482,15 +3606,25 @@ function advanceStage() {
   clearInterval(executionState.timerInterval);
   const duracion = Math.floor((Date.now() - executionState.stageStartTime) / 1000);
 
-  const insumosConfirmados = (etapa.insumos || []).map((ins, i) => {
-    const realInput = document.querySelector(`.exec-insumo-real[data-idx="${i}"]`);
-    return {
-      nombre:              ins.nombre,
-      cantidadPlanificada: ins.cantidad,
-      cantidadReal:        realInput ? parseFloat(realInput.value) || 0 : ins.cantidad,
-      unidad:              ins.unidad
-    };
-  });
+  const maestros = receta.ingredientesMaestros || [];
+  let insumosConfirmados;
+  if (maestros.length) {
+    insumosConfirmados = maestros.map((ing, i) => {
+      const realInput = document.querySelector(`.exec-insumo-real[data-ing-idx="${i}"]`);
+      const qty = realInput ? parseFloat(realInput.value) || 0 : 0;
+      return { nombre: ing.nombre, cantidadPlanificada: ing.cantidadTotal, cantidadReal: qty, unidad: ing.unidad };
+    }).filter(ins => ins.cantidadReal > 0);
+  } else {
+    insumosConfirmados = (etapa.insumos || []).map((ins, i) => {
+      const realInput = document.querySelector(`.exec-insumo-real[data-idx="${i}"]`);
+      return {
+        nombre:              ins.nombre,
+        cantidadPlanificada: ins.cantidad,
+        cantidadReal:        realInput ? parseFloat(realInput.value) || 0 : ins.cantidad,
+        unidad:              ins.unidad
+      };
+    });
+  }
 
   executionState.stagesData.push({
     nombre:              etapa.nombre,
@@ -3585,8 +3719,7 @@ function finishExecution() {
   evaluacionPendiente.fase2UnlockAt      = new Date(nowMs + 60 * 60 * 1000).toISOString();
   evaluacionPendiente.sineresisUnlockAt  = new Date(nowMs + 24 * 60 * 60 * 1000).toISOString();
 
-  document.getElementById('evaluacionOverlay').classList.add('open');
-  startEvalClock();
+  maybeShowComparacion(receta, stagesData);
 }
 
 document.getElementById('btnCancelEjecutar').addEventListener('click', () => {

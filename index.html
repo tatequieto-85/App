@@ -410,7 +410,12 @@
         <input class="field-input" id="recetaNombre" type="text" placeholder="Ej: Salsa Habanero Original" />
         <label class="field-label">Descripción</label>
         <textarea class="field-textarea" id="recetaDesc" rows="2" placeholder="Descripción general de la receta…" style="min-height:50px"></textarea>
-        <p class="mgmt-section-title" style="margin-top:20px">Etapas del proceso</p>
+        <p class="mgmt-section-title" style="margin-top:20px">Ingredientes de la receta</p>
+        <p class="mgmt-note">Lista completa con cantidades totales planificadas. Durante la ejecución registrarás cuánto usas en cada etapa y al final se compara automáticamente.</p>
+        <div id="ingredientesMaestrosList" class="insumos-list" style="margin-bottom:4px"></div>
+        <button class="btn-outline btn-sm" id="btnAddIngMaestro" style="margin-top:4px;margin-bottom:20px">+ Agregar ingrediente</button>
+
+        <p class="mgmt-section-title">Etapas del proceso</p>
         <p class="mgmt-note">Cada etapa tiene sus propios insumos y tiempo estimado. El cronómetro inicia automáticamente al comenzar cada etapa.</p>
         <div id="etapasList" class="etapas-list"></div>
         <button class="btn-outline" id="btnAddEtapa" style="width:100%;margin-top:8px">+ Agregar etapa</button>
@@ -461,6 +466,20 @@
         <button class="btn-icon" id="btnCancelEjecutar">✕</button>
       </div>
       <div class="modal-body modal-body-scroll" id="ejecutarBody"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Comparación de ingredientes post-ejecución -->
+  <div class="modal-overlay" id="comparacionOverlay">
+    <div class="modal" style="max-width:540px">
+      <div class="modal-header">
+        <h2>📊 Resumen de ingredientes</h2>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <p class="mgmt-note">Comparación entre lo planificado y lo realmente usado en esta ejecución.</p>
+        <div id="comparacionBody"></div>
+        <button class="btn-primary" id="btnContinuarEval" style="margin-top:18px;width:100%">Continuar con evaluación →</button>
+      </div>
     </div>
   </div>
 
