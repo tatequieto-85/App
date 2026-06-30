@@ -992,10 +992,10 @@ body {
 .ingrediente-autocomplete {
   position: absolute;
   max-width: 320px;
-  background: var(--card);
+  background: #fff;
   border: 1.5px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0,0,0,.18);
+  box-shadow: 0 6px 24px rgba(0,0,0,.22);
   z-index: 9999;
   max-height: 200px;
   overflow-y: auto;
