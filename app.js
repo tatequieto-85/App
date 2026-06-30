@@ -36,6 +36,10 @@ let ejecucionDetailId    = null;
 let lastTapTime          = {};   // for double-tap detection on mobile
 let draggedColName       = null; // for kanban column drag-reorder
 let recetaDetailId       = null; // for recipe detail view
+let evalClockInterval    = null; // clock in evaluation modal
+let fase2EvalEjId        = null; // ejecucion being evaluated (fase2)
+let sineresisEvalEjId    = null; // ejecucion being evaluated (sineresis)
+let fase2Scores          = { D3: 0, D6: 0 };
 
 const TERMINAL_STATES = ['Realizado', 'Cancelado', 'Postpuesto'];
 const DEFAULT_COLUMNS = [
@@ -110,13 +114,21 @@ function navigateTo(view) {
 
   // Load data for the selected view
   if (view === 'tareas') {
+    // Siempre iniciar en pestaña Kanban
+    currentSubTab = 'kanban';
+    document.querySelectorAll('.sub-tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.subtab === 'kanban');
+    });
+    document.getElementById('subTabKanban').style.display  = '';
+    document.getElementById('subTabLista').style.display   = 'none';
+    document.getElementById('kanbanToolbar').style.display = '';
+
     document.getElementById('kanbanBoard').innerHTML =
       '<div class="loading-state" style="padding:48px 0">Cargando…</div>';
     loadKanbanConfig().then(() => loadKanbanTasks()).then(() => {
       populateAreaSelects();
       populateStatusSelects();
-      if (currentSubTab === 'kanban') renderKanban();
-      else renderKanbanList();
+      renderKanban();
     });
   }
   if (view === 'procesos') {
@@ -381,6 +393,7 @@ async function onAuthSuccess() {
   navigateTo('home');
   startNotificationScheduler();
   registerPeriodicSync();
+  checkPendingEvalNotifications();
 }
 
 // ── WhatsApp notification scheduler ──────────────────────────────────────────
@@ -399,7 +412,7 @@ async function checkAndSendNotification() {
     const m     = parseInt(now.toLocaleString('en-CA', { ...opts, minute: '2-digit' }));
     const today = now.toLocaleDateString('en-CA', opts);
 
-    if (!((h === 9 && m === 0) || (h === 16 && m === 0))) return;
+    if (!((h === 9 && m <= 10) || (h === 16 && m <= 10))) return;
 
     const key = `ss_notif_${today}_${h}`;
     if (localStorage.getItem(key)) return;
@@ -454,6 +467,176 @@ async function sendDailyReminder(hour) {
     console.warn('sendDailyReminder:', e);
   }
 }
+
+// ── Eval stage WA notifications ──────────────────────────────────────────────
+
+const EVAL_NOTIF_KEY = 'ss_eval_notifs';
+
+function getEvalNotifs() {
+  return safeParseJSON(localStorage.getItem(EVAL_NOTIF_KEY), []);
+}
+
+function saveEvalNotifs(notifs) {
+  localStorage.setItem(EVAL_NOTIF_KEY, JSON.stringify(notifs));
+}
+
+function scheduleEvalNotifications(ej) {
+  const ev = ej.evaluacion || {};
+  const notifs = getEvalNotifs().filter(n => !(n.ejId === ej.id));
+  if (ev.fase2UnlockAt) {
+    notifs.push({ ejId: ej.id, loteId: ej.loteId, recetaNombre: ej.nombreReceta,
+      unlockAt: ev.fase2UnlockAt, type: 'fase2', sent: false });
+  }
+  if (ev.sineresisUnlockAt) {
+    notifs.push({ ejId: ej.id, loteId: ej.loteId, recetaNombre: ej.nombreReceta,
+      unlockAt: ev.sineresisUnlockAt, type: 'sineresis', sent: false });
+  }
+  saveEvalNotifs(notifs);
+  armEvalNotifTimers();
+}
+
+function armEvalNotifTimers() {
+  const now = Date.now();
+  getEvalNotifs().forEach(n => {
+    if (n.sent) return;
+    const msUntil = new Date(n.unlockAt).getTime() - now;
+    if (msUntil <= 0) {
+      sendEvalWANotification(n);
+    } else {
+      setTimeout(() => sendEvalWANotification(n), msUntil);
+    }
+  });
+}
+
+async function sendEvalWANotification(notif) {
+  const notifs = getEvalNotifs();
+  const idx = notifs.findIndex(n => n.ejId === notif.ejId && n.type === notif.type);
+  if (idx >= 0 && notifs[idx].sent) return;
+  if (idx >= 0) notifs[idx].sent = true;
+  saveEvalNotifs(notifs);
+
+  try {
+    const cfg = await loadConfig();
+    if (!cfg.phone || !cfg.apikey) return;
+    const lote = notif.loteId || '—';
+    const receta = notif.recetaNombre || '';
+    let msg;
+    if (notif.type === 'fase2') {
+      msg = `🧊 *TATEAPP — Fase 2 lista*\n\nLote ${lote} (${receta})\n\nYa puedes evaluar:\n• Prueba en frío\n• Estabilidad de color\n• Verificación de sello y vacío\n\nProcesos → Ejecuciones → botón "Evaluar Fase 2"`;
+    } else {
+      msg = `💧 *TATEAPP — Sinéresis lista*\n\nLote ${lote} (${receta})\n\nHan pasado 24h. Evalúa la sinéresis ahora.\n\nProcesos → Ejecuciones → botón "Evaluar Sinéresis"`;
+    }
+    const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(cfg.phone)}&text=${encodeURIComponent(msg)}&apikey=${encodeURIComponent(cfg.apikey)}`;
+    await fetch(url, { mode: 'no-cors' });
+  } catch (e) {
+    console.warn('sendEvalWANotification:', e);
+  }
+}
+
+function checkPendingEvalNotifications() {
+  armEvalNotifTimers();
+}
+
+// ── Procesos: Fase 2 / Sinéresis evaluation ───────────────────────────────────
+
+function openFase2Eval(ejId) {
+  const ej = ejecuciones.find(e => e.id === ejId);
+  if (!ej) return;
+  fase2EvalEjId = ejId;
+  fase2Scores = { D3: 0, D6: 0 };
+  document.querySelectorAll('.fase2-scale-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('fase2SelloTapa').checked = false;
+  document.getElementById('fase2SelloPop').checked  = false;
+  document.getElementById('fase2SelloOlor').checked = false;
+  document.getElementById('fase2Feedback').textContent = '';
+  document.getElementById('fase2LoteLabel').textContent =
+    `Lote ${ej.loteId || '—'} — ${ej.nombreReceta}`;
+  document.getElementById('fase2EvalOverlay').classList.add('open');
+}
+
+function openSineresisEval(ejId) {
+  const ej = ejecuciones.find(e => e.id === ejId);
+  if (!ej) return;
+  sineresisEvalEjId = ejId;
+  document.querySelectorAll('input[name="sinEvalOpt"]').forEach(r => r.checked = false);
+  document.getElementById('sineresisFeedback').textContent = '';
+  document.getElementById('sineresisLoteLabel').textContent =
+    `Lote ${ej.loteId || '—'} — ${ej.nombreReceta}`;
+  document.getElementById('sineresisEvalOverlay').classList.add('open');
+}
+
+document.getElementById('btnCloseFase2Eval').addEventListener('click', () => {
+  document.getElementById('fase2EvalOverlay').classList.remove('open');
+});
+document.getElementById('btnCloseSineresisEval').addEventListener('click', () => {
+  document.getElementById('sineresisEvalOverlay').classList.remove('open');
+});
+
+document.querySelectorAll('.fase2-scale-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const dim = btn.dataset.dim;
+    const val = +btn.dataset.val;
+    fase2Scores[dim] = val;
+    document.querySelectorAll(`.fase2-scale-btn[data-dim="${dim}"]`).forEach(b => {
+      b.classList.toggle('active', +b.dataset.val === val);
+    });
+  });
+});
+
+document.getElementById('btnSaveFase2').addEventListener('click', async () => {
+  const ej = ejecuciones.find(e => e.id === fase2EvalEjId);
+  if (!ej) return;
+  const btn = document.getElementById('btnSaveFase2');
+  const fb  = document.getElementById('fase2Feedback');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    const fase2Data = {
+      scores:    { ...fase2Scores },
+      scoreTotal: fase2Scores.D3 + fase2Scores.D6,
+      sello: {
+        tapa: document.getElementById('fase2SelloTapa').checked,
+        pop:  document.getElementById('fase2SelloPop').checked,
+        olor: document.getElementById('fase2SelloOlor').checked,
+      }
+    };
+    ej.evaluacion.fase2        = fase2Data;
+    ej.evaluacion.scores.D3    = fase2Scores.D3;
+    ej.evaluacion.scores.D6    = fase2Scores.D6;
+    ej.evaluacion.sello        = fase2Data.sello;
+    ej.evaluacion.scoreTotal   = (ej.evaluacion.scoreTotal || 0) + fase2Data.scoreTotal;
+    await updateEjecucion(ej);
+    await loadEjecucionesData();
+    renderEjecucionesList();
+    setFb(fb, '✅ Fase 2 guardada correctamente.', 'ok');
+    setTimeout(() => document.getElementById('fase2EvalOverlay').classList.remove('open'), 2000);
+  } catch (e) {
+    setFb(fb, 'Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar Fase 2';
+  }
+});
+
+document.getElementById('btnSaveSineresis').addEventListener('click', async () => {
+  const ej = ejecuciones.find(e => e.id === sineresisEvalEjId);
+  if (!ej) return;
+  const val = document.querySelector('input[name="sinEvalOpt"]:checked')?.value;
+  if (!val) return setFb(document.getElementById('sineresisFeedback'), 'Selecciona una opción.', 'err');
+  const btn = document.getElementById('btnSaveSineresis');
+  const fb  = document.getElementById('sineresisFeedback');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    ej.evaluacion.sineresis = val;
+    await updateEjecucion(ej);
+    await loadEjecucionesData();
+    renderEjecucionesList();
+    setFb(fb, '✅ Sinéresis guardada correctamente.', 'ok');
+    setTimeout(() => document.getElementById('sineresisEvalOverlay').classList.remove('open'), 2000);
+  } catch (e) {
+    setFb(fb, 'Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar Sinéresis';
+  }
+});
 
 async function registerPeriodicSync() {
   if (!('serviceWorker' in navigator)) return;
@@ -981,6 +1164,17 @@ btnSettings.addEventListener('click', async () => {
 });
 
 btnCloseSettings.addEventListener('click', () => settingsOverlay.classList.remove('open'));
+
+document.getElementById('btnTestWhatsApp').addEventListener('click', async () => {
+  const fb = settingsFeedback;
+  setFb(fb, 'Enviando…', '');
+  try {
+    await sendDailyReminder(new Date().getHours());
+    setFb(fb, '✅ Mensaje enviado (revisa WhatsApp en unos segundos).', 'ok');
+  } catch (e) {
+    setFb(fb, `Error: ${e.message}`, 'err');
+  }
+});
 settingsOverlay.addEventListener('click', e => {
   if (e.target === settingsOverlay) settingsOverlay.classList.remove('open');
 });
@@ -1076,6 +1270,31 @@ function safeParseJSON(val, fallback) {
   try { return JSON.parse(val); } catch { return fallback; }
 }
 
+// ── Borrador de nueva tarea (persistencia ante cierre accidental) ─────────────
+
+function saveTaskDraft() {
+  if (kanbanEditId) return;
+  const draft = {
+    area:     document.getElementById('taskArea')?.value    || '',
+    title:    document.getElementById('taskTitle')?.value   || '',
+    desc:     document.getElementById('taskDesc')?.value    || '',
+    due:      document.getElementById('taskDue')?.value     || '',
+    status:   document.getElementById('taskStatus')?.value  || '',
+    subtasks: collectSubtasks()
+  };
+  if (draft.title || draft.desc || draft.subtasks.length) {
+    localStorage.setItem('ss_draftTask', JSON.stringify(draft));
+  }
+}
+
+function loadTaskDraft() {
+  return safeParseJSON(localStorage.getItem('ss_draftTask'), null);
+}
+
+function clearTaskDraft() {
+  localStorage.removeItem('ss_draftTask');
+}
+
 function fmtDueShort(dateStr) {
   if (!dateStr) return '';
   const d     = new Date(dateStr + 'T00:00:00');
@@ -1104,6 +1323,7 @@ document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && accessToken) {
     if (Date.now() > tokenExpiry - 5 * 60 * 1000) await trySilentGoogleAuth();
     loadStories();
+    checkAndSendNotification();
   }
 });
 
@@ -1581,13 +1801,30 @@ function openTaskModal(defaultStatus, editId) {
     renderSubtasksList(task.subtasks || []);
   } else {
     document.getElementById('taskModalTitle').textContent = 'Nueva tarea';
-    document.getElementById('taskArea').value   = kanbanAreas[0] || '';
-    document.getElementById('taskTitle').value  = '';
-    document.getElementById('taskDesc').value   = '';
-    document.getElementById('taskDue').value    = '';
-    const firstNonTerm = kanbanColumns.find(c => !c.terminal);
-    document.getElementById('taskStatus').value = defaultStatus || firstNonTerm?.name || '';
-    renderSubtasksList([]);
+    const draft = loadTaskDraft();
+    if (draft && (draft.title || draft.desc || (draft.subtasks || []).length)) {
+      document.getElementById('taskArea').value   = draft.area   || kanbanAreas[0] || '';
+      document.getElementById('taskTitle').value  = draft.title  || '';
+      document.getElementById('taskDesc').value   = draft.desc   || '';
+      document.getElementById('taskDue').value    = draft.due    || '';
+      document.getElementById('taskStatus').value = draft.status || defaultStatus || kanbanColumns.find(c => !c.terminal)?.name || '';
+      renderSubtasksList(draft.subtasks || []);
+      const fb = document.getElementById('taskFeedback');
+      fb.textContent = '↩ Borrador restaurado';
+      fb.className   = 'feedback';
+      fb.style.color = 'var(--brand)';
+    } else {
+      document.getElementById('taskArea').value   = kanbanAreas[0] || '';
+      document.getElementById('taskTitle').value  = '';
+      document.getElementById('taskDesc').value   = '';
+      document.getElementById('taskDue').value    = '';
+      const firstNonTerm = kanbanColumns.find(c => !c.terminal);
+      document.getElementById('taskStatus').value = defaultStatus || firstNonTerm?.name || '';
+      renderSubtasksList([]);
+      document.getElementById('taskFeedback').textContent = '';
+      document.getElementById('taskFeedback').className   = 'feedback';
+      document.getElementById('taskFeedback').style.color = '';
+    }
   }
 
   document.getElementById('taskFeedback').textContent = '';
@@ -1634,6 +1871,7 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
         subtasks, observations: []
       });
     }
+    clearTaskDraft();
     await loadKanbanTasks();
     document.getElementById('taskOverlay').classList.remove('open');
 
@@ -1811,16 +2049,54 @@ function openTaskDetail(taskId) {
       </div>`
     : '';
 
+  const statusOptions = kanbanColumns.map(c =>
+    `<option value="${esc(c.name)}" ${c.name === task.status ? 'selected' : ''}>${esc(c.name)}</option>`
+  ).join('');
+
   document.getElementById('taskDetailModalTitle').textContent = task.title;
   document.getElementById('taskDetailContent').innerHTML = `
     <div class="detail-row"><span class="detail-label">Área</span><span class="detail-value">${esc(task.area)}</span></div>
-    <div class="detail-row"><span class="detail-label">Estado</span><span class="status-pill" style="background:${color}22;color:${color}">${esc(task.status)}</span></div>
+    <div class="detail-row">
+      <span class="detail-label">Estado</span>
+      <select class="field-select" id="detailStatusSelect" style="font-size:13px;padding:5px 10px">
+        ${statusOptions}
+      </select>
+      <span id="detailStatusSaving" style="font-size:11px;color:var(--text-sub);display:none">Guardando…</span>
+    </div>
     <div class="detail-row"><span class="detail-label">Fecha límite</span><span class="kanban-card-due ${due.cls}">${due.text || '—'}</span></div>
     ${task.desc ? `<div class="detail-row detail-row--col"><span class="detail-label">Descripción</span><span class="detail-value">${esc(task.desc)}</span></div>` : ''}
     ${subtasksHTML ? `<div class="detail-row detail-row--col"><span class="detail-label">Sub-tareas</span>${subtasksHTML}</div>` : ''}
     <div class="detail-row detail-row--meta"><span class="detail-label">Creada</span><span class="detail-value">${fmtDate(task.createdAt)}</span></div>
     <div class="detail-row detail-row--meta"><span class="detail-label">Actualizada</span><span class="detail-value">${fmtDate(task.updatedAt)}</span></div>
   `;
+
+  const detailStatusSel = document.getElementById('detailStatusSelect');
+  if (detailStatusSel) {
+    detailStatusSel.addEventListener('change', async function() {
+      const newStatus = this.value;
+      const t = kanbanTasks.find(x => x.id === taskDetailId);
+      if (!t || t.status === newStatus) return;
+      if (TERMINAL_STATES.includes(newStatus) && !confirm(`¿Finalizar la tarea como "${newStatus}"?`)) {
+        this.value = t.status;
+        return;
+      }
+      const prev = t.status;
+      t.status   = newStatus;
+      const savingEl = document.getElementById('detailStatusSaving');
+      if (savingEl) savingEl.style.display = '';
+      try {
+        await updateKanbanTask(t);
+        if (currentSubTab === 'kanban') renderKanban();
+        else renderKanbanList();
+      } catch (e) {
+        t.status   = prev;
+        this.value = prev;
+        alert('Error al cambiar estado: ' + e.message);
+      } finally {
+        if (savingEl) savingEl.style.display = 'none';
+      }
+    });
+  }
 
   renderObservations(task);
 
@@ -2114,6 +2390,40 @@ function renderEjecucionesList() {
     const ev = ej.evaluacion || {};
     const stars = ev.calificacion ? '★'.repeat(ev.calificacion) + '☆'.repeat(5 - ev.calificacion) : '—';
     const durMin = ej.duracionTotal ? Math.round(+ej.duracionTotal / 60) + ' min' : '—';
+    const now = Date.now();
+
+    // Phase 2 status
+    let fase2Html = '';
+    if (ev.fase2UnlockAt) {
+      const unlockMs = new Date(ev.fase2UnlockAt).getTime();
+      if (ev.fase2) {
+        fase2Html = `<div class="eval-stage-done">✅ Fase 2 evaluada</div>`;
+      } else if (now >= unlockMs) {
+        fase2Html = `<button class="btn-eval-stage btn-fase2-eval" data-fase2-id="${esc(ej.id)}">🧊 Evaluar Fase 2</button>`;
+      } else {
+        const ms = unlockMs - now;
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        fase2Html = `<div class="eval-stage-pending">🧊 Fase 2 en ${h > 0 ? h + 'h ' : ''}${m}m</div>`;
+      }
+    }
+
+    // Sinéresis status
+    let sinHtml = '';
+    if (ev.sineresisUnlockAt) {
+      const sinUnlockMs = new Date(ev.sineresisUnlockAt).getTime();
+      if (ev.sineresis != null) {
+        sinHtml = `<div class="eval-stage-done">✅ Sinéresis: ${ev.sineresis === 'ok' ? 'Sin separación ✓' : 'Separación visible ✗'}</div>`;
+      } else if (now >= sinUnlockMs) {
+        sinHtml = `<button class="btn-eval-stage btn-sineresis-eval" data-sin-id="${esc(ej.id)}">💧 Evaluar Sinéresis</button>`;
+      } else {
+        const ms = sinUnlockMs - now;
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        sinHtml = `<div class="eval-stage-pending">💧 Sinéresis en ${h > 0 ? h + 'h ' : ''}${m}m</div>`;
+      }
+    }
+
     return `
       <div class="ejecucion-card" data-ej-id="${esc(ej.id)}" style="cursor:pointer">
         <div class="ejecucion-card-header">
@@ -2126,6 +2436,7 @@ function renderEjecucionesList() {
           ${ev.calificacion ? `&nbsp;·&nbsp; <span class="ejecucion-stars">${stars}</span>` : ''}
         </div>
         ${ev.observaciones ? `<div class="ejecucion-obs">${esc(ev.observaciones)}</div>` : ''}
+        ${fase2Html || sinHtml ? `<div class="eval-stages-row">${fase2Html}${sinHtml}</div>` : ''}
         <div class="ejecucion-hint">doble clic = ver detalle</div>
       </div>
     `;
@@ -2140,6 +2451,13 @@ function renderEjecucionesList() {
       lastTapTime['ej_' + ejId] = now;
       if (now - last < 350) openEjecucionDetail(ejId);
     });
+  });
+
+  container.querySelectorAll('.btn-fase2-eval').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); openFase2Eval(btn.dataset.fase2Id); });
+  });
+  container.querySelectorAll('.btn-sineresis-eval').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); openSineresisEval(btn.dataset.sinId); });
   });
 }
 
@@ -2669,21 +2987,49 @@ const SCORE_LEVELS = [
   { min:  0, label: 'REFORMULAR',     cls: 'level-bad' },
 ];
 
+const SCORE_LEVELS_FASE1 = [
+  { min: 18, label: 'ÓPTIMO',         cls: 'level-opt' },
+  { min: 14, label: 'CORRECTO',       cls: 'level-ok'  },
+  { min: 10, label: 'ACEPTABLE',      cls: 'level-acc' },
+  { min:  6, label: 'EN DESARROLLO',  cls: 'level-dev' },
+  { min:  0, label: 'REFORMULAR',     cls: 'level-bad' },
+];
+
 function updateEvalScore() {
-  const filled = Object.values(evalScores).filter(v => v > 0).length;
-  const total  = Object.values(evalScores).reduce((a, b) => a + b, 0);
+  const phase1Dims = ['D1', 'D2', 'D4', 'D5'];
+  const filled = phase1Dims.filter(d => evalScores[d] > 0).length;
+  const total  = phase1Dims.reduce((sum, d) => sum + evalScores[d], 0);
   const valEl  = document.getElementById('evalScoreValue');
   const lvlEl  = document.getElementById('evalScoreLevel');
   if (!valEl) return;
-  valEl.textContent = filled > 0 ? `${total}/30` : '—/30';
-  if (filled === 6) {
-    const lvl = SCORE_LEVELS.find(l => total >= l.min) || SCORE_LEVELS[SCORE_LEVELS.length - 1];
+  valEl.textContent = filled > 0 ? `${total}/20` : '—/20';
+  if (filled === 4) {
+    const lvl = SCORE_LEVELS_FASE1.find(l => total >= l.min) || SCORE_LEVELS_FASE1[SCORE_LEVELS_FASE1.length - 1];
     lvlEl.textContent = lvl.label;
     lvlEl.className   = `eval-score-level ${lvl.cls}`;
   } else {
-    lvlEl.textContent = `${filled}/6 dimensiones evaluadas`;
+    lvlEl.textContent = `${filled}/4 dimensiones evaluadas`;
     lvlEl.className   = 'eval-score-level';
   }
+}
+
+// ── Eval modal clock ──────────────────────────────────────────────────────────
+
+function startEvalClock() {
+  const el = document.getElementById('evalClock');
+  if (!el) return;
+  if (evalClockInterval) clearInterval(evalClockInterval);
+  const update = () => {
+    el.textContent = new Date().toLocaleTimeString('es-CO', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    });
+  };
+  update();
+  evalClockInterval = setInterval(update, 1000);
+}
+
+function stopEvalClock() {
+  if (evalClockInterval) { clearInterval(evalClockInterval); evalClockInterval = null; }
 }
 
 // ── Procesos: Recipe execution with stage timer ───────────────────────────────
@@ -2741,6 +3087,14 @@ function startExecution(recetaId) {
   renderExecutionStep();
 }
 
+function goBackStage() {
+  if (!executionState || executionState.currentStageIndex === 0) return;
+  if (executionState.timerInterval) clearInterval(executionState.timerInterval);
+  executionState.stagesData.pop();
+  executionState.currentStageIndex--;
+  renderExecutionStep();
+}
+
 function renderExecutionStep() {
   if (!executionState) return;
   const { receta, currentStageIndex } = executionState;
@@ -2756,7 +3110,10 @@ function renderExecutionStep() {
     <div class="exec-progress">
       <div class="exec-progress-bar" style="width:${((currentStageIndex + 1) / total * 100).toFixed(0)}%"></div>
     </div>
-    <div class="exec-step-label">Etapa ${currentStageIndex + 1} de ${total}</div>
+    <div class="exec-step-nav">
+      ${currentStageIndex > 0 ? `<button class="btn-back-stage" id="btnBackStage">← Etapa anterior</button>` : '<span></span>'}
+      <div class="exec-step-label">Etapa ${currentStageIndex + 1} de ${total}</div>
+    </div>
     <h3 class="exec-stage-name">${esc(etapa.nombre)}</h3>
     ${buildInstruccionesHTML(etapa.instrucciones)}
     ${etapa.tiempoEstimado ? `<div class="exec-time-hint">⏱ Tiempo estimado: ${etapa.tiempoEstimado} min</div>` : ''}
@@ -2796,6 +3153,8 @@ function renderExecutionStep() {
   }, 1000);
 
   document.getElementById('btnNextStage').addEventListener('click', () => advanceStage());
+  const backBtn = document.getElementById('btnBackStage');
+  if (backBtn) backBtn.addEventListener('click', () => goBackStage());
 }
 
 function advanceStage() {
@@ -2867,11 +3226,7 @@ function finishExecution() {
   document.getElementById('evalPH').value          = '';
   document.getElementById('evalPHStatus').textContent = '';
   document.getElementById('evalPHStatus').className   = 'eval-ph-status';
-  document.getElementById('evalSelloTapa').checked = false;
-  document.getElementById('evalSelloPop').checked  = false;
-  document.getElementById('evalSelloOlor').checked = false;
-  document.querySelectorAll('input[name="evalSineresis"]').forEach(r => r.checked = false);
-  document.getElementById('evalScoreValue').textContent = '—/30';
+  document.getElementById('evalScoreValue').textContent = '—/20';
   document.getElementById('evalScoreLevel').textContent  = '';
   document.getElementById('evalScoreLevel').className    = 'eval-score-level';
   document.getElementById('evalObs').value    = '';
@@ -2908,7 +3263,13 @@ function finishExecution() {
   document.getElementById('evalRendimientoResult').textContent = '';
   document.getElementById('evalRendimientoResult').className = 'eval-rendimiento-result';
 
+  // Set unlock times for timed evaluation stages
+  const nowMs = Date.now();
+  evaluacionPendiente.fase2UnlockAt      = new Date(nowMs + 60 * 60 * 1000).toISOString();
+  evaluacionPendiente.sineresisUnlockAt  = new Date(nowMs + 24 * 60 * 60 * 1000).toISOString();
+
   document.getElementById('evaluacionOverlay').classList.add('open');
+  startEvalClock();
 }
 
 document.getElementById('btnCancelEjecutar').addEventListener('click', () => {
@@ -2933,6 +3294,7 @@ document.querySelectorAll('.star-btn').forEach(btn => {
 });
 
 document.getElementById('btnCloseEvaluacion').addEventListener('click', () => {
+  stopEvalClock();
   document.getElementById('evaluacionOverlay').classList.remove('open');
 });
 
@@ -2947,8 +3309,8 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
   if (phVal > 4.0)  return setFb(fb, `⚠️ pH ${phVal.toFixed(2)} > 4.0 — agregar ácido cítrico 0.5 g y remedir. No se puede finalizar sin pH ≤ 4.0.`, 'err');
   if (!evaluacionPendiente) return;
 
-  const scoreTotal = Object.values(evalScores).reduce((a, b) => a + b, 0);
-  const sineresis  = document.querySelector('input[name="evalSineresis"]:checked')?.value || '';
+  const phase1Dims = ['D1', 'D2', 'D4', 'D5'];
+  const scoreTotal = phase1Dims.reduce((sum, d) => sum + evalScores[d], 0);
 
   const btn = document.getElementById('btnSaveEvaluacion');
   btn.disabled = true; btn.textContent = 'Guardando…';
@@ -2956,24 +3318,24 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
   try {
     evaluacionPendiente.loteId = loteId;
     evaluacionPendiente.evaluacion = {
-      calificacion:  evalRating,
-      observaciones: obs,
-      ph:            phVal,
-      scores:        { ...evalScores },
+      calificacion:       evalRating,
+      observaciones:      obs,
+      ph:                 phVal,
+      scores:             { ...evalScores },
       scoreTotal,
-      sello: {
-        tapa: document.getElementById('evalSelloTapa').checked,
-        pop:  document.getElementById('evalSelloPop').checked,
-        olor: document.getElementById('evalSelloOlor').checked,
-      },
-      sineresis,
-      fechaElaboracion:  document.getElementById('evalFechaElaboracion').value,
-      fechaVencimiento:  document.getElementById('evalFechaVencimiento').value,
-      frascos230:        parseInt(document.getElementById('evalFrascos230').value) || 0,
-      frascos180:        parseInt(document.getElementById('evalFrascos180').value) || 0,
-      excedente:         parseInt(document.getElementById('evalExcedente').value) || 0,
-      totalInsumosG:     evaluacionTotalInsumosG,
-      rendimiento:       (() => {
+      fase2UnlockAt:      evaluacionPendiente.fase2UnlockAt,
+      sineresisUnlockAt:  evaluacionPendiente.sineresisUnlockAt,
+      fase2:              null,
+      sineresis:          null,
+      fase2WASent:        false,
+      sineresisWASent:    false,
+      fechaElaboracion:   document.getElementById('evalFechaElaboracion').value,
+      fechaVencimiento:   document.getElementById('evalFechaVencimiento').value,
+      frascos230:         parseInt(document.getElementById('evalFrascos230').value) || 0,
+      frascos180:         parseInt(document.getElementById('evalFrascos180').value) || 0,
+      excedente:          parseInt(document.getElementById('evalExcedente').value) || 0,
+      totalInsumosG:      evaluacionTotalInsumosG,
+      rendimiento:        (() => {
         const f230 = parseInt(document.getElementById('evalFrascos230').value) || 0;
         const f180 = parseInt(document.getElementById('evalFrascos180').value) || 0;
         const exc  = parseInt(document.getElementById('evalExcedente').value) || 0;
@@ -2986,17 +3348,21 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
 
     await appendEjecucion(evaluacionPendiente);
     clearExecutionProgress();
+    scheduleEvalNotifications(evaluacionPendiente);
     await loadEjecucionesData();
     renderEjecucionesList();
 
-    const lvl = SCORE_LEVELS.find(l => scoreTotal >= l.min);
-    setFb(fb, `✅ Lote ${loteId} guardado. Puntaje técnico: ${scoreTotal}/30 — ${lvl?.label || ''}`, 'ok');
-    setTimeout(() => document.getElementById('evaluacionOverlay').classList.remove('open'), 2500);
+    const lvl = SCORE_LEVELS_FASE1.find(l => scoreTotal >= l.min);
+    setFb(fb, `✅ Fase 1 guardada — ${scoreTotal}/20 (${lvl?.label || ''}). Fase 2 en 1h y Sinéresis en 24h en Ejecuciones.`, 'ok');
+    setTimeout(() => {
+      stopEvalClock();
+      document.getElementById('evaluacionOverlay').classList.remove('open');
+    }, 3000);
     evaluacionPendiente = null;
   } catch (e) {
     setFb(fb, 'Error: ' + e.message, 'err');
   } finally {
-    btn.disabled = false; btn.textContent = 'Guardar y finalizar lote';
+    btn.disabled = false; btn.textContent = 'Guardar Fase 1';
   }
 });
 
@@ -3080,8 +3446,15 @@ function ejecucionToText(ej) {
     lines.push(`Rendimiento I-09: ${ev.rendimiento}% (${(ev.frascos230||0)*230+(ev.frascos180||0)*180+(ev.excedente||0)} ml de ${ev.totalInsumosG || '?'} g insumos)`);
   }
   if (ev.ph != null) lines.push(`pH: ${ev.ph}`);
-  if (ev.sineresis) lines.push(`Sinéresis: ${ev.sineresis}`);
-  if (ev.scoreTotal != null) lines.push(`Puntaje técnico: ${ev.scoreTotal}/30`);
+  if (ev.sineresis) lines.push(`Sinéresis: ${ev.sineresis === 'ok' ? 'Sin separación ✓' : 'Separación visible ✗'}`);
+  if (ev.fase2?.sello) {
+    const s = ev.fase2.sello;
+    lines.push(`Sello: Tapa ${s.tapa ? '✓' : '✗'} | Pop ${s.pop ? '✓' : '✗'} | Color/olor ${s.olor ? '✓' : '✗'}`);
+  }
+  if (ev.scoreTotal != null) {
+    const maxScore = ev.fase2 ? 30 : 20;
+    lines.push(`Puntaje técnico: ${ev.scoreTotal}/${maxScore}${ev.fase2 ? '' : ' (Fase 1)'}`);
+  }
   if (ev.observaciones) lines.push(`Observaciones: ${ev.observaciones}`);
   if (ej.etapasData?.length) {
     lines.push('', 'Etapas:');
@@ -3113,6 +3486,19 @@ function downloadEjecucionesTxt() {
 }
 
 document.getElementById('btnDownloadEjecuciones').addEventListener('click', downloadEjecucionesTxt);
+
+// ── Auto-guardado de borrador de tarea ───────────────────────────────────────
+
+['taskTitle', 'taskDesc', 'taskDue', 'taskArea', 'taskStatus'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input',  () => { if (!kanbanEditId) saveTaskDraft(); });
+    el.addEventListener('change', () => { if (!kanbanEditId) saveTaskDraft(); });
+  }
+});
+document.getElementById('subtasksList')?.addEventListener('input', () => {
+  if (!kanbanEditId) saveTaskDraft();
+});
 
 // ── Service Worker ────────────────────────────────────────────────────────────
 

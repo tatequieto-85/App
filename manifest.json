@@ -1,6 +1,6 @@
 {
-  "name": "Story Scheduler — TateQuieto",
-  "short_name": "Story Sched",
+  "name": "TATEAPP — TateQuieto",
+  "short_name": "TATEAPP",
   "description": "Programa historias de Instagram y gestiona tareas con Kanban",
   "start_url": "./",
   "display": "standalone",

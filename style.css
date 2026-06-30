@@ -1,6 +1,13 @@
 /* ── Reset ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── Scrollbars siempre visibles ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,.04); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #C8CAD0; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+* { scrollbar-width: thin; scrollbar-color: #C8CAD0 rgba(0,0,0,.04); }
+
 :root {
   /* Brand */
   --brand:    #F05B22;
@@ -53,7 +60,9 @@ body {
   display: flex; align-items: center; justify-content: space-between;
 }
 .header-brand  { display: flex; align-items: center; gap: 10px; }
-.header-logo   { font-size: 24px; line-height: 1; }
+.header-logo      { font-size: 24px; line-height: 1; }
+.header-logo-img  { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; flex-shrink: 0; }
+.signin-logo-img  { width: 72px; height: 72px; border-radius: 16px; object-fit: contain; margin-bottom: 8px; }
 .header-title  { font-size: 16px; font-weight: 700; line-height: 1.2; letter-spacing: -.01em; }
 .header-sub    { font-size: 11px; opacity: .6; margin-top: 1px; }
 .header-actions { display: flex; align-items: center; gap: 6px; }
@@ -560,6 +569,11 @@ body {
   display: flex; align-items: center; justify-content: space-between;
 }
 .modal-header h2 { font-size: 15px; font-weight: 600; }
+.eval-modal-header { align-items: flex-start; }
+.eval-clock {
+  font-size: 22px; font-weight: 800; letter-spacing: .06em;
+  font-variant-numeric: tabular-nums; opacity: .9; margin-top: 3px;
+}
 .modal-body { padding: 20px; }
 
 .info-box {
@@ -612,7 +626,7 @@ body {
 }
 
 .kanban-col-body {
-  flex: 1; overflow-y: auto;
+  flex: 1; overflow-y: scroll;
   padding: 10px 8px 6px;
   display: flex; flex-direction: column; gap: 8px;
   min-height: 80px;
@@ -698,7 +712,7 @@ body {
 /* ── Board/Task modals ───────────────────────────────────────────────────── */
 .modal-board { max-width: 500px; }
 .modal-task  { max-width: 460px; }
-.modal-body-scroll { max-height: calc(100vh - 160px); overflow-y: auto; }
+.modal-body-scroll { max-height: calc(100vh - 160px); overflow-y: scroll; }
 
 .mgmt-section-title {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase;
@@ -811,7 +825,7 @@ body {
 }
 
 .task-detail-main {
-  flex: 1; padding: 20px 24px; overflow-y: auto;
+  flex: 1; padding: 20px 24px; overflow-y: scroll;
   border-right: 1px solid var(--border);
 }
 
@@ -825,7 +839,7 @@ body {
 .obs-title  { font-size: 13px; font-weight: 700; color: var(--vinotinto); }
 
 .obs-list {
-  flex: 1; overflow-y: auto;
+  flex: 1; overflow-y: scroll;
   padding: 10px 14px;
   display: flex; flex-direction: column; gap: 8px;
 }
@@ -907,6 +921,39 @@ body {
 .ejecucion-stars  { color: #F59E0B; letter-spacing: 1px; }
 .ejecucion-obs    { font-size: 12px; color: var(--text-sub); margin-top: 6px; font-style: italic; }
 .ejecucion-hint   { font-size: 11px; color: var(--text-sub); margin-top: 8px; opacity: .7; }
+.eval-stages-row  { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.btn-eval-stage {
+  font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 8px; border: none;
+  cursor: pointer; background: var(--vinotinto); color: var(--cream);
+}
+.btn-eval-stage:hover { opacity: .85; }
+.eval-stage-pending { font-size: 12px; color: var(--text-sub); padding: 4px 0; }
+.eval-stage-done    { font-size: 12px; color: #558B2F; font-weight: 600; padding: 4px 0; }
+.eval-phase2-notice {
+  background: rgba(46,125,50,.06); border-left: 3px solid #558B2F;
+  border-radius: 6px; padding: 12px 14px; margin-bottom: 16px;
+  font-size: 13px; line-height: 1.6; color: var(--text);
+}
+.exec-step-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px; min-height: 28px;
+}
+.btn-back-stage {
+  font-size: 12px; color: var(--text-sub); background: none; border: none;
+  cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 2px;
+}
+.btn-back-stage:hover { color: var(--text); }
+.fase2-scale-btn {
+  flex: 1; border: 1.5px solid var(--border); border-radius: 8px;
+  padding: 6px 4px; background: var(--bg); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font-size: 12px; line-height: 1.2; transition: border-color .15s, background .15s;
+  min-width: 0;
+}
+.fase2-scale-btn:hover    { border-color: var(--brand); background: #F05B2210; }
+.fase2-scale-btn.active   { border-color: var(--brand); background: #F05B2222; }
+.fase2-scale-btn--target  { border-color: #7A9C3E; }
+.fase2-scale-btn--target.active { border-color: #7A9C3E; background: #7A9C3E1A; }
 
 /* Ejecucion detail – etapas */
 .detail-etapas-list { display: flex; flex-direction: column; gap: 10px; width: 100%; }

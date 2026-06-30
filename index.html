@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#361214" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <title>Story Scheduler — TateQuieto</title>
+  <title>TATEAPP — TateQuieto</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="style.css" />
@@ -20,9 +20,13 @@
         <button class="btn-back" id="btnBack" style="display:none" aria-label="Volver">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
         </button>
-        <span class="header-logo">🌶</span>
+        <img class="header-logo-img" id="headerLogoImg"
+          src="https://lh3.googleusercontent.com/d/1E6_2QBEdpCi726SRUp-WfvmcmycsN_bZ"
+          alt="TATEAPP"
+          onerror="this.style.display='none';document.getElementById('headerLogoFallback').style.display=''" />
+        <span class="header-logo" id="headerLogoFallback" style="display:none">T</span>
         <div>
-          <div class="header-title">Story Scheduler</div>
+          <div class="header-title">TATEAPP</div>
           <div class="header-sub">TateQuieto</div>
         </div>
       </div>
@@ -48,8 +52,12 @@
   <!-- Sign-in screen -->
   <div id="screenSignIn" class="screen-signin">
     <div class="signin-card">
-      <div class="signin-logo">🌶</div>
-      <h1>Story Scheduler</h1>
+      <img class="signin-logo-img"
+        src="https://lh3.googleusercontent.com/d/1E6_2QBEdpCi726SRUp-WfvmcmycsN_bZ"
+        alt="TATEAPP"
+        onerror="this.style.display='none';this.nextElementSibling.style.display=''" />
+      <div class="signin-logo" style="display:none">T</div>
+      <h1>TATEAPP</h1>
       <p>Programa tus historias de Instagram y recibe recordatorios por WhatsApp cuando sea el momento de publicar.</p>
       <button class="btn-google" id="btnSignIn">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -303,6 +311,7 @@
         <label class="field-label">API Key de CallMeBot</label>
         <input class="field-input" id="settingsApikey" type="text" placeholder="123456" />
         <button class="btn-primary" id="btnSaveSettings">Guardar en Google Sheets</button>
+        <button class="btn-outline" id="btnTestWhatsApp" style="width:100%;margin-top:8px">📲 Probar envío WhatsApp ahora</button>
         <div class="feedback" id="settingsFeedback"></div>
       </div>
     </div>
@@ -461,8 +470,11 @@
   <!-- Modal: Evaluación de lote (al finalizar ejecución) -->
   <div class="modal-overlay" id="evaluacionOverlay">
     <div class="modal modal-evaluacion">
-      <div class="modal-header">
-        <h2>Evaluación técnica del lote</h2>
+      <div class="modal-header eval-modal-header">
+        <div>
+          <h2>Evaluación técnica del lote</h2>
+          <div class="eval-clock" id="evalClock"></div>
+        </div>
         <button class="btn-icon" id="btnCloseEvaluacion">✕</button>
       </div>
       <div class="modal-body modal-body-scroll">
@@ -545,57 +557,10 @@
           </div>
         </div>
 
-        <div class="eval-phase-sep">
-          <div class="eval-phase-sep-line"></div>
-          <span>Envasar · Pasteurizar · Sellar</span>
-          <div class="eval-phase-sep-line"></div>
-        </div>
-
-        <!-- FASE 2 -->
-        <div class="eval-phase-header">
-          <span class="eval-phase-badge eval-phase-badge--post">Fase 2</span>
-          Después de envasar
-        </div>
-
-        <div class="eval-dim">
-          <div class="eval-dim-title">D3 · Prueba en frío <span class="eval-dim-code">I-06</span></div>
-          <div class="eval-dim-desc">Nevera 1 hora. Evaluar textura al sacar vs temperatura ambiente.</div>
-          <div class="eval-scale">
-            <button class="eval-scale-btn" data-dim="D3" data-val="1"><span class="esb-num">1</span><span class="esb-hint">Se solidifica<br>completo</span></button>
-            <button class="eval-scale-btn" data-dim="D3" data-val="2"><span class="esb-num">2</span><span class="esb-hint">Se endurece<br>notoria</span></button>
-            <button class="eval-scale-btn" data-dim="D3" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Leve cambio<br>recupera</span></button>
-            <button class="eval-scale-btn" data-dim="D3" data-val="4"><span class="esb-num">4</span><span class="esb-hint">Casi igual<br>en frío</span></button>
-            <button class="eval-scale-btn eval-scale-btn--target" data-dim="D3" data-val="5"><span class="esb-num">5 ✓</span><span class="esb-hint">Idéntica<br>en frío</span></button>
-          </div>
-        </div>
-
-        <div class="eval-dim">
-          <div class="eval-dim-title">D6 · Estabilidad de color al aire <span class="eval-dim-code">I-07</span></div>
-          <div class="eval-dim-desc">1 cuchara en plato blanco, luz natural. Observar T+3, T+10, T+20 min.</div>
-          <div class="eval-scale">
-            <button class="eval-scale-btn" data-dim="D6" data-val="1"><span class="esb-num">1</span><span class="esb-hint">Cambia<br>antes T+3</span></button>
-            <button class="eval-scale-btn" data-dim="D6" data-val="2"><span class="esb-num">2</span><span class="esb-hint">T+3<br>a T+10</span></button>
-            <button class="eval-scale-btn" data-dim="D6" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Leve a<br>T+20</span></button>
-            <button class="eval-scale-btn eval-scale-btn--target" data-dim="D6" data-val="4"><span class="esb-num">4 ✓</span><span class="esb-hint">Sin cambio<br>a T+20</span></button>
-            <button class="eval-scale-btn eval-scale-btn--target" data-dim="D6" data-val="5"><span class="esb-num">5 ✓✓</span><span class="esb-hint">Sin cambio<br>a T+60</span></button>
-          </div>
-        </div>
-
-        <div class="eval-dim">
-          <div class="eval-dim-title">Verificación de sello y vacío <span class="eval-dim-code">I-10</span></div>
-          <div class="eval-dim-desc">Verificar después de enfriar. Tapa convexa o sin pop = desechar.</div>
-          <label class="eval-check-row"><input type="checkbox" id="evalSelloTapa" class="eval-checkbox" /> Tapa cóncava sin rebote al presionar</label>
-          <label class="eval-check-row"><input type="checkbox" id="evalSelloPop" class="eval-checkbox" /> Vacío audible al abrir (pop)</label>
-          <label class="eval-check-row"><input type="checkbox" id="evalSelloOlor" class="eval-checkbox" /> Color y olor sin alteración</label>
-        </div>
-
-        <div class="eval-dim">
-          <div class="eval-dim-title">Sinéresis — separación de agua <span class="eval-dim-code">I-08</span></div>
-          <div class="eval-dim-desc">Frasco abierto 24 h en nevera. ¿Acumulación de líquido en la superficie?</div>
-          <div class="eval-radio-group">
-            <label class="eval-radio-row"><input type="radio" name="evalSineresis" value="ok" /> Sin separación visible ✓</label>
-            <label class="eval-radio-row"><input type="radio" name="evalSineresis" value="fail" /> Separación visible ✗ — emulsión inestable</label>
-          </div>
+        <div class="eval-phase2-notice">
+          <div>🧊 <strong>Fase 2</strong> (Prueba en frío · Estabilidad de color · Sello y vacío) — botón disponible en <strong>1 hora</strong> en Ejecuciones.</div>
+          <div style="margin-top:4px">💧 <strong>Sinéresis</strong> — botón disponible en <strong>24 horas</strong> en Ejecuciones.</div>
+          <div style="margin-top:6px;font-size:11px;opacity:.75">Recibirás un WhatsApp cuando cada etapa esté lista.</div>
         </div>
 
         <!-- Envasado & Rendimiento I-09 -->
@@ -623,10 +588,10 @@
         <!-- Score -->
         <div class="eval-score-box">
           <div>
-            <div class="eval-score-label">Puntaje técnico D1–D6</div>
+            <div class="eval-score-label">Puntaje Fase 1 (D1, D2, D4, D5)</div>
             <div class="eval-score-level" id="evalScoreLevel"></div>
           </div>
-          <div class="eval-score-value" id="evalScoreValue">—/30</div>
+          <div class="eval-score-value" id="evalScoreValue">—/20</div>
         </div>
 
         <label class="field-label" style="margin-top:16px">Calificación general del lote</label>
@@ -641,8 +606,81 @@
         <label class="field-label">Observaciones adicionales</label>
         <textarea class="field-textarea" id="evalObs" rows="3" placeholder="Notas de calidad, ajustes para próximo lote…"></textarea>
 
-        <button class="btn-primary" id="btnSaveEvaluacion" style="margin-top:16px">Guardar y finalizar lote</button>
+        <button class="btn-primary" id="btnSaveEvaluacion" style="margin-top:16px">Guardar Fase 1</button>
         <div class="feedback" id="evaluacionFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Evaluación Fase 2 (1h después del cierre) -->
+  <div class="modal-overlay" id="fase2EvalOverlay">
+    <div class="modal modal-evaluacion">
+      <div class="modal-header">
+        <h2>Evaluación Fase 2</h2>
+        <button class="btn-icon" id="btnCloseFase2Eval">✕</button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <div class="info-box" id="fase2LoteLabel"></div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">D3 · Prueba en frío <span class="eval-dim-code">I-06</span></div>
+          <div class="eval-dim-desc">Nevera 1 hora. Evaluar textura al sacar vs temperatura ambiente.</div>
+          <div class="eval-scale">
+            <button class="fase2-scale-btn" data-dim="D3" data-val="1"><span class="esb-num">1</span><span class="esb-hint">Se solidifica<br>completo</span></button>
+            <button class="fase2-scale-btn" data-dim="D3" data-val="2"><span class="esb-num">2</span><span class="esb-hint">Se endurece<br>notoria</span></button>
+            <button class="fase2-scale-btn" data-dim="D3" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Leve cambio<br>recupera</span></button>
+            <button class="fase2-scale-btn" data-dim="D3" data-val="4"><span class="esb-num">4</span><span class="esb-hint">Casi igual<br>en frío</span></button>
+            <button class="fase2-scale-btn fase2-scale-btn--target" data-dim="D3" data-val="5"><span class="esb-num">5 ✓</span><span class="esb-hint">Idéntica<br>en frío</span></button>
+          </div>
+        </div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">D6 · Estabilidad de color al aire <span class="eval-dim-code">I-07</span></div>
+          <div class="eval-dim-desc">1 cuchara en plato blanco, luz natural. Observar T+3, T+10, T+20 min.</div>
+          <div class="eval-scale">
+            <button class="fase2-scale-btn" data-dim="D6" data-val="1"><span class="esb-num">1</span><span class="esb-hint">Cambia<br>antes T+3</span></button>
+            <button class="fase2-scale-btn" data-dim="D6" data-val="2"><span class="esb-num">2</span><span class="esb-hint">T+3<br>a T+10</span></button>
+            <button class="fase2-scale-btn" data-dim="D6" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Leve a<br>T+20</span></button>
+            <button class="fase2-scale-btn fase2-scale-btn--target" data-dim="D6" data-val="4"><span class="esb-num">4 ✓</span><span class="esb-hint">Sin cambio<br>a T+20</span></button>
+            <button class="fase2-scale-btn fase2-scale-btn--target" data-dim="D6" data-val="5"><span class="esb-num">5 ✓✓</span><span class="esb-hint">Sin cambio<br>a T+60</span></button>
+          </div>
+        </div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">Verificación de sello y vacío <span class="eval-dim-code">I-10</span></div>
+          <div class="eval-dim-desc">Verificar después de enfriar. Tapa convexa o sin pop = desechar.</div>
+          <label class="eval-check-row"><input type="checkbox" id="fase2SelloTapa" class="eval-checkbox" /> Tapa cóncava sin rebote al presionar</label>
+          <label class="eval-check-row"><input type="checkbox" id="fase2SelloPop" class="eval-checkbox" /> Vacío audible al abrir (pop)</label>
+          <label class="eval-check-row"><input type="checkbox" id="fase2SelloOlor" class="eval-checkbox" /> Color y olor sin alteración</label>
+        </div>
+
+        <button class="btn-primary" id="btnSaveFase2" style="margin-top:16px">Guardar Fase 2</button>
+        <div class="feedback" id="fase2Feedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Evaluación Sinéresis (24h después del cierre) -->
+  <div class="modal-overlay" id="sineresisEvalOverlay">
+    <div class="modal modal-evaluacion">
+      <div class="modal-header">
+        <h2>Evaluación Sinéresis</h2>
+        <button class="btn-icon" id="btnCloseSineresisEval">✕</button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <div class="info-box" id="sineresisLoteLabel"></div>
+
+        <div class="eval-dim">
+          <div class="eval-dim-title">Sinéresis — separación de agua <span class="eval-dim-code">I-08</span></div>
+          <div class="eval-dim-desc">Frasco abierto 24 h en nevera. ¿Acumulación de líquido en la superficie?</div>
+          <div class="eval-radio-group">
+            <label class="eval-radio-row"><input type="radio" name="sinEvalOpt" value="ok" /> Sin separación visible ✓</label>
+            <label class="eval-radio-row"><input type="radio" name="sinEvalOpt" value="fail" /> Separación visible ✗ — emulsión inestable</label>
+          </div>
+        </div>
+
+        <button class="btn-primary" id="btnSaveSineresis" style="margin-top:16px">Guardar Sinéresis</button>
+        <div class="feedback" id="sineresisFeedback"></div>
       </div>
     </div>
   </div>
