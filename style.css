@@ -988,6 +988,30 @@ body {
 }
 .insumo-row .field-input { margin: 0 !important; padding: 7px 10px !important; font-size: 13px !important; }
 
+/* ── Ingredientes maestros checklist ────────────────────────────────────────── */
+#ingredientesMaestrosList { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.ing-check-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 6px 10px; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--border);
+  transition: background .12s;
+}
+.ing-check-row:has(.ing-check-cb:checked) { background: rgba(54,18,20,.05); border-color: var(--brand); }
+.ing-check-label {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; flex: 1; min-width: 0;
+}
+.ing-check-cb { width: 16px; height: 16px; cursor: pointer; accent-color: var(--brand); flex-shrink: 0; }
+.ing-check-nombre { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ing-check-qty-wrap {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+.ing-check-qty-wrap .field-input { margin: 0 !important; padding: 5px 8px !important; font-size: 12px !important; }
+.ing-check-auto-badge {
+  display: none; font-size: 10px; color: var(--brand); background: rgba(54,18,20,.08);
+  border-radius: 10px; padding: 2px 7px; white-space: nowrap; font-weight: 600;
+}
+
 /* ── Ingrediente autocomplete ────────────────────────────────────────────── */
 .ingrediente-autocomplete {
   position: absolute;

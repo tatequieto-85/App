@@ -2300,6 +2300,7 @@ function attachIngredienteAutocomplete(input) {
       opt.addEventListener('mousedown', e => {
         e.preventDefault();
         input.value = ing.nombre;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
         removeDropdown();
       });
       dropdown.appendChild(opt);
@@ -2975,41 +2976,94 @@ document.querySelectorAll('[data-procesostab]').forEach(btn => {
   });
 });
 
-// ── Procesos: Ingredientes maestros de receta ─────────────────────────────────
+// ── Procesos: Ingredientes maestros de receta (checklist) ────────────────────
 
-function buildIngMaestroRow(ing) {
-  const row = document.createElement('div');
-  row.className = 'insumo-row ing-maestro-row';
-  row.innerHTML = `
-    <input class="field-input ing-maestro-nombre" type="text" value="${esc(ing.nombre || '')}" placeholder="Ingrediente" style="flex:2" autocomplete="off" />
-    <input class="field-input ing-maestro-cantidad" type="number" min="0" step="any" value="${ing.cantidadTotal != null ? ing.cantidadTotal : ''}" placeholder="Cant." style="width:80px" />
-    <input class="field-input ing-maestro-unidad" type="text" value="${esc(ing.unidad || '')}" placeholder="Unidad" style="width:72px" autocomplete="off" />
-    <button class="subtask-remove" title="Eliminar">✕</button>
-  `;
-  row.querySelector('.subtask-remove').addEventListener('click', () => row.remove());
-  attachIngredienteAutocomplete(row.querySelector('.ing-maestro-nombre'));
-  return row;
-}
-
-function renderIngredientesMaestrosList(ings) {
+function renderIngredientesMaestrosList(savedMaestros) {
   const container = document.getElementById('ingredientesMaestrosList');
+  const addBtn    = document.getElementById('btnAddIngMaestro');
+  if (addBtn) addBtn.style.display = 'none';
   if (!container) return;
   container.innerHTML = '';
-  (ings || []).forEach(ing => container.appendChild(buildIngMaestroRow(ing)));
+
+  if (!ingredientes.length) {
+    container.innerHTML = '<p class="mgmt-note" style="margin:8px 0">Sin ingredientes en el catálogo. Agrégalos con 🧂 Ingredientes.</p>';
+    return;
+  }
+
+  ingredientes.slice().sort((a, b) => a.nombre.localeCompare(b.nombre)).forEach(ing => {
+    const saved     = (savedMaestros || []).find(s => normalizeIngName(s.nombre) === normalizeIngName(ing.nombre));
+    const isChecked = !!saved;
+
+    const row = document.createElement('div');
+    row.className = 'ing-check-row';
+    row.innerHTML = `
+      <label class="ing-check-label">
+        <input type="checkbox" class="ing-check-cb" data-nombre="${esc(ing.nombre)}" ${isChecked ? 'checked' : ''} />
+        <span class="ing-check-nombre">${esc(ing.nombre)}</span>
+      </label>
+      <div class="ing-check-qty-wrap" style="${isChecked ? '' : 'visibility:hidden'}">
+        <input class="field-input ing-check-qty" type="number" min="0" step="any" value="${isChecked && saved.cantidadTotal ? saved.cantidadTotal : ''}" placeholder="Total" style="width:78px" />
+        <input class="field-input ing-check-unidad" type="text" value="${esc(isChecked ? (saved.unidad || '') : '')}" placeholder="unidad" style="width:64px" autocomplete="off" />
+        <span class="ing-check-auto-badge" title="Calculado desde etapas">⟳ auto</span>
+      </div>
+    `;
+
+    const cb   = row.querySelector('.ing-check-cb');
+    const wrap = row.querySelector('.ing-check-qty-wrap');
+    cb.addEventListener('change', () => {
+      wrap.style.visibility = cb.checked ? '' : 'hidden';
+      if (!cb.checked) {
+        row.querySelector('.ing-check-qty').value    = '';
+        row.querySelector('.ing-check-unidad').value = '';
+        row.querySelector('.ing-check-auto-badge').style.display = 'none';
+      }
+    });
+
+    container.appendChild(row);
+  });
 }
 
 function collectIngredientesMaestros() {
-  return Array.from(document.querySelectorAll('.ing-maestro-row')).map(row => ({
-    nombre:        row.querySelector('.ing-maestro-nombre').value.trim(),
-    cantidadTotal: parseFloat(row.querySelector('.ing-maestro-cantidad').value) || 0,
-    unidad:        row.querySelector('.ing-maestro-unidad').value.trim()
-  })).filter(ing => ing.nombre);
+  return Array.from(document.querySelectorAll('.ing-check-row'))
+    .filter(row => row.querySelector('.ing-check-cb').checked)
+    .map(row => ({
+      nombre:        row.querySelector('.ing-check-cb').dataset.nombre,
+      cantidadTotal: parseFloat(row.querySelector('.ing-check-qty').value) || 0,
+      unidad:        row.querySelector('.ing-check-unidad').value.trim()
+    }));
 }
 
-document.getElementById('btnAddIngMaestro').addEventListener('click', () => {
-  const container = document.getElementById('ingredientesMaestrosList');
-  if (container) container.appendChild(buildIngMaestroRow({}));
-});
+function syncIngMaestroTotals() {
+  const totals = {};
+  const units  = {};
+  document.querySelectorAll('#etapasList .etapa-item:not([data-fija]) .insumo-row').forEach(row => {
+    const nombre = row.querySelector('.insumo-nombre')?.value.trim();
+    if (!nombre) return;
+    const qty    = parseFloat(row.querySelector('.insumo-cantidad')?.value) || 0;
+    const unidad = row.querySelector('.insumo-unidad')?.value.trim() || '';
+    const key    = normalizeIngName(nombre);
+    totals[key]  = (totals[key] || 0) + qty;
+    if (!units[key] && unidad) units[key] = unidad;
+  });
+
+  document.querySelectorAll('.ing-check-row').forEach(row => {
+    const cb     = row.querySelector('.ing-check-cb');
+    const key    = normalizeIngName(cb.dataset.nombre);
+    const wrap   = row.querySelector('.ing-check-qty-wrap');
+    const qtyIn  = row.querySelector('.ing-check-qty');
+    const unitIn = row.querySelector('.ing-check-unidad');
+    const badge  = row.querySelector('.ing-check-auto-badge');
+
+    if (totals[key] !== undefined && totals[key] > 0) {
+      if (!cb.checked) { cb.checked = true; wrap.style.visibility = ''; }
+      qtyIn.value = totals[key];
+      if (units[key]) unitIn.value = units[key];
+      if (badge) badge.style.display = '';
+    } else {
+      if (badge) badge.style.display = 'none';
+    }
+  });
+}
 
 // ── Procesos: Receta modal (crear / editar) ───────────────────────────────────
 
@@ -3073,9 +3127,11 @@ function addEtapaToList(etapa, idx, insertBeforeEl) {
       <button class="btn-outline btn-sm btn-add-instruccion" style="margin-top:4px;margin-bottom:14px">+ Agregar instrucción</button>
       <label class="field-label">Tiempo estimado (minutos)</label>
       <input class="field-input etapa-tiempo" type="number" min="1" value="${etapa.tiempoEstimado || ''}" placeholder="15" style="width:120px" />
+      ${!isFija ? `
       <label class="field-label">Insumos / ingredientes</label>
       <div class="insumos-list"></div>
       <button class="btn-outline btn-sm btn-add-insumo" style="margin-top:4px">+ Agregar insumo</button>
+      ` : ''}
     </div>
   `;
 
@@ -3083,9 +3139,9 @@ function addEtapaToList(etapa, idx, insertBeforeEl) {
   const instrList = item.querySelector('.instrucciones-list');
   instrArr.forEach(instr => instrList.appendChild(buildInstruccionRow(instr.text, instr.tipo)));
 
-  // Populate insumo rows
+  // Populate insumo rows (non-fixed stages only)
   const insList = item.querySelector('.insumos-list');
-  (etapa.insumos || []).forEach((ins, iIdx) => insList.appendChild(buildInsumoRow(ins, iIdx)));
+  if (insList) (etapa.insumos || []).forEach((ins, iIdx) => insList.appendChild(buildInsumoRow(ins, iIdx)));
 
   // Collapse/expand toggle
   const collapseBtn = item.querySelector('.etapa-collapse-btn');
@@ -3115,9 +3171,12 @@ function addEtapaToList(etapa, idx, insertBeforeEl) {
     instrList.appendChild(buildInstruccionRow('', 'paso'));
     instrList.lastElementChild.querySelector('.instruccion-text').focus();
   });
-  item.querySelector('.btn-add-insumo').addEventListener('click', () => {
-    insList.appendChild(buildInsumoRow({}, insList.children.length));
-  });
+  const addInsumoBtn = item.querySelector('.btn-add-insumo');
+  if (addInsumoBtn && insList) {
+    addInsumoBtn.addEventListener('click', () => {
+      insList.appendChild(buildInsumoRow({}, insList.children.length));
+    });
+  }
 
   if (insertBeforeEl) {
     container.insertBefore(item, insertBeforeEl);
@@ -3224,7 +3283,10 @@ function buildInsumoRow(ins, idx) {
     <input class="field-input insumo-unidad" type="text" value="${esc(ins.unidad || '')}" placeholder="Unidad (g, L…)" style="flex:1;min-width:70px" />
     <button class="subtask-remove" title="Quitar">✕</button>
   `;
-  row.querySelector('.subtask-remove').addEventListener('click', () => row.remove());
+  row.querySelector('.subtask-remove').addEventListener('click', () => { row.remove(); syncIngMaestroTotals(); });
+  row.querySelector('.insumo-cantidad').addEventListener('input', syncIngMaestroTotals);
+  row.querySelector('.insumo-unidad').addEventListener('input', syncIngMaestroTotals);
+  row.querySelector('.insumo-nombre').addEventListener('change', syncIngMaestroTotals);
   attachIngredienteAutocomplete(row.querySelector('.insumo-nombre'));
   return row;
 }
