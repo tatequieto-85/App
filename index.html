@@ -258,6 +258,7 @@
                 <button class="sub-tab-btn" data-procesostab="ejecuciones">Ejecuciones</button>
               </div>
               <div class="sub-tab-actions">
+                <button class="btn-outline btn-sm" id="btnManageIngredientes" style="margin-right:6px">🧂 Ingredientes</button>
                 <button class="btn-add-task" id="btnNewReceta">+ Nueva receta</button>
               </div>
             </div>
@@ -415,6 +416,25 @@
         <button class="btn-outline" id="btnAddEtapa" style="width:100%;margin-top:8px">+ Agregar etapa</button>
         <button class="btn-primary" id="btnSaveReceta" style="margin-top:16px">Guardar receta</button>
         <div class="feedback" id="recetaFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Gestionar Ingredientes -->
+  <div class="modal-overlay" id="ingredientesOverlay">
+    <div class="modal" style="max-width:480px">
+      <div class="modal-header">
+        <h2 id="ingredientesModalTitle">Ingredientes</h2>
+        <button class="btn-icon" id="btnCloseIngredientes">✕</button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <p class="mgmt-note">Lista maestra de ingredientes. No se permiten duplicados ni términos similares (ej: "cebolla" y "cebollas" se detectan como el mismo).</p>
+        <div class="add-row" style="margin-bottom:12px">
+          <input class="field-input add-row-input" id="nuevoIngrediente" type="text" placeholder="Nombre del ingrediente…" autocomplete="off" />
+          <button class="btn-outline" id="btnAddIngrediente">Agregar</button>
+        </div>
+        <div class="feedback" id="ingredientesFeedback"></div>
+        <div id="ingredientesList" class="mgmt-list" style="margin-top:8px"></div>
       </div>
     </div>
   </div>

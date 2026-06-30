@@ -988,6 +988,39 @@ body {
 }
 .insumo-row .field-input { margin: 0 !important; padding: 7px 10px !important; font-size: 13px !important; }
 
+/* ── Ingrediente autocomplete ────────────────────────────────────────────── */
+.ingrediente-autocomplete {
+  position: absolute;
+  max-width: 320px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.18);
+  z-index: 9999;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.autocomplete-option {
+  padding: 9px 13px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  transition: background .12s;
+}
+.autocomplete-option:last-child { border-bottom: none; }
+.autocomplete-option:hover { background: rgba(54,18,20,.06); }
+.autocomplete-add { color: var(--brand); font-style: italic; }
+
+/* ── Etapa fija ───────────────────────────────────────────────────────────── */
+.etapa-fija-tag {
+  font-size: 10px; font-weight: 600; letter-spacing: .04em;
+  color: var(--text-sub); background: var(--border);
+  padding: 2px 8px; border-radius: 10px; white-space: nowrap;
+}
+.etapa-item--fija { border-color: var(--brand) !important; opacity: .9; }
+.etapa-item--fija .etapa-num { color: var(--text-sub); }
+
 /* ── Procesos: Execution overlay ─────────────────────────────────────────── */
 .modal-ejecutar { max-width: 540px !important; }
 
@@ -1233,6 +1266,16 @@ body {
 }
 .btn-ejecutar:hover { opacity: .88; transform: translateY(-1px); }
 .btn-ejecutar:active { transform: translateY(0); }
+
+/* ── Instruction drag handle ─────────────────────────────────────────────── */
+.instr-drag-handle {
+  cursor: grab; color: var(--text-sub); font-size: 14px;
+  padding: 2px 3px; user-select: none; flex-shrink: 0;
+  opacity: .5; transition: opacity .15s;
+}
+.instruccion-row:hover .instr-drag-handle { opacity: 1; }
+.instr-dragging { opacity: .35; }
+.instr-drag-over { border-top: 2px solid var(--brand); }
 
 /* ── Instruction tipo toggle ─────────────────────────────────────────────── */
 .instruccion-tipo-btn {

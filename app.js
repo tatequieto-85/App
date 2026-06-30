@@ -19,6 +19,10 @@ let currentView   = 'home';
 let currentSubTab = 'kanban';
 let deferredInstallPrompt = null;
 
+// Ingredientes state
+let ingredientes         = [];
+let ingredientesSheetId  = null;
+
 // Procesos / Recetas state
 let recetas              = [];
 let ejecuciones          = [];
@@ -35,6 +39,8 @@ let taskDetailId         = null;
 let ejecucionDetailId    = null;
 let lastTapTime          = {};   // for double-tap detection on mobile
 let draggedColName       = null; // for kanban column drag-reorder
+let draggedInstrRow      = null; // for instruction row drag-reorder
+let draggedInstrList     = null;
 let recetaDetailId       = null; // for recipe detail view
 let evalClockInterval    = null; // clock in evaluation modal
 let fase2EvalEjId        = null; // ejecucion being evaluated (fase2)
@@ -387,6 +393,7 @@ async function onAuthSuccess() {
   await initSheet();
   await initKanbanSheets();
   await initRecetasSheets();
+  await initIngredientesSheet();
   setDefaultDateTime();
   await loadStories();
 
@@ -2171,6 +2178,237 @@ document.getElementById('kanbanAreaFilter').addEventListener('change', renderKan
 document.getElementById('listaAreaFilter').addEventListener('change', renderKanbanList);
 document.getElementById('listaStatusFilter').addEventListener('change', renderKanbanList);
 
+// ── Ingredientes: Sheet CRUD ──────────────────────────────────────────────────
+
+async function initIngredientesSheet() {
+  const info = await sheetsReq('');
+  const tabs = info.sheets || [];
+  const hasI = tabs.find(s => s.properties.title === 'Ingredientes');
+
+  if (hasI) {
+    ingredientesSheetId = hasI.properties.sheetId;
+  } else {
+    const res = await sheetsReq(':batchUpdate', {
+      method: 'POST',
+      body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'Ingredientes' } } }] })
+    });
+    const added = res.replies?.[0]?.addSheet?.properties;
+    if (added) ingredientesSheetId = added.sheetId;
+    await sheetsReq('/values/Ingredientes!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+      method: 'POST',
+      body: JSON.stringify({ values: [['ID', 'Nombre', 'CreadoEn']] })
+    });
+  }
+  await loadIngredientes();
+}
+
+async function loadIngredientes() {
+  const data = await sheetsReq('/values/Ingredientes!A:C');
+  const rows = (data.values || []).slice(1);
+  ingredientes = rows.filter(r => r[0]).map((r, i) => ({
+    id:       r[0] || '',
+    nombre:   r[1] || '',
+    creadoEn: r[2] || '',
+    rowIndex: i + 2
+  }));
+}
+
+async function appendIngrediente(nombre) {
+  await sheetsReq('/values/Ingredientes!A:C:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+    method: 'POST',
+    body: JSON.stringify({ values: [[crypto.randomUUID(), nombre, new Date().toISOString()]] })
+  });
+}
+
+async function deleteIngredienteRow(rowIndex) {
+  if (!ingredientesSheetId) {
+    const info = await sheetsReq('');
+    const tab  = info.sheets.find(s => s.properties.title === 'Ingredientes');
+    if (tab) ingredientesSheetId = tab.properties.sheetId;
+  }
+  await sheetsReq(':batchUpdate', {
+    method: 'POST',
+    body: JSON.stringify({ requests: [{ deleteDimension: {
+      range: { sheetId: ingredientesSheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex }
+    }}]})
+  });
+}
+
+// ── Ingredientes: Normalización y duplicados ──────────────────────────────────
+
+function normalizeIngName(name) {
+  return (name || '').toLowerCase().trim()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/s$/, '');
+}
+
+function findIngredienteDuplicate(nombre) {
+  const norm = normalizeIngName(nombre);
+  return ingredientes.find(ing => normalizeIngName(ing.nombre) === norm) || null;
+}
+
+async function tryAddIngrediente(nombre) {
+  const trimmed = nombre.trim();
+  if (!trimmed) return null;
+  const dup = findIngredienteDuplicate(trimmed);
+  if (dup) return dup.nombre;
+  try {
+    await appendIngrediente(trimmed);
+    await loadIngredientes();
+    return trimmed;
+  } catch (e) {
+    console.warn('tryAddIngrediente:', e.message);
+    return trimmed;
+  }
+}
+
+// ── Ingredientes: Autocomplete ────────────────────────────────────────────────
+
+function attachIngredienteAutocomplete(input) {
+  let dropdown = null;
+
+  function removeDropdown() {
+    if (dropdown) { dropdown.remove(); dropdown = null; }
+  }
+
+  function positionDropdown() {
+    if (!dropdown) return;
+    const rect = input.getBoundingClientRect();
+    dropdown.style.top  = (rect.bottom + window.scrollY + 2) + 'px';
+    dropdown.style.left = (rect.left + window.scrollX) + 'px';
+    dropdown.style.width = Math.max(rect.width, 200) + 'px';
+  }
+
+  function showDropdown() {
+    removeDropdown();
+    const val = input.value.trim();
+    if (!val) return;
+
+    const lower = val.toLowerCase();
+    const matches = ingredientes.filter(ing => ing.nombre.toLowerCase().includes(lower));
+    const exactMatch = !!findIngredienteDuplicate(val);
+
+    if (!matches.length && (exactMatch || val.length < 2)) return;
+
+    dropdown = document.createElement('div');
+    dropdown.className = 'ingrediente-autocomplete';
+
+    matches.forEach(ing => {
+      const opt = document.createElement('div');
+      opt.className = 'autocomplete-option';
+      opt.textContent = ing.nombre;
+      opt.addEventListener('mousedown', e => {
+        e.preventDefault();
+        input.value = ing.nombre;
+        removeDropdown();
+      });
+      dropdown.appendChild(opt);
+    });
+
+    if (!exactMatch && val.length >= 2) {
+      const addOpt = document.createElement('div');
+      addOpt.className = 'autocomplete-option autocomplete-add';
+      addOpt.innerHTML = `+ Agregar "<strong>${esc(val)}</strong>"`;
+      addOpt.addEventListener('mousedown', async e => {
+        e.preventDefault();
+        const result = await tryAddIngrediente(val);
+        if (result) input.value = result;
+        removeDropdown();
+      });
+      dropdown.appendChild(addOpt);
+    }
+
+    document.body.appendChild(dropdown);
+    positionDropdown();
+  }
+
+  input.addEventListener('input', showDropdown);
+  input.addEventListener('focus', showDropdown);
+  input.addEventListener('blur', () => setTimeout(removeDropdown, 180));
+  window.addEventListener('scroll', removeDropdown, { passive: true, capture: true });
+}
+
+// ── Ingredientes: Modal ───────────────────────────────────────────────────────
+
+function openIngredientesModal(firstTime) {
+  document.getElementById('ingredientesModalTitle').textContent =
+    firstTime ? 'Configurar ingredientes' : 'Gestionar ingredientes';
+  document.getElementById('ingredientesFeedback').textContent = '';
+  document.getElementById('nuevoIngrediente').value = '';
+  renderIngredientesList();
+  document.getElementById('ingredientesOverlay').classList.add('open');
+}
+
+function renderIngredientesList() {
+  const container = document.getElementById('ingredientesList');
+  if (!ingredientes.length) {
+    container.innerHTML = '<div class="empty-state">No hay ingredientes registrados. Agrega el primero.</div>';
+    return;
+  }
+  const sorted = [...ingredientes].sort((a, b) => a.nombre.localeCompare(b.nombre));
+  container.innerHTML = sorted.map(ing => `
+    <div class="mgmt-item">
+      <span class="mgmt-item-name">${esc(ing.nombre)}</span>
+      <button class="mgmt-item-del" data-del-ing="${ing.rowIndex}">✕</button>
+    </div>
+  `).join('');
+  container.querySelectorAll('[data-del-ing]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const row = +btn.dataset.delIng;
+      const ing = ingredientes.find(i => i.rowIndex === row);
+      if (!confirm(`¿Eliminar "${ing?.nombre}"?`)) return;
+      btn.disabled = true;
+      try {
+        await deleteIngredienteRow(row);
+        await loadIngredientes();
+        renderIngredientesList();
+        setFb(document.getElementById('ingredientesFeedback'), '✅ Ingrediente eliminado.', 'ok');
+      } catch (e) {
+        setFb(document.getElementById('ingredientesFeedback'), 'Error: ' + e.message, 'err');
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+document.getElementById('btnCloseIngredientes').addEventListener('click', () => {
+  document.getElementById('ingredientesOverlay').classList.remove('open');
+});
+document.getElementById('ingredientesOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('ingredientesOverlay'))
+    document.getElementById('ingredientesOverlay').classList.remove('open');
+});
+
+document.getElementById('btnManageIngredientes').addEventListener('click', () => openIngredientesModal(false));
+
+document.getElementById('btnAddIngrediente').addEventListener('click', async () => {
+  const input = document.getElementById('nuevoIngrediente');
+  const nombre = input.value.trim();
+  const fb = document.getElementById('ingredientesFeedback');
+  if (!nombre) return setFb(fb, 'Escribe el nombre del ingrediente.', 'err');
+
+  const dup = findIngredienteDuplicate(nombre);
+  if (dup) return setFb(fb, `Ya existe "${dup.nombre}" (similar a "${nombre}").`, 'err');
+
+  const btn = document.getElementById('btnAddIngrediente');
+  btn.disabled = true;
+  try {
+    await appendIngrediente(nombre);
+    await loadIngredientes();
+    renderIngredientesList();
+    input.value = '';
+    setFb(fb, `✅ "${nombre}" agregado.`, 'ok');
+  } catch (e) {
+    setFb(fb, 'Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('nuevoIngrediente').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btnAddIngrediente').click();
+});
+
 // ── Procesos: Sheets init ─────────────────────────────────────────────────────
 
 async function initRecetasSheets() {
@@ -2314,6 +2552,9 @@ async function loadProcesos() {
     await loadEjecucionesData();
     renderRecetasList();
     renderEjecucionesList();
+    if (ingredientes.length === 0) {
+      setTimeout(() => openIngredientesModal(true), 400);
+    }
   } catch (e) {
     console.error('loadProcesos:', e);
   }
@@ -2749,7 +2990,10 @@ function openRecetaModal(editId) {
     document.getElementById('recetaModalTitle').textContent = 'Nueva receta';
     document.getElementById('recetaNombre').value = '';
     document.getElementById('recetaDesc').value   = '';
-    renderEtapasList([]);
+    renderEtapasList([
+      { ...LIMPIEZA_ETAPA },
+      { ...LIMPIEZA_ETAPA }
+    ]);
   }
 
   overlay.classList.add('open');
@@ -2762,20 +3006,23 @@ function renderEtapasList(etapas) {
   etapas.forEach((et, idx) => addEtapaToList(et, idx));
 }
 
-function addEtapaToList(etapa, idx) {
+function addEtapaToList(etapa, idx, insertBeforeEl) {
   const container = document.getElementById('etapasList');
   const num = idx !== undefined ? idx : container.querySelectorAll('.etapa-item').length;
   const instrArr = parseInstrucciones(etapa.instrucciones);
   const isEditing = !!editRecetaId;
+  const isFija = !!etapa.fija;
 
   const item = document.createElement('div');
-  item.className = 'etapa-item';
+  item.className = 'etapa-item' + (isFija ? ' etapa-item--fija' : '');
+  if (isFija) item.dataset.fija = 'true';
 
   item.innerHTML = `
     <div class="etapa-header">
       <span class="etapa-num">Etapa ${num + 1}</span>
+      ${isFija ? '<span class="etapa-fija-tag">🔒 Fija</span>' : ''}
       <button class="etapa-collapse-btn" title="Colapsar/Expandir etapa">▼</button>
-      <button class="etapa-del" title="Eliminar etapa">✕</button>
+      ${isFija ? '' : '<button class="etapa-del" title="Eliminar etapa">✕</button>'}
     </div>
     <div class="etapa-body">
       <label class="field-label">Nombre de la etapa *</label>
@@ -2793,7 +3040,7 @@ function addEtapaToList(etapa, idx) {
 
   // Populate instruction rows
   const instrList = item.querySelector('.instrucciones-list');
-  instrArr.forEach(item => instrList.appendChild(buildInstruccionRow(item.text, item.tipo)));
+  instrArr.forEach(instr => instrList.appendChild(buildInstruccionRow(instr.text, instr.tipo)));
 
   // Populate insumo rows
   const insList = item.querySelector('.insumos-list');
@@ -2803,8 +3050,8 @@ function addEtapaToList(etapa, idx) {
   const collapseBtn = item.querySelector('.etapa-collapse-btn');
   const etapaBody   = item.querySelector('.etapa-body');
 
-  // When editing an existing recipe, collapse stages except the first one
-  if (isEditing && idx !== undefined && idx > 0) {
+  // Collapse non-first stages when editing; always collapse fixed stages beyond first
+  if ((isEditing && idx !== undefined && idx > 0) || (isFija && num > 0)) {
     etapaBody.style.display = 'none';
     collapseBtn.textContent = '▶';
   }
@@ -2816,10 +3063,13 @@ function addEtapaToList(etapa, idx) {
     collapseBtn.textContent  = collapsed ? '▼' : '▶';
   });
 
-  item.querySelector('.etapa-del').addEventListener('click', () => {
-    item.remove();
-    renumberEtapas();
-  });
+  const delBtn = item.querySelector('.etapa-del');
+  if (delBtn) {
+    delBtn.addEventListener('click', () => {
+      item.remove();
+      renumberEtapas();
+    });
+  }
   item.querySelector('.btn-add-instruccion').addEventListener('click', () => {
     instrList.appendChild(buildInstruccionRow('', 'paso'));
     instrList.lastElementChild.querySelector('.instruccion-text').focus();
@@ -2828,7 +3078,11 @@ function addEtapaToList(etapa, idx) {
     insList.appendChild(buildInsumoRow({}, insList.children.length));
   });
 
-  container.appendChild(item);
+  if (insertBeforeEl) {
+    container.insertBefore(item, insertBeforeEl);
+  } else {
+    container.appendChild(item);
+  }
 }
 
 function parseInstrucciones(val) {
@@ -2860,10 +3114,12 @@ function buildInstruccionRow(text, tipo = 'paso') {
   const row = document.createElement('div');
   row.className = 'instruccion-row';
   row.innerHTML = `
+    <span class="instr-drag-handle" title="Arrastrar para reordenar">⠿</span>
     <button class="instruccion-tipo-btn" data-tipo="${tipo}" type="button" title="${tipo === 'viñeta' ? 'Cambiar a paso numerado' : 'Cambiar a viñeta'}">${tipo === 'viñeta' ? '•' : '#'}</button>
     <input class="field-input instruccion-text" type="text" value="${esc(text || '')}" placeholder="Describir el paso…" style="flex:1" />
     <button class="subtask-remove" title="Quitar paso">✕</button>
   `;
+
   row.querySelector('.instruccion-tipo-btn').addEventListener('click', e => {
     const btn    = e.currentTarget;
     const newTipo = btn.dataset.tipo === 'viñeta' ? 'paso' : 'viñeta';
@@ -2872,6 +3128,49 @@ function buildInstruccionRow(text, tipo = 'paso') {
     btn.title        = newTipo === 'viñeta' ? 'Cambiar a paso numerado' : 'Cambiar a viñeta';
   });
   row.querySelector('.subtask-remove').addEventListener('click', () => row.remove());
+
+  // ── Drag to reorder within the same instrucciones-list ──────────────────
+  const handle = row.querySelector('.instr-drag-handle');
+
+  // Only make row draggable while pressing the handle
+  handle.addEventListener('mousedown', () => { row.draggable = true; });
+  document.addEventListener('mouseup', () => { row.draggable = false; }, { passive: true });
+
+  row.addEventListener('dragstart', e => {
+    draggedInstrRow  = row;
+    draggedInstrList = row.parentElement;
+    row.classList.add('instr-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  row.addEventListener('dragend', () => {
+    row.draggable = false;
+    row.classList.remove('instr-dragging');
+    document.querySelectorAll('.instruccion-row.instr-drag-over').forEach(r => r.classList.remove('instr-drag-over'));
+    draggedInstrRow = null; draggedInstrList = null;
+  });
+
+  row.addEventListener('dragover', e => {
+    if (!draggedInstrRow || draggedInstrRow === row) return;
+    if (row.parentElement !== draggedInstrList) return;
+    e.preventDefault();
+    row.classList.add('instr-drag-over');
+  });
+
+  row.addEventListener('dragleave', () => row.classList.remove('instr-drag-over'));
+
+  row.addEventListener('drop', e => {
+    row.classList.remove('instr-drag-over');
+    if (!draggedInstrRow || draggedInstrRow === row) return;
+    if (row.parentElement !== draggedInstrList) return;
+    e.preventDefault();
+    const list = row.parentElement;
+    const rows = Array.from(list.children);
+    const fromIdx = rows.indexOf(draggedInstrRow);
+    const toIdx   = rows.indexOf(row);
+    list.insertBefore(draggedInstrRow, fromIdx < toIdx ? row.nextSibling : row);
+  });
+
   return row;
 }
 
@@ -2879,12 +3178,13 @@ function buildInsumoRow(ins, idx) {
   const row = document.createElement('div');
   row.className = 'insumo-row';
   row.innerHTML = `
-    <input class="field-input insumo-nombre" type="text" value="${esc(ins.nombre || '')}" placeholder="Insumo" style="flex:2" />
+    <input class="field-input insumo-nombre" type="text" value="${esc(ins.nombre || '')}" placeholder="Insumo" style="flex:2" autocomplete="off" />
     <input class="field-input insumo-cantidad" type="number" value="${ins.cantidad || ''}" placeholder="Cant." style="flex:1;min-width:70px" min="0" step="any" />
     <input class="field-input insumo-unidad" type="text" value="${esc(ins.unidad || '')}" placeholder="Unidad (g, L…)" style="flex:1;min-width:70px" />
     <button class="subtask-remove" title="Quitar">✕</button>
   `;
   row.querySelector('.subtask-remove').addEventListener('click', () => row.remove());
+  attachIngredienteAutocomplete(row.querySelector('.insumo-nombre'));
   return row;
 }
 
@@ -2913,13 +3213,18 @@ function collectEtapas() {
       nombre:         item.querySelector('.etapa-nombre').value.trim(),
       instrucciones,
       tiempoEstimado: parseInt(item.querySelector('.etapa-tiempo').value) || 0,
-      insumos
+      insumos,
+      fija:           item.dataset.fija === 'true'
     };
   }).filter(et => et.nombre);
 }
 
 document.getElementById('btnAddEtapa').addEventListener('click', () => {
-  addEtapaToList({}, undefined);
+  const container = document.getElementById('etapasList');
+  const fixedItems = Array.from(container.querySelectorAll('.etapa-item[data-fija="true"]'));
+  const lastFixed = fixedItems.length > 0 ? fixedItems[fixedItems.length - 1] : null;
+  addEtapaToList({}, undefined, lastFixed);
+  renumberEtapas();
 });
 
 document.getElementById('btnCloseReceta').addEventListener('click', () => {
@@ -2978,6 +3283,18 @@ function generateLotId(recipeName) {
   const time = now.toLocaleTimeString('es-CO', { ...opts, hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '');
   return `TQ-${abbr}-${date}-${time}`;
 }
+
+const LIMPIEZA_ETAPA = {
+  nombre: 'Limpieza',
+  instrucciones: [
+    { text: 'Limpieza de barril', tipo: 'viñeta' },
+    { text: 'Limpieza de pisos', tipo: 'viñeta' },
+    { text: 'Limpieza de zona', tipo: 'viñeta' }
+  ],
+  tiempoEstimado: 60,
+  insumos: [],
+  fija: true
+};
 
 const SCORE_LEVELS = [
   { min: 27, label: 'ÓPTIMO',         cls: 'level-opt' },
