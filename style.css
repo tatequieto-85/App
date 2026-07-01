@@ -3,10 +3,10 @@
 
 /* ── Scrollbars siempre visibles ─────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 7px; height: 7px; }
-::-webkit-scrollbar-track { background: rgba(0,0,0,.04); border-radius: 4px; }
-::-webkit-scrollbar-thumb { background: #C8CAD0; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
-* { scrollbar-width: thin; scrollbar-color: #C8CAD0 rgba(0,0,0,.04); }
+::-webkit-scrollbar-track { background: rgba(54,18,20,.05); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #DCCEA8; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #C2AF80; }
+* { scrollbar-width: thin; scrollbar-color: #DCCEA8 rgba(54,18,20,.05); }
 
 :root {
   /* Brand */
@@ -16,12 +16,12 @@
   --cream:    #FAF1C0;
   --green:    #7A9C3E;
 
-  /* Layout */
-  --bg:       #F4F5F9;
-  --surface:  #FFFFFF;
-  --border:   #E5E7EB;
-  --text:     #111827;
-  --text-sub: #6B7280;
+  /* Layout — paleta crema cálida */
+  --bg:       #FAF3E3;
+  --surface:  #FFFDF7;
+  --border:   #E9DFC4;
+  --text:     #2B2016;
+  --text-sub: #8C7B60;
 
   /* Shadows */
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
@@ -36,6 +36,9 @@
   --sidebar-w: 210px;
   --header-h:  58px;
 }
+
+.icon-spin { animation: icon-spin .8s linear infinite; }
+@keyframes icon-spin { to { transform: rotate(360deg); } }
 
 html { font-size: 16px; }
 body {
@@ -411,12 +414,13 @@ body {
 }
 .btn-primary:hover  { background: #d94e1a; }
 .btn-primary:active { transform: scale(.98); }
-.btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+.btn-primary:disabled { background: #D6CBAE; cursor: not-allowed; }
 
 .btn-icon {
   background: none; border: none; font-size: 20px;
   cursor: pointer; padding: 4px 8px; border-radius: 6px;
   transition: background .2s; color: inherit;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .btn-icon:hover { background: rgba(255,255,255,.15); }
 
@@ -464,7 +468,7 @@ body {
 
 .story-thumb {
   width: 80px; min-height: 90px; flex-shrink: 0;
-  background: #F3F4F6;
+  background: #F1E7CE;
   display: flex; align-items: center; justify-content: center;
   font-size: 28px; overflow: hidden; position: relative;
 }
@@ -611,13 +615,13 @@ body {
 
 .kanban-col {
   flex-shrink: 0; width: 272px;
-  background: #EDEEF2;
+  background: #F2EAD5;
   border-radius: var(--radius);
   display: flex; flex-direction: column;
   max-height: calc(100vh - var(--header-h) - 96px);
   overflow: hidden;
 }
-.kanban-col.terminal { background: #E5E6EB; opacity: .9; }
+.kanban-col.terminal { background: #E9DFC4; opacity: .9; }
 
 .kanban-col-header {
   padding: 11px 14px 10px;
@@ -884,7 +888,7 @@ body {
 .task-detail-obs {
   width: 280px; flex-shrink: 0;
   display: flex; flex-direction: column;
-  background: #F8F9FC; padding: 0;
+  background: #F5EEDC; padding: 0;
 }
 
 .obs-header { padding: 14px 16px 8px; border-bottom: 1px solid var(--border); }
@@ -1307,7 +1311,7 @@ body {
 .rating-stars { display: flex; gap: 4px; margin: 6px 0 14px; }
 .star-btn {
   background: none; border: none; font-size: 28px;
-  color: #D1D5DB; cursor: pointer; padding: 2px;
+  color: #D8CAA8; cursor: pointer; padding: 2px;
   transition: color .15s, transform .1s;
   min-width: 44px; min-height: 44px;
   display: flex; align-items: center; justify-content: center;

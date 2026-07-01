@@ -1,3 +1,14 @@
+// ── Iconos SVG reutilizables (line-icons, sin emojis) ────────────────────────
+const ICON_FILM     = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>';
+const ICON_IMAGE    = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+const ICON_FOLDER   = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>';
+const ICON_DOWNLOAD = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+const ICON_CHECK    = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 9.01"/></svg>';
+const ICON_CALENDAR = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+const ICON_TRASH    = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+const ICON_EDIT     = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>';
+const ICON_SPINNER  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="icon-spin"><path d="M21 12a9 9 0 11-9-9"/></svg>';
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let accessToken    = null;
 let tokenExpiry    = null;
@@ -399,38 +410,13 @@ async function onAuthSuccess() {
   await loadStories();
 
   navigateTo('home');
-  startNotificationScheduler();
-  registerPeriodicSync();
   checkPendingEvalNotifications();
 }
 
-// ── WhatsApp notification scheduler ──────────────────────────────────────────
-
-function startNotificationScheduler() {
-  checkAndSendNotification();
-  setInterval(checkAndSendNotification, 60000);
-}
-
-async function checkAndSendNotification() {
-  if (!accessToken) return;
-  try {
-    const opts  = { timeZone: 'America/Bogota' };
-    const now   = new Date();
-    const h     = parseInt(now.toLocaleString('en-CA', { ...opts, hour: '2-digit', hour12: false }));
-    const m     = parseInt(now.toLocaleString('en-CA', { ...opts, minute: '2-digit' }));
-    const today = now.toLocaleDateString('en-CA', opts);
-
-    if (!((h === 9 && m <= 10) || (h === 16 && m <= 10))) return;
-
-    const key = `ss_notif_${today}_${h}`;
-    if (localStorage.getItem(key)) return;
-    localStorage.setItem(key, '1');
-
-    await sendDailyReminder(h);
-  } catch (e) {
-    console.warn('checkAndSendNotification:', e);
-  }
-}
+// ── WhatsApp notification (recordatorio diario) ──────────────────────────────
+// El envío automático de las 9am/4pm lo hace notificacion-apps-script.gs desde
+// Google Apps Script (corre server-side aunque la app/navegador estén cerrados).
+// sendDailyReminder() se conserva solo para el botón manual "Probar envío".
 
 async function sendDailyReminder(hour) {
   try {
@@ -463,14 +449,6 @@ async function sendDailyReminder(hour) {
 
     const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(cfg.phone)}&text=${encodeURIComponent(msg)}&apikey=${encodeURIComponent(cfg.apikey)}`;
     await fetch(url, { mode: 'no-cors' });
-
-    // Cache config for service worker periodic sync
-    try {
-      const cache = await caches.open('ss-config');
-      await cache.put('whatsapp-config', new Response(JSON.stringify({ phone: cfg.phone, apikey: cfg.apikey }), {
-        headers: { 'Content-Type': 'application/json' }
-      }));
-    } catch {}
   } catch (e) {
     console.warn('sendDailyReminder:', e);
   }
@@ -645,17 +623,6 @@ document.getElementById('btnSaveSineresis').addEventListener('click', async () =
     btn.disabled = false; btn.textContent = 'Guardar Sinéresis';
   }
 });
-
-async function registerPeriodicSync() {
-  if (!('serviceWorker' in navigator)) return;
-  try {
-    const reg  = await navigator.serviceWorker.ready;
-    if (!('periodicSync' in reg)) return;
-    const perm = await navigator.permissions.query({ name: 'periodic-background-sync' });
-    if (perm.state !== 'granted') return;
-    await reg.periodicSync.register('whatsapp-reminder', { minInterval: 4 * 60 * 60 * 1000 });
-  } catch {}
-}
 
 // ── Sheets API helpers ────────────────────────────────────────────────────────
 
@@ -1088,14 +1055,14 @@ function renderStories(stories) {
       const rowIndex = +btn.dataset.downloadRow;
       const story    = stories.find(s => s.rowIndex === rowIndex);
       btn.disabled   = true;
-      btn.textContent = '⏳';
+      btn.innerHTML  = ICON_SPINNER;
       try {
         for (let i = 0; i < story.driveFileIds.length; i++) {
           await downloadDriveFile(story.driveFileIds[i], story.origNames[i]);
           if (i < story.driveFileIds.length - 1) await delay(400);
         }
       } catch (e) { alert(`Error al descargar: ${e.message}`); }
-      finally { btn.disabled = false; btn.textContent = '⬇️'; }
+      finally { btn.disabled = false; btn.innerHTML = ICON_DOWNLOAD; }
     });
   });
 
@@ -1121,9 +1088,9 @@ function storyCardHTML(s) {
   if (firstThumb) {
     thumbContent = `<img src="${firstThumb}" alt="" loading="lazy" onerror="this.style.display='none'">${extraCount}`;
   } else if (s.mimeTypes[0]?.startsWith('video/')) {
-    thumbContent = '🎬';
+    thumbContent = ICON_FILM;
   } else if (s.driveFileIds.length) {
-    thumbContent = '🖼';
+    thumbContent = ICON_IMAGE;
   } else {
     thumbContent = '';
   }
@@ -1133,10 +1100,10 @@ function storyCardHTML(s) {
     : '<em style="opacity:.55">Sin acciones especificadas</em>';
 
   const driveBtn = s.driveFileIds[0]
-    ? `<button class="btn-sm" data-drive-id="${s.driveFileIds[0]}" title="Ver en Drive">📂</button>` : '';
+    ? `<button class="btn-sm" data-drive-id="${s.driveFileIds[0]}" title="Ver en Drive">${ICON_FOLDER}</button>` : '';
 
   const dlBtn = s.driveFileIds.length
-    ? `<button class="btn-sm btn-dl" data-download-row="${s.rowIndex}" title="Descargar archivo(s)">⬇️</button>` : '';
+    ? `<button class="btn-sm btn-dl" data-download-row="${s.rowIndex}" title="Descargar archivo(s)">${ICON_DOWNLOAD}</button>` : '';
 
   const todayBadge = today ? '<span class="today-badge">HOY</span>' : '';
 
@@ -1145,15 +1112,15 @@ function storyCardHTML(s) {
       <div class="story-thumb">${thumbContent}</div>
       <div class="story-body">
         <div class="story-title">${todayBadge}${esc(s.title)}</div>
-        <div class="story-date">📅 ${fmtDate(s.scheduledAt)}</div>
+        <div class="story-date">${ICON_CALENDAR}${fmtDate(s.scheduledAt)}</div>
         <div class="story-actions">${actions}</div>
         <div class="story-footer">
-          <button class="btn-pub" data-publish-row="${s.rowIndex}">✅ Publicada</button>
+          <button class="btn-pub" data-publish-row="${s.rowIndex}">${ICON_CHECK}Publicada</button>
           <div class="story-footer-icons">${driveBtn}${dlBtn}</div>
         </div>
       </div>
       <div class="story-actions-btn">
-        <button class="story-delete" data-delete-row="${s.rowIndex}" title="Eliminar">🗑</button>
+        <button class="story-delete" data-delete-row="${s.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
       </div>
     </div>`;
 }
@@ -1331,7 +1298,6 @@ document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && accessToken) {
     if (Date.now() > tokenExpiry - 5 * 60 * 1000) await trySilentGoogleAuth();
     loadStories();
-    checkAndSendNotification();
   }
 });
 
@@ -1586,8 +1552,8 @@ function renderKanban() {
         <div class="kanban-card-footer">
           <span class="kanban-card-hint">doble clic = ver detalle</span>
           <div style="display:flex;gap:4px">
-            <button data-edit="${task.id}" title="Editar">✏️</button>
-            <button data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">🗑</button>
+            <button data-edit="${task.id}" title="Editar">${ICON_EDIT}</button>
+            <button data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
           </div>
         </div>
         ${tl ? `<div class="kanban-traffic-bar ${tl.cls}" title="${tl.tip}"></div>` : ''}
@@ -1719,8 +1685,8 @@ function renderKanbanList() {
       <td><span class="kanban-card-due ${due.cls}" style="font-size:12px">${due.text}</span></td>
       <td style="white-space:nowrap">
         <button class="task-action-btn" data-view="${task.id}" title="Ver detalle">👁</button>
-        <button class="task-action-btn" data-edit="${task.id}" title="Editar">✏️</button>
-        <button class="task-action-btn" data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">🗑</button>
+        <button class="task-action-btn" data-edit="${task.id}" title="Editar">${ICON_EDIT}</button>
+        <button class="task-action-btn" data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
       </td>
     `;
     tr.addEventListener('dblclick', (e) => {
@@ -2583,8 +2549,8 @@ function renderRecetasList() {
       </div>
       <div class="receta-card-actions">
         <button class="btn-ejecutar" data-ejecutar="${esc(r.id)}">▶ Ejecutar</button>
-        <button class="btn-outline btn-sm" data-edit-receta="${esc(r.id)}">✏️</button>
-        <button class="btn-outline btn-sm" data-del-receta="${esc(r.id)}" data-row="${r.rowIndex}">🗑</button>
+        <button class="btn-outline btn-sm" data-edit-receta="${esc(r.id)}">${ICON_EDIT}</button>
+        <button class="btn-outline btn-sm" data-del-receta="${esc(r.id)}" data-row="${r.rowIndex}">${ICON_TRASH}</button>
       </div>
     </div>
   `).join('');
@@ -2907,7 +2873,7 @@ function openEjecucionDetail(ejId) {
     ${etapasHTML ? `<div class="detail-row detail-row--col"><span class="detail-label">Etapas</span>${etapasHTML}</div>` : ''}
     ${analysisHTML}
     <div style="margin-top:12px">
-      <button class="btn-outline" id="btnDownloadEjecucionTxt" style="width:100%">⬇️ Descargar TXT de esta ejecución</button>
+      <button class="btn-outline" id="btnDownloadEjecucionTxt" style="width:100%">${ICON_DOWNLOAD} Descargar TXT de esta ejecución</button>
     </div>
   `;
 
@@ -3348,10 +3314,13 @@ document.getElementById('btnSaveReceta').addEventListener('click', async () => {
   if (!nombre) return setFb(fb, 'El nombre de la receta es obligatorio.', 'err');
   if (!etapas.length) return setFb(fb, 'Agrega al menos una etapa.', 'err');
 
+  const ingredientesMaestros = collectIngredientesMaestros();
+  const hayCantidadNegativa = etapas.some(et => et.insumos.some(ins => ins.cantidad < 0))
+    || ingredientesMaestros.some(im => im.cantidadTotal < 0);
+  if (hayCantidadNegativa) return setFb(fb, 'Las cantidades de insumos no pueden ser negativas.', 'err');
+
   const btn = document.getElementById('btnSaveReceta');
   btn.disabled = true; btn.textContent = 'Guardando…';
-
-  const ingredientesMaestros = collectIngredientesMaestros();
 
   try {
     if (editRecetaId) {
@@ -3658,7 +3627,9 @@ function renderExecutionStep() {
 
     <div style="margin-top:20px">
       <button class="btn-primary exec-next-btn" id="btnNextStage">
-        ${isLast ? '✅ Finalizar receta' : '➡️ Siguiente etapa'}
+        ${isLast
+          ? ICON_CHECK + 'Finalizar receta'
+          : 'Siguiente etapa <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:4px"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>'}
       </button>
     </div>
   `;
@@ -3835,6 +3806,11 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
   if (phVal > 4.0)  return setFb(fb, `⚠️ pH ${phVal.toFixed(2)} > 4.0 — agregar ácido cítrico 0.5 g y remedir. No se puede finalizar sin pH ≤ 4.0.`, 'err');
   if (!evaluacionPendiente) return;
 
+  const f230 = parseInt(document.getElementById('evalFrascos230').value) || 0;
+  const f180 = parseInt(document.getElementById('evalFrascos180').value) || 0;
+  const exc  = parseInt(document.getElementById('evalExcedente').value) || 0;
+  if (f230 < 0 || f180 < 0 || exc < 0) return setFb(fb, 'Los frascos y el excedente no pueden ser negativos.', 'err');
+
   const phase1Dims = ['D1', 'D2', 'D4', 'D5'];
   const scoreTotal = phase1Dims.reduce((sum, d) => sum + evalScores[d], 0);
 
@@ -3857,15 +3833,12 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
       sineresisWASent:    false,
       fechaElaboracion:   document.getElementById('evalFechaElaboracion').value,
       fechaVencimiento:   document.getElementById('evalFechaVencimiento').value,
-      frascos230:         parseInt(document.getElementById('evalFrascos230').value) || 0,
-      frascos180:         parseInt(document.getElementById('evalFrascos180').value) || 0,
-      excedente:          parseInt(document.getElementById('evalExcedente').value) || 0,
+      frascos230:         f230,
+      frascos180:         f180,
+      excedente:          exc,
       totalInsumosG:      evaluacionTotalInsumosG,
       rendimiento:        (() => {
-        const f230 = parseInt(document.getElementById('evalFrascos230').value) || 0;
-        const f180 = parseInt(document.getElementById('evalFrascos180').value) || 0;
-        const exc  = parseInt(document.getElementById('evalExcedente').value) || 0;
-        const ml   = f230 * 230 + f180 * 180 + exc;
+        const ml = f230 * 230 + f180 * 180 + exc;
         return (ml > 0 && evaluacionTotalInsumosG > 0)
           ? Math.round(ml / evaluacionTotalInsumosG * 10000) / 100
           : null;
@@ -4002,8 +3975,8 @@ function downloadSingleEjecucionTxt(ej) {
 }
 
 function downloadEjecucionesTxt() {
-  if (!ejecucionesData?.length) return;
-  const text = ejecucionesData.map(ejecucionToText).join('\n');
+  if (!ejecuciones?.length) return;
+  const text = ejecuciones.map(ejecucionToText).join('\n');
   const blob = new Blob([text], { type: 'text/plain' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a'); a.href = url;
