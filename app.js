@@ -2757,7 +2757,59 @@ function openRecetaDetail(recetaId) {
     document.getElementById('recetaDetailOverlay').classList.remove('open');
     openRecetaModal(recetaId);
   };
+  document.getElementById('btnDownloadRecetaDetail').onclick = () => downloadRecetaTxt(recetaId);
   document.getElementById('recetaDetailOverlay').classList.add('open');
+}
+
+function downloadRecetaTxt(recetaId) {
+  const rec = recetas.find(r => r.id === recetaId);
+  if (!rec) return;
+
+  const lines = [];
+  lines.push(rec.nombre.toUpperCase());
+  lines.push('='.repeat(rec.nombre.length));
+  if (rec.descripcion) {
+    lines.push('');
+    lines.push(rec.descripcion);
+  }
+
+  const maestros = rec.ingredientesMaestros || [];
+  if (maestros.length) {
+    lines.push('');
+    lines.push('INGREDIENTES DE LA RECETA');
+    maestros.forEach(ing => lines.push(`- ${ing.nombre}: ${ing.cantidadTotal} ${ing.unidad}`));
+  }
+
+  rec.etapas.forEach((et, i) => {
+    lines.push('');
+    lines.push(`ETAPA ${i + 1}: ${et.nombre}${et.tiempoEstimado ? ` (${et.tiempoEstimado} min)` : ''}`);
+
+    const instrucciones = parseInstrucciones(et.instrucciones);
+    let stepNum = 0;
+    instrucciones.forEach(item => {
+      const text = item.text || item;
+      const tipo = item.tipo || 'paso';
+      const alarmMin = parseInt(item.alarmMin) || 0;
+      const num = tipo === 'viñeta' ? '-' : `${++stepNum}.`;
+      lines.push(`  ${num} ${text}${alarmMin > 0 ? ` (alarma: ${alarmMin} min)` : ''}`);
+    });
+
+    const insumos = (et.insumos || []).filter(ins => ins.nombre);
+    if (insumos.length) {
+      lines.push('  Insumos:');
+      insumos.forEach(ins => lines.push(`    - ${ins.nombre}: ${ins.cantidad} ${ins.unidad}`));
+    }
+  });
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${rec.nombre.replace(/[^\w\-]+/g, '_')}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 document.getElementById('btnCloseRecetaDetail').addEventListener('click', () => {
