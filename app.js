@@ -1255,6 +1255,7 @@ function saveTaskDraft() {
     desc:     document.getElementById('taskDesc')?.value    || '',
     due:      document.getElementById('taskDue')?.value     || '',
     status:   document.getElementById('taskStatus')?.value  || '',
+    priority: document.getElementById('taskPriority')?.value || '',
     subtasks: collectSubtasks()
   };
   if (draft.title || draft.desc || draft.subtasks.length) {
@@ -1335,7 +1336,7 @@ async function initKanbanSheets() {
   if (!td.values) {
     await sheetsReq('/values/KanbanTasks!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID','Area','Title','Description','DueDate','Status','CreatedAt','UpdatedAt']] })
+      body: JSON.stringify({ values: [['ID','Area','Title','Description','DueDate','Status','CreatedAt','UpdatedAt','Subtasks','Observations','Priority']] })
     });
   }
 
@@ -1378,7 +1379,7 @@ async function saveKanbanConfig() {
 // ── Kanban Tasks CRUD ─────────────────────────────────────────────────────────
 
 async function loadKanbanTasks() {
-  const data = await sheetsReq('/values/KanbanTasks!A:J');
+  const data = await sheetsReq('/values/KanbanTasks!A:K');
   const rows = (data.values || []).slice(1);
   kanbanTasks = rows
     .filter(r => r[0])
@@ -1393,30 +1394,33 @@ async function loadKanbanTasks() {
       updatedAt:    r[7] || '',
       subtasks:     safeParseJSON(r[8], []),
       observations: safeParseJSON(r[9], []),
+      priority:     r[10] || '',
       rowIndex:     i + 2
     }));
 }
 
 async function appendKanbanTask(task) {
-  await sheetsReq('/values/KanbanTasks!A:J:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/KanbanTasks!A:K:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       task.id, task.area, task.title, task.desc,
       task.dueDate, task.status, task.createdAt, task.updatedAt,
       JSON.stringify(task.subtasks || []),
-      JSON.stringify(task.observations || [])
+      JSON.stringify(task.observations || []),
+      task.priority || ''
     ]]})
   });
 }
 
 async function updateKanbanTask(task) {
-  await sheetsReq(`/values/KanbanTasks!A${task.rowIndex}:J${task.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/KanbanTasks!A${task.rowIndex}:K${task.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
       task.id, task.area, task.title, task.desc,
       task.dueDate, task.status, task.createdAt, new Date().toISOString(),
       JSON.stringify(task.subtasks || []),
-      JSON.stringify(task.observations || [])
+      JSON.stringify(task.observations || []),
+      task.priority || ''
     ]]})
   });
 }
@@ -1456,6 +1460,18 @@ function fmtDue(dateStr) {
   return { text: `📅 ${label}`, cls: '' };
 }
 
+function getDueStatus(dateStr) {
+  if (!dateStr) return '';
+  const d     = new Date(dateStr + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff  = Math.round((d - today) / 86400000);
+  if (diff < 0) return 'vencido';
+  if (diff <= 3) return 'porVencer';
+  return 'normal';
+}
+
+const PRIORITY_LABELS = { alta: '🔴 Alta', media: '🟡 Media', baja: '🟢 Baja' };
+
 function getTrafficLight(dateStr) {
   if (!dateStr) return null;
   const d     = new Date(dateStr + 'T00:00:00');
@@ -1471,9 +1487,14 @@ function getTrafficLight(dateStr) {
 function renderKanban() {
   const board      = document.getElementById('kanbanBoard');
   if (!board) return;
-  const areaFilter = document.getElementById('kanbanAreaFilter')?.value || '';
+  const areaFilter     = document.getElementById('kanbanAreaFilter')?.value     || '';
+  const priorityFilter = document.getElementById('kanbanPriorityFilter')?.value || '';
+  const dueFilter      = document.getElementById('kanbanDueFilter')?.value      || '';
 
-  const tasks = areaFilter ? kanbanTasks.filter(t => t.area === areaFilter) : kanbanTasks;
+  let tasks = kanbanTasks;
+  if (areaFilter)     tasks = tasks.filter(t => t.area === areaFilter);
+  if (priorityFilter) tasks = tasks.filter(t => t.priority === priorityFilter);
+  if (dueFilter)      tasks = tasks.filter(t => getDueStatus(t.dueDate) === dueFilter);
   const visibleCols = kanbanColumns.filter(c => !c.terminal || showTerminal);
 
   board.innerHTML = '';
@@ -1544,7 +1565,7 @@ function renderKanban() {
       }).join('');
 
       card.innerHTML = `
-        <div class="kanban-card-area">${esc(task.area)}</div>
+        <div class="kanban-card-area">${esc(task.area)}${task.priority ? `<span class="kanban-card-priority kanban-priority-${esc(task.priority)}">${PRIORITY_LABELS[task.priority] || ''}</span>` : ''}</div>
         <div class="kanban-card-title">${esc(task.title)}</div>
         ${task.desc ? `<div class="kanban-card-desc">${esc(task.desc)}</div>` : ''}
         ${subtasksBullets ? `<div class="kanban-card-subtasks">${subtasksBullets}</div>` : ''}
@@ -1647,12 +1668,16 @@ function renderKanban() {
 function renderKanbanList() {
   const container    = document.getElementById('tasksList');
   if (!container) return;
-  const areaFilter   = document.getElementById('listaAreaFilter')?.value   || '';
-  const statusFilter = document.getElementById('listaStatusFilter')?.value || '';
+  const areaFilter     = document.getElementById('listaAreaFilter')?.value     || '';
+  const statusFilter   = document.getElementById('listaStatusFilter')?.value   || '';
+  const priorityFilter = document.getElementById('listaPriorityFilter')?.value || '';
+  const dueFilter      = document.getElementById('listaDueFilter')?.value      || '';
 
   let tasks = [...kanbanTasks];
-  if (areaFilter)   tasks = tasks.filter(t => t.area   === areaFilter);
-  if (statusFilter) tasks = tasks.filter(t => t.status === statusFilter);
+  if (areaFilter)     tasks = tasks.filter(t => t.area     === areaFilter);
+  if (statusFilter)   tasks = tasks.filter(t => t.status   === statusFilter);
+  if (priorityFilter) tasks = tasks.filter(t => t.priority === priorityFilter);
+  if (dueFilter)      tasks = tasks.filter(t => getDueStatus(t.dueDate) === dueFilter);
   tasks.sort((a, b) => (a.dueDate || '9999') < (b.dueDate || '9999') ? -1 : 1);
 
   if (!tasks.length) {
@@ -1663,7 +1688,7 @@ function renderKanbanList() {
   const table = document.createElement('table');
   table.className = 'tasks-table';
   table.innerHTML = `<thead><tr>
-    <th>Área</th><th>Tarea</th><th>Estado</th><th>Fecha límite</th><th></th>
+    <th>Área</th><th>Tarea</th><th>Estado</th><th>Prioridad</th><th>Fecha límite</th><th></th>
   </tr></thead><tbody></tbody>`;
 
   const tbody = table.querySelector('tbody');
@@ -1682,6 +1707,7 @@ function renderKanbanList() {
         ${stCount ? `<span style="font-size:11px;color:var(--text-sub)">📋 ${stCount} sub-tarea${stCount !== 1 ? 's' : ''}</span>` : ''}
       </td>
       <td><span class="status-pill" style="background:${color}22;color:${color}">${esc(task.status)}</span></td>
+      <td>${task.priority ? `<span class="kanban-card-priority kanban-priority-${esc(task.priority)}">${PRIORITY_LABELS[task.priority] || ''}</span>` : ''}</td>
       <td><span class="kanban-card-due ${due.cls}" style="font-size:12px">${due.text}</span></td>
       <td style="white-space:nowrap">
         <button class="task-action-btn" data-view="${task.id}" title="Ver detalle">👁</button>
@@ -1772,6 +1798,7 @@ function openTaskModal(defaultStatus, editId) {
     document.getElementById('taskDesc').value   = task.desc;
     document.getElementById('taskDue').value    = task.dueDate;
     document.getElementById('taskStatus').value = task.status;
+    document.getElementById('taskPriority').value = task.priority || '';
     renderSubtasksList(task.subtasks || []);
   } else {
     document.getElementById('taskModalTitle').textContent = 'Nueva tarea';
@@ -1782,6 +1809,7 @@ function openTaskModal(defaultStatus, editId) {
       document.getElementById('taskDesc').value   = draft.desc   || '';
       document.getElementById('taskDue').value    = draft.due    || '';
       document.getElementById('taskStatus').value = draft.status || defaultStatus || kanbanColumns.find(c => !c.terminal)?.name || '';
+      document.getElementById('taskPriority').value = draft.priority || '';
       renderSubtasksList(draft.subtasks || []);
       const fb = document.getElementById('taskFeedback');
       fb.textContent = '↩ Borrador restaurado';
@@ -1794,6 +1822,7 @@ function openTaskModal(defaultStatus, editId) {
       document.getElementById('taskDue').value    = '';
       const firstNonTerm = kanbanColumns.find(c => !c.terminal);
       document.getElementById('taskStatus').value = defaultStatus || firstNonTerm?.name || '';
+      document.getElementById('taskPriority').value = '';
       renderSubtasksList([]);
       document.getElementById('taskFeedback').textContent = '';
       document.getElementById('taskFeedback').className   = 'feedback';
@@ -1820,6 +1849,7 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
   const desc     = document.getElementById('taskDesc').value.trim();
   const due      = document.getElementById('taskDue').value;
   const status   = document.getElementById('taskStatus').value;
+  const priority = document.getElementById('taskPriority').value;
   const subtasks = collectSubtasks();
   const fb       = document.getElementById('taskFeedback');
 
@@ -1835,6 +1865,7 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
       if (task) {
         task.area = area; task.title = title; task.desc = desc;
         task.dueDate = due; task.status = status; task.subtasks = subtasks;
+        task.priority = priority;
         await updateKanbanTask(task);
       }
     } else {
@@ -1842,7 +1873,7 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
       await appendKanbanTask({
         id: crypto.randomUUID(), area, title, desc,
         dueDate: due, status, createdAt: now, updatedAt: now,
-        subtasks, observations: []
+        subtasks, observations: [], priority
       });
     }
     clearTaskDraft();
@@ -2038,6 +2069,7 @@ function openTaskDetail(taskId) {
       <span id="detailStatusSaving" style="font-size:11px;color:var(--text-sub);display:none">Guardando…</span>
     </div>
     <div class="detail-row"><span class="detail-label">Fecha límite</span><span class="kanban-card-due ${due.cls}">${due.text || '—'}</span></div>
+    ${task.priority ? `<div class="detail-row"><span class="detail-label">Prioridad</span><span class="kanban-card-priority kanban-priority-${esc(task.priority)}">${PRIORITY_LABELS[task.priority] || ''}</span></div>` : ''}
     ${task.desc ? `<div class="detail-row detail-row--col"><span class="detail-label">Descripción</span><span class="detail-value">${esc(task.desc)}</span></div>` : ''}
     ${subtasksHTML ? `<div class="detail-row detail-row--col"><span class="detail-label">Sub-tareas</span>${subtasksHTML}</div>` : ''}
     <div class="detail-row detail-row--meta"><span class="detail-label">Creada</span><span class="detail-value">${fmtDate(task.createdAt)}</span></div>
@@ -2142,8 +2174,12 @@ document.querySelectorAll('.sub-tab-btn').forEach(btn => {
 
 document.getElementById('btnNewTask').addEventListener('click', () => openTaskModal(null, null));
 document.getElementById('kanbanAreaFilter').addEventListener('change', renderKanban);
+document.getElementById('kanbanPriorityFilter').addEventListener('change', renderKanban);
+document.getElementById('kanbanDueFilter').addEventListener('change', renderKanban);
 document.getElementById('listaAreaFilter').addEventListener('change', renderKanbanList);
 document.getElementById('listaStatusFilter').addEventListener('change', renderKanbanList);
+document.getElementById('listaPriorityFilter').addEventListener('change', renderKanbanList);
+document.getElementById('listaDueFilter').addEventListener('change', renderKanbanList);
 
 // ── Ingredientes: Sheet CRUD ──────────────────────────────────────────────────
 
@@ -2523,9 +2559,6 @@ async function loadProcesos() {
     await loadEjecucionesData();
     renderRecetasList();
     renderEjecucionesList();
-    if (ingredientes.length === 0) {
-      setTimeout(() => openIngredientesModal(true), 400);
-    }
   } catch (e) {
     console.error('loadProcesos:', e);
   }
@@ -2683,17 +2716,7 @@ function openRecetaDetail(recetaId) {
   document.getElementById('recetaDetailTitle').textContent = rec.nombre;
 
   const etapasHTML = rec.etapas.map((et, i) => {
-    const instrArr = parseInstrucciones(et.instrucciones);
-    let stepNum = 0;
-    const instrHTML = instrArr.map(item => {
-      const text = item.text || item;
-      const tipo = item.tipo || 'paso';
-      if (tipo === 'viñeta') {
-        return `<div class="exec-instruccion-row"><span class="exec-instruccion-num">•</span> ${esc(text)}</div>`;
-      }
-      stepNum++;
-      return `<div class="exec-instruccion-row"><span class="exec-instruccion-num">${stepNum}.</span> ${esc(text)}</div>`;
-    }).join('');
+    const instrHTML = buildInstruccionesHTML(et.instrucciones);
 
     const insumosHTML = (et.insumos || []).filter(ins => ins.nombre).map(ins =>
       `<div class="detail-insumo-row">• ${esc(ins.nombre)}: <strong>${ins.cantidad} ${esc(ins.unidad)}</strong></div>`
@@ -2706,7 +2729,7 @@ function openRecetaDetail(recetaId) {
           <span class="receta-detail-etapa-nombre">${esc(et.nombre)}</span>
           ${et.tiempoEstimado ? `<span class="receta-detail-etapa-tiempo">⏱ ${et.tiempoEstimado} min</span>` : ''}
         </div>
-        ${instrHTML ? `<div class="exec-instrucciones">${instrHTML}</div>` : ''}
+        ${instrHTML}
         ${insumosHTML ? `<div class="receta-detail-insumos"><div class="receta-detail-insumos-title">Insumos:</div>${insumosHTML}</div>` : ''}
       </div>
     `;
@@ -3104,7 +3127,7 @@ function addEtapaToList(etapa, idx, insertBeforeEl) {
 
   // Populate instruction rows
   const instrList = item.querySelector('.instrucciones-list');
-  instrArr.forEach(instr => instrList.appendChild(buildInstruccionRow(instr.text, instr.tipo)));
+  instrArr.forEach(instr => instrList.appendChild(buildInstruccionRow(instr.text, instr.tipo, instr.alarmMin)));
 
   // Populate insumo rows (non-fixed stages only)
   const insList = item.querySelector('.insumos-list');
@@ -3165,25 +3188,26 @@ function buildInstruccionesHTML(instrucciones) {
   if (!arr.length) return '';
   let stepNum = 0;
   return `<div class="exec-instrucciones">
-    ${arr.map(item => {
-      const text = item.text || item;
-      const tipo = item.tipo || 'paso';
-      if (tipo === 'viñeta') {
-        return `<div class="exec-instruccion-row"><span class="exec-instruccion-num">•</span> ${esc(text)}</div>`;
-      }
-      stepNum++;
-      return `<div class="exec-instruccion-row"><span class="exec-instruccion-num">${stepNum}.</span> ${esc(text)}</div>`;
+    ${arr.map((item, i) => {
+      const text     = item.text || item;
+      const tipo     = item.tipo || 'paso';
+      const alarmMin = parseInt(item.alarmMin) || 0;
+      const alarmAttrs = alarmMin > 0 ? ` data-alarm-min="${alarmMin}" data-instr-i="${i}"` : '';
+      const badge = alarmMin > 0 ? `<span class="exec-instruccion-alarm">⏰ ${alarmMin} min</span>` : '';
+      const num = tipo === 'viñeta' ? '•' : `${++stepNum}.`;
+      return `<div class="exec-instruccion-row"${alarmAttrs}><span class="exec-instruccion-num">${num}</span> ${esc(text)}${badge}</div>`;
     }).join('')}
   </div>`;
 }
 
-function buildInstruccionRow(text, tipo = 'paso') {
+function buildInstruccionRow(text, tipo = 'paso', alarmMin) {
   const row = document.createElement('div');
   row.className = 'instruccion-row';
   row.innerHTML = `
     <span class="instr-drag-handle" title="Arrastrar para reordenar">⠿</span>
     <button class="instruccion-tipo-btn" data-tipo="${tipo}" type="button" title="${tipo === 'viñeta' ? 'Cambiar a paso numerado' : 'Cambiar a viñeta'}">${tipo === 'viñeta' ? '•' : '#'}</button>
     <input class="field-input instruccion-text" type="text" value="${esc(text || '')}" placeholder="Describir el paso…" style="flex:1" />
+    <input class="field-input instruccion-alarm" type="number" min="1" step="1" value="${alarmMin ? esc(String(alarmMin)) : ''}" placeholder="⏰ min" title="Alarma con sonido (minutos, opcional)" style="width:72px;flex:none" />
     <button class="subtask-remove" title="Quitar paso">✕</button>
   `;
 
@@ -3275,7 +3299,8 @@ function collectEtapas() {
     const instrucciones = Array.from(item.querySelectorAll('.instruccion-row'))
       .map(row => ({
         text: row.querySelector('.instruccion-text').value.trim(),
-        tipo: row.querySelector('.instruccion-tipo-btn')?.dataset.tipo || 'paso'
+        tipo: row.querySelector('.instruccion-tipo-btn')?.dataset.tipo || 'paso',
+        alarmMin: parseInt(row.querySelector('.instruccion-alarm')?.value) || 0
       }))
       .filter(i => i.text);
     return {
@@ -3603,6 +3628,8 @@ function renderExecutionStep() {
   const isLast = currentStageIndex === total - 1;
 
   if (executionState.timerInterval) clearInterval(executionState.timerInterval);
+  (executionState.alarmTimeouts || []).forEach(id => clearTimeout(id));
+  executionState.alarmTimeouts = [];
   executionState.stageStartTime = Date.now();
 
   const body = document.getElementById('ejecutarBody');
@@ -3640,9 +3667,68 @@ function renderExecutionStep() {
     if (timerEl) timerEl.textContent = fmtSeconds(elapsed);
   }, 1000);
 
+  scheduleStageAlarms(body);
+
   document.getElementById('btnNextStage').addEventListener('click', () => advanceStage());
   const backBtn = document.getElementById('btnBackStage');
   if (backBtn) backBtn.addEventListener('click', () => goBackStage());
+}
+
+// ── Procesos: Alarmas por instrucción (opcional, con sonido) ─────────────────
+
+function scheduleStageAlarms(body) {
+  body.querySelectorAll('.exec-instruccion-row[data-alarm-min]').forEach(row => {
+    const minutes = parseFloat(row.dataset.alarmMin);
+    if (!minutes || minutes <= 0) return;
+    const text = row.textContent.replace(/^[•\d.]+\s*/, '').replace(/⏰.*$/, '').trim();
+    const timeoutId = setTimeout(() => triggerInstructionAlarm(row, text), minutes * 60000);
+    executionState.alarmTimeouts.push(timeoutId);
+  });
+}
+
+function triggerInstructionAlarm(row, text) {
+  playAlarmSound();
+  if (row && row.isConnected) {
+    row.classList.add('instr-alarm-fired');
+    setTimeout(() => row.classList.remove('instr-alarm-fired'), 4200);
+  }
+  showAlarmToast(text);
+}
+
+function showAlarmToast(text) {
+  const toast = document.createElement('div');
+  toast.className = 'alarm-toast';
+  toast.innerHTML = `⏰ <span>${esc(text || 'Alarma de paso')}</span><button class="alarm-toast-close" title="Cerrar">✕</button>`;
+  document.body.appendChild(toast);
+  const remove = () => toast.remove();
+  toast.querySelector('.alarm-toast-close').addEventListener('click', remove);
+  setTimeout(remove, 15000);
+}
+
+let alarmAudioCtx = null;
+function playAlarmSound() {
+  try {
+    if (!alarmAudioCtx) alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = alarmAudioCtx;
+    if (ctx.state === 'suspended') ctx.resume();
+    const beepAt = (startOffset) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const t0 = ctx.currentTime + startOffset;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.3, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+      osc.start(t0);
+      osc.stop(t0 + 0.4);
+    };
+    [0, 0.5, 1].forEach(beepAt);
+  } catch (e) {
+    console.warn('playAlarmSound:', e.message);
+  }
 }
 
 function advanceStage() {
@@ -3692,6 +3778,7 @@ function advanceStage() {
 function finishExecution() {
   if (!executionState) return;
   if (executionState.timerInterval) clearInterval(executionState.timerInterval);
+  (executionState.alarmTimeouts || []).forEach(id => clearTimeout(id));
 
   const { receta, stagesData } = executionState;
   const durTotal = stagesData.reduce((sum, s) => sum + s.duracionReal, 0);
@@ -3772,6 +3859,7 @@ function finishExecution() {
 document.getElementById('btnCancelEjecutar').addEventListener('click', () => {
   if (!confirm('¿Cancelar la ejecución? Se perderán los datos de las etapas ya registradas.')) return;
   if (executionState?.timerInterval) clearInterval(executionState.timerInterval);
+  (executionState?.alarmTimeouts || []).forEach(id => clearTimeout(id));
   executionState = null;
   clearExecutionProgress();
   document.getElementById('ejecutarOverlay').classList.remove('open');

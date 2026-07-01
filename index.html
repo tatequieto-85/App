@@ -220,6 +220,17 @@
                   <select class="field-select" id="kanbanAreaFilter">
                     <option value="">Todas las áreas</option>
                   </select>
+                  <select class="field-select" id="kanbanPriorityFilter">
+                    <option value="">Toda prioridad</option>
+                    <option value="alta">🔴 Alta</option>
+                    <option value="media">🟡 Media</option>
+                    <option value="baja">🟢 Baja</option>
+                  </select>
+                  <select class="field-select" id="kanbanDueFilter">
+                    <option value="">Cualquier fecha</option>
+                    <option value="vencido">⚠️ Vencidos</option>
+                    <option value="porVencer">🟡 Por vencer</option>
+                  </select>
                 </div>
                 <button class="btn-outline" id="btnManageBoard">Gestionar</button>
                 <button class="btn-add-task" id="btnNewTask">+ Nueva tarea</button>
@@ -247,6 +258,17 @@
                   </select>
                   <select class="field-select" id="listaStatusFilter">
                     <option value="">Todos los estados</option>
+                  </select>
+                  <select class="field-select" id="listaPriorityFilter">
+                    <option value="">Toda prioridad</option>
+                    <option value="alta">🔴 Alta</option>
+                    <option value="media">🟡 Media</option>
+                    <option value="baja">🟢 Baja</option>
+                  </select>
+                  <select class="field-select" id="listaDueFilter">
+                    <option value="">Cualquier fecha</option>
+                    <option value="vencido">⚠️ Vencidos</option>
+                    <option value="porVencer">🟡 Por vencer</option>
                   </select>
                 </div>
                 <div id="tasksList"><div class="loading-state">Cargando tareas…</div></div>
@@ -351,6 +373,13 @@
         <input class="field-input" id="taskDue" type="date" />
         <label class="field-label">Estado</label>
         <select class="field-input" id="taskStatus"></select>
+        <label class="field-label">Prioridad</label>
+        <select class="field-input" id="taskPriority">
+          <option value="">Sin prioridad</option>
+          <option value="alta">🔴 Alta</option>
+          <option value="media">🟡 Media</option>
+          <option value="baja">🟢 Baja</option>
+        </select>
         <button class="btn-primary" id="btnSaveTask">Guardar tarea</button>
         <div class="feedback" id="taskFeedback"></div>
       </div>

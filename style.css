@@ -680,6 +680,14 @@ body {
 .kanban-card-due.overdue { color: #C0392B; }
 .kanban-card-due.today   { color: var(--vinotinto); }
 
+.kanban-card-priority {
+  display: inline-block; float: right; font-size: 10px; font-weight: 700;
+  padding: 1px 7px; border-radius: 20px; text-transform: none; letter-spacing: 0;
+}
+.kanban-priority-alta  { background: #EF444422; color: #C0392B; }
+.kanban-priority-media { background: #EAB30822; color: #A6790A; }
+.kanban-priority-baja  { background: #22C55E22; color: #1F7A44; }
+
 .kanban-card-footer { display: flex; justify-content: flex-end; gap: 2px; margin-top: 8px; }
 .kanban-card-footer button {
   background: none; border: none; cursor: pointer;
@@ -1207,6 +1215,37 @@ body {
   min-width: 18px; padding-top: 1px;
 }
 .exec-instrucciones { white-space: normal !important; }
+.exec-instruccion-alarm {
+  display: inline-block; margin-left: 8px; font-size: 11px; font-weight: 700;
+  color: var(--vinotinto); background: rgba(54,18,20,.13);
+  padding: 1px 7px; border-radius: 20px; white-space: nowrap;
+}
+.exec-instruccion-row.instr-alarm-fired {
+  background: #F05B2222; border-radius: 6px;
+  animation: instrAlarmPulse 1.4s ease-in-out 3;
+}
+@keyframes instrAlarmPulse {
+  0%, 100% { background: #F05B2222; }
+  50%      { background: #F05B2266; }
+}
+
+/* ── Alarma de paso: toast flotante ──────────────────────────────────────── */
+.alarm-toast {
+  position: fixed; top: 16px; right: 16px; z-index: 9999;
+  max-width: 320px; background: var(--vinotinto); color: #fff;
+  padding: 12px 16px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;
+  animation: alarmToastIn .25s ease-out;
+}
+.alarm-toast-close {
+  margin-left: auto; background: none; border: none; color: #fff;
+  opacity: .8; cursor: pointer; font-size: 15px; line-height: 1; padding: 2px;
+}
+.alarm-toast-close:hover { opacity: 1; }
+@keyframes alarmToastIn {
+  from { transform: translateY(-8px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
 
 /* ── Evaluación técnica de lote ──────────────────────────────────────────── */
 .modal-evaluacion { max-width: 520px !important; }
