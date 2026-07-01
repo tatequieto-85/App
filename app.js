@@ -113,8 +113,8 @@ function navigateTo(view) {
   // Back button: hidden on home, visible in modules
   document.getElementById('btnBack').style.display = view === 'home' ? 'none' : '';
 
-  // Sidebar active state
-  document.querySelectorAll('.sidebar-item[data-nav]').forEach(item => {
+  // Sidebar + bottom nav active state
+  document.querySelectorAll('.sidebar-item[data-nav], .bottom-nav-item[data-nav]').forEach(item => {
     item.classList.toggle('active', item.dataset.nav === view);
   });
 
@@ -375,6 +375,7 @@ async function onAuthSuccess() {
   screenApp.style.display       = '';
   btnSettings.style.display     = '';
   btnSignOut.style.display      = '';
+  document.getElementById('bottomNav').style.display = '';
 
   try {
     const u = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -3380,6 +3381,16 @@ document.getElementById('btnSaveReceta').addEventListener('click', async () => {
 
 document.getElementById('btnNewReceta').addEventListener('click', () => openRecetaModal(null));
 
+// ── Escape key closes any open modal ─────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const open = document.querySelector('.modal-overlay.open');
+  if (!open) return;
+  // Don't close execution modal accidentally (already has confirm on cancel button)
+  if (open.id === 'ejecutarOverlay') return;
+  open.classList.remove('open');
+});
+
 // ── Procesos: Lot utilities ───────────────────────────────────────────────────
 
 function generateLotId(recipeName) {
@@ -3638,7 +3649,10 @@ function renderExecutionStep() {
     ${buildInstruccionesHTML(etapa.instrucciones)}
     ${etapa.tiempoEstimado ? `<div class="exec-time-hint">⏱ Tiempo estimado: ${etapa.tiempoEstimado} min</div>` : ''}
 
-    <div class="exec-timer" id="execTimer">00:00</div>
+    <div class="exec-timer-wrap">
+      <div class="exec-timer-label">Tiempo en esta etapa</div>
+      <div class="exec-timer" id="execTimer">00:00</div>
+    </div>
 
     ${buildExecInsumosSection(receta, etapa)}
 

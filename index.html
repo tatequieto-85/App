@@ -58,7 +58,7 @@
         onerror="this.style.display='none';this.nextElementSibling.style.display=''" />
       <div class="signin-logo" style="display:none">T</div>
       <h1>TATEAPP</h1>
-      <p>Programa tus historias de Instagram y recibe recordatorios por WhatsApp cuando sea el momento de publicar.</p>
+      <p>Gestiona tu producción de salsas, programa contenido de Instagram y organiza tus tareas desde un solo lugar.</p>
       <button class="btn-google" id="btnSignIn">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
@@ -269,7 +269,7 @@
               <section class="card">
                 <div class="section-header">
                   <h2 class="section-title">Recetas disponibles</h2>
-                  <p style="font-size:12px;color:var(--text-sub);margin:0">Doble clic en una tarjeta para ver el detalle</p>
+                  <span class="hint-chip">👆 doble clic = detalle</span>
                 </div>
                 <div id="recetasList"><div class="loading-state">Cargando recetas…</div></div>
               </section>
@@ -419,8 +419,11 @@
         <p class="mgmt-note">Cada etapa tiene sus propios insumos y tiempo estimado. El cronómetro inicia automáticamente al comenzar cada etapa.</p>
         <div id="etapasList" class="etapas-list"></div>
         <button class="btn-outline" id="btnAddEtapa" style="width:100%;margin-top:8px">+ Agregar etapa</button>
-        <button class="btn-primary" id="btnSaveReceta" style="margin-top:16px">Guardar receta</button>
-        <div class="feedback" id="recetaFeedback"></div>
+
+        <div class="receta-save-footer">
+          <button class="btn-primary" id="btnSaveReceta">Guardar receta</button>
+          <div class="feedback" id="recetaFeedback"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -512,7 +515,10 @@
       <div class="modal-header eval-modal-header">
         <div>
           <h2>Evaluación técnica del lote</h2>
-          <div class="eval-clock" id="evalClock"></div>
+          <div class="eval-clock-wrap">
+            <span class="eval-clock-label">Tiempo desde inicio</span>
+            <div class="eval-clock" id="evalClock"></div>
+          </div>
         </div>
         <button class="btn-icon" id="btnCloseEvaluacion">✕</button>
       </div>
@@ -537,6 +543,16 @@
         <div class="eval-phase-header">
           <span class="eval-phase-badge eval-phase-badge--pre">Fase 1</span>
           Antes de envasar
+        </div>
+
+        <div class="eval-dim eval-dim--ph">
+          <div class="eval-dim-title">pH <span class="eval-dim-code">I-01</span> <span class="eval-required">OBLIGATORIO</span></div>
+          <div class="eval-dim-desc">Medir ANTES de envasar. <strong>No sellar sin pH ≤ 4.0</strong>. Si pH &gt; 4.0: agregar ácido cítrico 0.5 g y remedir.</div>
+          <div class="eval-ph-row">
+            <input class="field-input eval-ph-input" id="evalPH" type="number" step="0.01" min="0" max="14" placeholder="Ej: 3.8" />
+            <span class="eval-ph-unit">pH</span>
+            <span class="eval-ph-status" id="evalPHStatus"></span>
+          </div>
         </div>
 
         <div class="eval-dim">
@@ -583,16 +599,6 @@
             <button class="eval-scale-btn" data-dim="D5" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Moderado<br>consistente</span></button>
             <button class="eval-scale-btn" data-dim="D5" data-val="4"><span class="esb-num">4</span><span class="esb-hint">Claro<br>uniforme</span></button>
             <button class="eval-scale-btn eval-scale-btn--target" data-dim="D5" data-val="5"><span class="esb-num">5 ✓</span><span class="esb-hint">Intenso<br>uniforme</span></button>
-          </div>
-        </div>
-
-        <div class="eval-dim eval-dim--ph">
-          <div class="eval-dim-title">pH <span class="eval-dim-code">I-01</span> <span class="eval-required">OBLIGATORIO</span></div>
-          <div class="eval-dim-desc">Medir ANTES de envasar. <strong>No sellar sin pH ≤ 4.0</strong>. Si pH &gt; 4.0: agregar ácido cítrico 0.5 g y remedir.</div>
-          <div class="eval-ph-row">
-            <input class="field-input eval-ph-input" id="evalPH" type="number" step="0.01" min="0" max="14" placeholder="Ej: 3.8" />
-            <span class="eval-ph-unit">pH</span>
-            <span class="eval-ph-status" id="evalPHStatus"></span>
           </div>
         </div>
 
@@ -723,6 +729,28 @@
       </div>
     </div>
   </div>
+
+  <!-- Bottom navigation (mobile only) -->
+  <nav class="bottom-nav" id="bottomNav" style="display:none">
+    <div class="bottom-nav-inner">
+      <button class="bottom-nav-item active" data-nav="home">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Inicio
+      </button>
+      <button class="bottom-nav-item" data-nav="contenido">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Contenido
+      </button>
+      <button class="bottom-nav-item" data-nav="tareas">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Tareas
+      </button>
+      <button class="bottom-nav-item" data-nav="procesos">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v8l-3.5 6.5a2 2 0 001.8 2.9h9.4a2 2 0 001.8-2.9L15 11V3"/><line x1="6" y1="3" x2="18" y2="3"/></svg>
+        Procesos
+      </button>
+    </div>
+  </nav>
 
   <script src="config.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>

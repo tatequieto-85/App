@@ -558,6 +558,13 @@ body {
   opacity: 0; pointer-events: none; transition: opacity .2s;
 }
 .modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal-overlay.open .modal {
+  animation: modal-in .22s cubic-bezier(.22,.68,0,1.2) both;
+}
+@keyframes modal-in {
+  from { transform: scale(.94) translateY(12px); opacity: 0; }
+  to   { transform: scale(1)   translateY(0);     opacity: 1; }
+}
 .modal {
   background: var(--surface); border-radius: var(--radius);
   width: 100%; max-width: 460px;
@@ -570,9 +577,14 @@ body {
 }
 .modal-header h2 { font-size: 15px; font-weight: 600; }
 .eval-modal-header { align-items: flex-start; }
+.eval-clock-wrap { margin-top: 4px; }
+.eval-clock-label {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; opacity: .55; display: block; margin-bottom: 1px;
+}
 .eval-clock {
   font-size: 22px; font-weight: 800; letter-spacing: .06em;
-  font-variant-numeric: tabular-nums; opacity: .9; margin-top: 3px;
+  font-variant-numeric: tabular-nums; opacity: .9;
 }
 .modal-body { padding: 20px; }
 
@@ -718,6 +730,13 @@ body {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .07em; color: var(--text-sub); margin-bottom: 8px;
 }
+/* Recipe modal section dividers */
+.modal-body .mgmt-section-title {
+  font-size: 11px; padding-top: 18px; margin-top: 8px;
+  border-top: 1.5px solid var(--border);
+  padding-bottom: 2px;
+}
+.modal-body .mgmt-section-title:first-child { border-top: none; padding-top: 0; }
 .mgmt-note { font-size: 12px; color: var(--text-sub); margin-bottom: 10px; line-height: 1.5; }
 
 .mgmt-item {
@@ -740,6 +759,39 @@ body {
 .color-picker {
   width: 36px; height: 36px; border: 1.5px solid var(--border);
   border-radius: 6px; padding: 2px; cursor: pointer; background: none; flex-shrink: 0;
+}
+
+/* ── Bottom navigation (mobile) ──────────────────────────────────────────── */
+.bottom-nav {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 90;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  box-shadow: 0 -2px 12px rgba(0,0,0,.07);
+}
+.bottom-nav-inner {
+  display: flex; align-items: stretch;
+  height: 56px;
+}
+.bottom-nav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-sub); font-size: 10px; font-weight: 600;
+  transition: color .15s; padding: 4px 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.bottom-nav-item svg { flex-shrink: 0; }
+.bottom-nav-item.active { color: var(--brand); }
+.bottom-nav-item.active svg { stroke: var(--brand); }
+
+@media (max-width: 1023px) {
+  .bottom-nav { display: block; }
+  .app-content { padding-bottom: 56px; }
+  .kanban-wrap { padding-bottom: 72px; }
+  .modal-overlay { padding-bottom: calc(20px + 56px); }
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
@@ -891,8 +943,10 @@ body {
   padding: 14px 16px;
   border: 1.5px solid var(--border); border-radius: 10px;
   margin-bottom: 10px; background: var(--surface);
-  transition: box-shadow .2s;
+  transition: box-shadow .2s, border-color .2s;
+  cursor: pointer;
 }
+.receta-card:hover { border-color: rgba(240,91,34,.3); }
 .receta-card:hover { box-shadow: var(--shadow); }
 .receta-card:last-child { margin-bottom: 0; }
 .receta-card-body  { flex: 1; min-width: 0; }
@@ -1071,10 +1125,15 @@ body {
 }
 .exec-time-hint { font-size: 12px; color: var(--text-sub); margin-bottom: 10px; }
 
+.exec-timer-wrap { text-align: center; margin: 14px 0 10px; }
+.exec-timer-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text-sub); margin-bottom: 4px;
+}
 .exec-timer {
   font-size: 44px; font-weight: 800; text-align: center;
   color: var(--vinotinto); letter-spacing: .04em;
-  margin: 14px 0; font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums;
   font-family: 'Courier New', monospace;
 }
 
@@ -1119,7 +1178,7 @@ body {
 .comp-row {
   border: 1.5px solid var(--border);
   border-top: none;
-  background: var(--card);
+  background: var(--surface);
 }
 .comp-row:last-child { border-radius: 0 0 8px 8px; }
 .comp-nombre  { font-weight: 600; color: var(--text); }
@@ -1237,12 +1296,21 @@ body {
 .eval-score-level.level-dev { background: #F05B2244; }
 .eval-score-level.level-bad { background: #C6282844; }
 
+/* ── Hint chip ───────────────────────────────────────────────────────────── */
+.hint-chip {
+  font-size: 11px; color: var(--text-sub);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 20px; padding: 3px 10px; white-space: nowrap;
+}
+
 /* ── Evaluación – star rating ────────────────────────────────────────────── */
 .rating-stars { display: flex; gap: 4px; margin: 6px 0 14px; }
 .star-btn {
   background: none; border: none; font-size: 28px;
   color: #D1D5DB; cursor: pointer; padding: 2px;
   transition: color .15s, transform .1s;
+  min-width: 44px; min-height: 44px;
+  display: flex; align-items: center; justify-content: center;
 }
 .star-btn:hover,
 .star-btn.active { color: #F59E0B; }
@@ -1314,6 +1382,17 @@ body {
 .receta-detail-instrucciones ol,
 .receta-detail-instrucciones ul { margin: 0; padding-left: 20px; }
 .receta-detail-instrucciones li { font-size: 13px; margin-bottom: 4px; }
+
+/* ── Recipe modal – sticky save footer ──────────────────────────────────── */
+.modal-receta .modal-body { padding-bottom: 0; }
+.receta-save-footer {
+  position: sticky; bottom: 0;
+  background: var(--surface);
+  border-top: 1.5px solid var(--border);
+  padding: 14px 20px 16px;
+  margin: 0 -20px -20px;
+}
+.receta-save-footer .btn-primary { margin-top: 0; }
 
 /* ── Ejecutar button ─────────────────────────────────────────────────────── */
 .btn-ejecutar {
