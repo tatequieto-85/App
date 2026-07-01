@@ -41,6 +41,8 @@ let recetasSheetId       = null;
 let ejecucionesSheetId   = null;
 let currentProcesosTab   = 'recetas';
 let editRecetaId         = null;
+let recetaFixedFirst     = null; // etapa fija de inicio (oculta en el editor)
+let recetaFixedLast      = null; // etapa fija de cierre (oculta en el editor)
 let executionState       = null;
 let evaluacionPendiente  = null;
 let evalRating           = 0;
@@ -2715,6 +2717,16 @@ function openRecetaDetail(recetaId) {
 
   document.getElementById('recetaDetailTitle').textContent = rec.nombre;
 
+  const maestros = rec.ingredientesMaestros || [];
+  const ingredientesHTML = maestros.length
+    ? `<div class="receta-detail-ingredientes">
+        <div class="receta-detail-ingredientes-title">🧂 Ingredientes de la receta</div>
+        ${maestros.map(ing =>
+          `<div class="detail-insumo-row">• ${esc(ing.nombre)}: <strong>${ing.cantidadTotal} ${esc(ing.unidad)}</strong></div>`
+        ).join('')}
+      </div>`
+    : '';
+
   const etapasHTML = rec.etapas.map((et, i) => {
     const instrHTML = buildInstruccionesHTML(et.instrucciones);
 
@@ -2725,7 +2737,7 @@ function openRecetaDetail(recetaId) {
     return `
       <div class="receta-detail-etapa">
         <div class="receta-detail-etapa-header">
-          <span class="etapa-num">Etapa ${i + 1}</span>
+          <span class="etapa-num">ETAPA ${i + 1}</span>
           <span class="receta-detail-etapa-nombre">${esc(et.nombre)}</span>
           ${et.tiempoEstimado ? `<span class="receta-detail-etapa-tiempo">⏱ ${et.tiempoEstimado} min</span>` : ''}
         </div>
@@ -2737,6 +2749,7 @@ function openRecetaDetail(recetaId) {
 
   document.getElementById('recetaDetailBody').innerHTML = `
     ${rec.descripcion ? `<div class="info-box">${esc(rec.descripcion)}</div>` : ''}
+    ${ingredientesHTML}
     <div class="receta-detail-etapas">${etapasHTML || '<div class="empty-state">Esta receta no tiene etapas.</div>'}</div>
   `;
 
@@ -3068,16 +3081,20 @@ function openRecetaModal(editId) {
     document.getElementById('recetaModalTitle').textContent = 'Editar receta';
     document.getElementById('recetaNombre').value = rec.nombre;
     document.getElementById('recetaDesc').value   = rec.descripcion || '';
-    renderEtapasList(rec.etapas);
+    const etapas       = rec.etapas || [];
+    const fixedStages   = etapas.filter(e => e.fija);
+    const middleEtapas  = etapas.filter(e => !e.fija);
+    recetaFixedFirst = fixedStages[0] || { ...LIMPIEZA_ETAPA, id: crypto.randomUUID() };
+    recetaFixedLast  = fixedStages[fixedStages.length - 1] || { ...LIMPIEZA_ETAPA, id: crypto.randomUUID() };
+    renderEtapasList(middleEtapas);
     renderIngredientesMaestrosList(rec.ingredientesMaestros || []);
   } else {
     document.getElementById('recetaModalTitle').textContent = 'Nueva receta';
     document.getElementById('recetaNombre').value = '';
     document.getElementById('recetaDesc').value   = '';
-    renderEtapasList([
-      { ...LIMPIEZA_ETAPA },
-      { ...LIMPIEZA_ETAPA }
-    ]);
+    recetaFixedFirst = { ...LIMPIEZA_ETAPA, id: crypto.randomUUID() };
+    recetaFixedLast  = { ...LIMPIEZA_ETAPA, id: crypto.randomUUID() };
+    renderEtapasList([]);
     renderIngredientesMaestrosList([]);
   }
 
@@ -3104,7 +3121,7 @@ function addEtapaToList(etapa, idx, insertBeforeEl) {
 
   item.innerHTML = `
     <div class="etapa-header">
-      <span class="etapa-num">Etapa ${num + 1}</span>
+      <span class="etapa-num">Etapa ${num + 2}</span>
       ${isFija ? '<span class="etapa-fija-tag">🔒 Fija</span>' : ''}
       <button class="etapa-collapse-btn" title="Colapsar/Expandir etapa">▼</button>
       ${isFija ? '' : '<button class="etapa-del" title="Eliminar etapa">✕</button>'}
@@ -3289,7 +3306,7 @@ function buildInsumoRow(ins, idx) {
 function renumberEtapas() {
   document.querySelectorAll('#etapasList .etapa-item').forEach((item, i) => {
     const span = item.querySelector('.etapa-num');
-    if (span) span.textContent = `Etapa ${i + 1}`;
+    if (span) span.textContent = `Etapa ${i + 2}`;
   });
 }
 
@@ -3313,35 +3330,49 @@ function collectEtapas() {
       instrucciones,
       tiempoEstimado: parseInt(item.querySelector('.etapa-tiempo').value) || 0,
       insumos,
-      fija:           item.dataset.fija === 'true'
+      fija:           false
     };
   }).filter(et => et.nombre);
 }
 
+// Etapas fijas (Limpieza inicial/final) + las etapas editables del medio,
+// en el orden real en que se ejecutan.
+function collectEtapasFull() {
+  return [recetaFixedFirst, ...collectEtapas(), recetaFixedLast];
+}
+
 document.getElementById('btnAddEtapa').addEventListener('click', () => {
-  const container = document.getElementById('etapasList');
-  const fixedItems = Array.from(container.querySelectorAll('.etapa-item[data-fija="true"]'));
-  const lastFixed = fixedItems.length > 0 ? fixedItems[fixedItems.length - 1] : null;
-  addEtapaToList({}, undefined, lastFixed);
+  addEtapaToList({}, undefined);
   renumberEtapas();
 });
 
-document.getElementById('btnCloseReceta').addEventListener('click', () => {
+function isRecetaFormDirty() {
+  const nombre = document.getElementById('recetaNombre')?.value.trim();
+  const desc   = document.getElementById('recetaDesc')?.value.trim();
+  const hasEtapas       = document.querySelectorAll('#etapasList .etapa-item').length > 0;
+  const hasIngredientes = document.querySelectorAll('.ing-check-cb:checked').length > 0;
+  return !!(nombre || desc || hasEtapas || hasIngredientes);
+}
+
+function closeRecetaModal() {
+  if (isRecetaFormDirty() && !confirm('¿Salir sin guardar? Se perderán los cambios de esta receta.')) return;
   document.getElementById('recetaOverlay').classList.remove('open');
-});
+}
+
+document.getElementById('btnCloseReceta').addEventListener('click', closeRecetaModal);
 document.getElementById('recetaOverlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('recetaOverlay'))
-    document.getElementById('recetaOverlay').classList.remove('open');
+  if (e.target === document.getElementById('recetaOverlay')) closeRecetaModal();
 });
 
 document.getElementById('btnSaveReceta').addEventListener('click', async () => {
-  const nombre = document.getElementById('recetaNombre').value.trim();
-  const desc   = document.getElementById('recetaDesc').value.trim();
-  const etapas = collectEtapas();
-  const fb     = document.getElementById('recetaFeedback');
+  const nombre       = document.getElementById('recetaNombre').value.trim();
+  const desc         = document.getElementById('recetaDesc').value.trim();
+  const middleEtapas = collectEtapas();
+  const etapas       = collectEtapasFull();
+  const fb           = document.getElementById('recetaFeedback');
 
   if (!nombre) return setFb(fb, 'El nombre de la receta es obligatorio.', 'err');
-  if (!etapas.length) return setFb(fb, 'Agrega al menos una etapa.', 'err');
+  if (!middleEtapas.length) return setFb(fb, 'Agrega al menos una etapa.', 'err');
 
   const ingredientesMaestros = collectIngredientesMaestros();
   const hayCantidadNegativa = etapas.some(et => et.insumos.some(ins => ins.cantidad < 0))
@@ -3384,8 +3415,9 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   const open = document.querySelector('.modal-overlay.open');
   if (!open) return;
-  // Don't close execution modal accidentally (already has confirm on cancel button)
+  // Don't close execution/recipe-editor modals accidentally — they confirm via their own buttons
   if (open.id === 'ejecutarOverlay') return;
+  if (open.id === 'recetaOverlay') { closeRecetaModal(); return; }
   open.classList.remove('open');
 });
 
@@ -3647,7 +3679,7 @@ function renderExecutionStep() {
       ${currentStageIndex > 0 ? `<button class="btn-back-stage" id="btnBackStage">← Etapa anterior</button>` : '<span></span>'}
       <div class="exec-step-label">Etapa ${currentStageIndex + 1} de ${total}</div>
     </div>
-    <h3 class="exec-stage-name">${esc(etapa.nombre)}</h3>
+    <h3 class="exec-stage-name">ETAPA ${currentStageIndex + 1}: ${esc(etapa.nombre)}</h3>
     ${buildInstruccionesHTML(etapa.instrucciones, true)}
     ${etapa.tiempoEstimado ? `<div class="exec-time-hint">⏱ Tiempo estimado: ${etapa.tiempoEstimado} min</div>` : ''}
 

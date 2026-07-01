@@ -1436,6 +1436,12 @@ body {
 .receta-detail-instrucciones ul { margin: 0; padding-left: 20px; }
 .receta-detail-instrucciones li { font-size: 13px; margin-bottom: 4px; }
 
+.receta-detail-ingredientes {
+  background: rgba(240,91,34,.06); border-left: 3px solid var(--brand);
+  border-radius: 6px; padding: 12px 14px; margin-top: 14px; font-size: 13px;
+}
+.receta-detail-ingredientes-title { font-weight: 700; margin-bottom: 6px; }
+
 /* ── Recipe modal – sticky save footer ──────────────────────────────────── */
 .modal-receta .modal-body { padding-bottom: 0; }
 .receta-save-footer {
