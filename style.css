@@ -1207,7 +1207,7 @@ body {
 
 /* ── Ejecución: instrucciones como lista numerada ────────────────────────── */
 .exec-instruccion-row {
-  display: flex; gap: 8px; align-items: flex-start;
+  display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap;
   padding: 3px 0;
 }
 .exec-instruccion-num {
@@ -1219,6 +1219,16 @@ body {
   display: inline-block; margin-left: 8px; font-size: 11px; font-weight: 700;
   color: var(--vinotinto); background: rgba(54,18,20,.13);
   padding: 1px 7px; border-radius: 20px; white-space: nowrap;
+}
+.instr-alarm-btn {
+  margin-left: auto; font-size: 11px; font-weight: 700;
+  color: var(--vinotinto); background: rgba(54,18,20,.10);
+  border: 1px solid rgba(54,18,20,.25); border-radius: 20px;
+  padding: 3px 10px; cursor: pointer; white-space: nowrap;
+}
+.instr-alarm-btn:hover { background: rgba(54,18,20,.18); }
+.instr-alarm-btn--running {
+  color: var(--brand); background: #F05B2222; border-color: #F05B2266;
 }
 .exec-instruccion-row.instr-alarm-fired {
   background: #F05B2222; border-radius: 6px;

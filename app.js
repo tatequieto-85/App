@@ -3183,19 +3183,23 @@ function parseInstrucciones(val) {
   return val.split('\n').map(s => s.trim()).filter(Boolean).map(text => ({ text, tipo: 'paso' }));
 }
 
-function buildInstruccionesHTML(instrucciones) {
+function buildInstruccionesHTML(instrucciones, interactive = false) {
   const arr = parseInstrucciones(instrucciones);
   if (!arr.length) return '';
   let stepNum = 0;
   return `<div class="exec-instrucciones">
-    ${arr.map((item, i) => {
+    ${arr.map(item => {
       const text     = item.text || item;
       const tipo     = item.tipo || 'paso';
       const alarmMin = parseInt(item.alarmMin) || 0;
-      const alarmAttrs = alarmMin > 0 ? ` data-alarm-min="${alarmMin}" data-instr-i="${i}"` : '';
-      const badge = alarmMin > 0 ? `<span class="exec-instruccion-alarm">⏰ ${alarmMin} min</span>` : '';
       const num = tipo === 'viñeta' ? '•' : `${++stepNum}.`;
-      return `<div class="exec-instruccion-row"${alarmAttrs}><span class="exec-instruccion-num">${num}</span> ${esc(text)}${badge}</div>`;
+      let alarmHTML = '';
+      if (alarmMin > 0) {
+        alarmHTML = interactive
+          ? `<button type="button" class="instr-alarm-btn" data-alarm-min="${alarmMin}" data-instr-text="${esc(text)}">▶ Iniciar alarma (${alarmMin} min)</button>`
+          : `<span class="exec-instruccion-alarm">⏰ ${alarmMin} min</span>`;
+      }
+      return `<div class="exec-instruccion-row"><span class="exec-instruccion-num">${num}</span> ${esc(text)}${alarmHTML}</div>`;
     }).join('')}
   </div>`;
 }
@@ -3629,7 +3633,9 @@ function renderExecutionStep() {
 
   if (executionState.timerInterval) clearInterval(executionState.timerInterval);
   (executionState.alarmTimeouts || []).forEach(id => clearTimeout(id));
-  executionState.alarmTimeouts = [];
+  (executionState.alarmIntervals || []).forEach(id => clearInterval(id));
+  executionState.alarmTimeouts  = [];
+  executionState.alarmIntervals = [];
   executionState.stageStartTime = Date.now();
 
   const body = document.getElementById('ejecutarBody');
@@ -3642,7 +3648,7 @@ function renderExecutionStep() {
       <div class="exec-step-label">Etapa ${currentStageIndex + 1} de ${total}</div>
     </div>
     <h3 class="exec-stage-name">${esc(etapa.nombre)}</h3>
-    ${buildInstruccionesHTML(etapa.instrucciones)}
+    ${buildInstruccionesHTML(etapa.instrucciones, true)}
     ${etapa.tiempoEstimado ? `<div class="exec-time-hint">⏱ Tiempo estimado: ${etapa.tiempoEstimado} min</div>` : ''}
 
     <div class="exec-timer-wrap">
@@ -3674,16 +3680,59 @@ function renderExecutionStep() {
   if (backBtn) backBtn.addEventListener('click', () => goBackStage());
 }
 
-// ── Procesos: Alarmas por instrucción (opcional, con sonido) ─────────────────
+// ── Procesos: Alarmas por instrucción (inicio manual, opcional, con sonido) ──
 
 function scheduleStageAlarms(body) {
-  body.querySelectorAll('.exec-instruccion-row[data-alarm-min]').forEach(row => {
-    const minutes = parseFloat(row.dataset.alarmMin);
-    if (!minutes || minutes <= 0) return;
-    const text = row.textContent.replace(/^[•\d.]+\s*/, '').replace(/⏰.*$/, '').trim();
-    const timeoutId = setTimeout(() => triggerInstructionAlarm(row, text), minutes * 60000);
-    executionState.alarmTimeouts.push(timeoutId);
+  body.querySelectorAll('.instr-alarm-btn').forEach(btn => {
+    btn.addEventListener('click', () => toggleInstructionAlarm(btn));
   });
+}
+
+function toggleInstructionAlarm(btn) {
+  const minutes = parseFloat(btn.dataset.alarmMin);
+  const row     = btn.closest('.exec-instruccion-row');
+  const text    = btn.dataset.instrText || '';
+
+  if (btn.dataset.running === 'true') {
+    clearTimeout(+btn.dataset.timeoutId);
+    clearInterval(+btn.dataset.intervalId);
+    resetAlarmBtn(btn, minutes);
+    return;
+  }
+
+  let remaining = Math.round(minutes * 60);
+  btn.dataset.running = 'true';
+  btn.classList.add('instr-alarm-btn--running');
+
+  const updateLabel = () => {
+    const m = Math.floor(remaining / 60), s = remaining % 60;
+    btn.textContent = `⏳ ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} · cancelar`;
+  };
+  updateLabel();
+
+  const intervalId = setInterval(() => {
+    remaining--;
+    if (remaining >= 0) updateLabel();
+  }, 1000);
+
+  const timeoutId = setTimeout(() => {
+    clearInterval(intervalId);
+    resetAlarmBtn(btn, minutes, true);
+    triggerInstructionAlarm(row, text);
+  }, minutes * 60000);
+
+  btn.dataset.timeoutId  = timeoutId;
+  btn.dataset.intervalId = intervalId;
+  executionState.alarmTimeouts.push(timeoutId);
+  executionState.alarmIntervals.push(intervalId);
+}
+
+function resetAlarmBtn(btn, minutes, fired = false) {
+  btn.dataset.running = 'false';
+  btn.classList.remove('instr-alarm-btn--running');
+  btn.textContent = fired
+    ? `▶ Reiniciar alarma (${minutes} min)`
+    : `▶ Iniciar alarma (${minutes} min)`;
 }
 
 function triggerInstructionAlarm(row, text) {
@@ -3711,21 +3760,24 @@ function playAlarmSound() {
     if (!alarmAudioCtx) alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const ctx = alarmAudioCtx;
     if (ctx.state === 'suspended') ctx.resume();
-    const beepAt = (startOffset) => {
+    const beepAt = (startOffset, freq) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.value = 880;
+      osc.frequency.value = freq;
       osc.connect(gain);
       gain.connect(ctx.destination);
       const t0 = ctx.currentTime + startOffset;
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.exponentialRampToValueAtTime(0.3, t0 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+      gain.gain.exponentialRampToValueAtTime(0.3, t0 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.55);
       osc.start(t0);
-      osc.stop(t0 + 0.4);
+      osc.stop(t0 + 0.6);
     };
-    [0, 0.5, 1].forEach(beepAt);
+    // Secuencia prolongada: ~7s de aviso, alternando dos tonos.
+    for (let i = 0; i < 10; i++) {
+      beepAt(i * 0.75, i % 2 === 0 ? 880 : 660);
+    }
   } catch (e) {
     console.warn('playAlarmSound:', e.message);
   }
@@ -3779,6 +3831,7 @@ function finishExecution() {
   if (!executionState) return;
   if (executionState.timerInterval) clearInterval(executionState.timerInterval);
   (executionState.alarmTimeouts || []).forEach(id => clearTimeout(id));
+  (executionState.alarmIntervals || []).forEach(id => clearInterval(id));
 
   const { receta, stagesData } = executionState;
   const durTotal = stagesData.reduce((sum, s) => sum + s.duracionReal, 0);
@@ -3860,6 +3913,7 @@ document.getElementById('btnCancelEjecutar').addEventListener('click', () => {
   if (!confirm('¿Cancelar la ejecución? Se perderán los datos de las etapas ya registradas.')) return;
   if (executionState?.timerInterval) clearInterval(executionState.timerInterval);
   (executionState?.alarmTimeouts || []).forEach(id => clearTimeout(id));
+  (executionState?.alarmIntervals || []).forEach(id => clearInterval(id));
   executionState = null;
   clearExecutionProgress();
   document.getElementById('ejecutarOverlay').classList.remove('open');
