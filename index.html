@@ -589,7 +589,7 @@
 
         <div class="eval-dim eval-dim--ph">
           <div class="eval-dim-title">pH <span class="eval-dim-code">I-01</span> <span class="eval-required">OBLIGATORIO</span></div>
-          <div class="eval-dim-desc">Medir ANTES de envasar. <strong>No sellar sin pH ≤ 4.0</strong>. Si pH &gt; 4.0: agregar ácido cítrico 0.5 g y remedir.</div>
+          <div class="eval-dim-desc">Medir ANTES de envasar. <strong>Óptimo: pH 4.0</strong>. Margen aceptable hasta pH 4.4 (límite). Si pH &gt; 4.4: agregar ácido cítrico 0.5 g y remedir.</div>
           <div class="eval-ph-row">
             <input class="field-input eval-ph-input" id="evalPH" type="number" step="0.01" min="0" max="14" placeholder="Ej: 3.8" />
             <span class="eval-ph-unit">pH</span>
@@ -691,7 +691,11 @@
         </div>
 
         <label class="field-label">Observaciones adicionales</label>
-        <textarea class="field-textarea" id="evalObs" rows="3" placeholder="Notas de calidad, ajustes para próximo lote…"></textarea>
+        <div id="evalObsList" class="obs-list"></div>
+        <div class="obs-input-wrap">
+          <textarea class="field-textarea obs-textarea" id="evalObsInput" rows="2" placeholder="Escribe una observación y agrégala a la lista…"></textarea>
+          <button type="button" class="btn-outline obs-btn" id="btnAddEvalObs">Agregar</button>
+        </div>
 
         <button class="btn-primary" id="btnSaveEvaluacion" style="margin-top:16px">Guardar Fase 1</button>
         <div class="feedback" id="evaluacionFeedback"></div>

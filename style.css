@@ -1028,6 +1028,7 @@ body {
 .detail-etapa-dur    { font-size: 12px; color: var(--text-sub); margin-bottom: 5px; }
 .detail-insumo-row   { font-size: 12px; color: var(--text); padding: 2px 0; }
 .detail-insumo-planned { color: var(--text-sub); font-size: 11px; }
+.detail-etapa-obs-title { font-size: 11px; font-weight: 700; color: var(--text-sub); margin: 6px 0 2px; }
 
 /* ── Procesos: Receta modal – etapas ─────────────────────────────────────── */
 .etapas-list { display: flex; flex-direction: column; gap: 14px; }
@@ -1149,7 +1150,7 @@ body {
   font-family: 'Courier New', monospace;
 }
 
-.exec-insumos-section {
+.exec-insumos-section, .exec-obs-section {
   background: var(--bg); border-radius: 10px;
   border: 1.5px solid var(--border); padding: 14px 16px;
   margin-top: 12px;
@@ -1314,8 +1315,9 @@ body {
 .eval-ph-input  { width: 110px !important; }
 .eval-ph-unit   { font-size: 13px; font-weight: 600; color: var(--text-sub); }
 .eval-ph-status { font-size: 12px; font-weight: 600; }
-.eval-ph-status.ok  { color: #2E7D32; }
-.eval-ph-status.err { color: #C62828; }
+.eval-ph-status.ok   { color: #2E7D32; }
+.eval-ph-status.warn { color: #B36B00; }
+.eval-ph-status.err  { color: #C62828; }
 
 .eval-phase-sep {
   display: flex; align-items: center; gap: 10px;

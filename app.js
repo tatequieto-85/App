@@ -48,6 +48,7 @@ let evaluacionPendiente  = null;
 let evalRating           = 0;
 let evalScores           = { D1: 0, D2: 0, D3: 0, D4: 0, D5: 0, D6: 0 };
 let evaluacionTotalInsumosG = 0;
+let evalObsRows          = []; // { text, createdAt } rows for Fase 1 observaciones
 let taskDetailId         = null;
 let ejecucionDetailId    = null;
 let lastTapTime          = {};   // for double-tap detection on mobile
@@ -1238,6 +1239,13 @@ function fmtDate(iso) {
 
 function esc(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function normalizeObsList(obs) {
+  if (!obs) return [];
+  if (Array.isArray(obs)) return obs.map(o => typeof o === 'string' ? { text: o } : o).filter(o => o && o.text);
+  if (typeof obs === 'string') return obs.trim() ? [{ text: obs.trim() }] : [];
+  return [];
 }
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -2682,7 +2690,7 @@ function renderEjecucionesList() {
           📅 ${fmtDate(ej.fechaInicio)} &nbsp;·&nbsp; ⏱ ${durMin}
           ${ev.calificacion ? `&nbsp;·&nbsp; <span class="ejecucion-stars">${stars}</span>` : ''}
         </div>
-        ${ev.observaciones ? `<div class="ejecucion-obs">${esc(ev.observaciones)}</div>` : ''}
+        ${normalizeObsList(ev.observaciones).length ? `<div class="ejecucion-obs">${normalizeObsList(ev.observaciones).map(o => esc(o.text)).join(' · ')}</div>` : ''}
         ${fase2Html || sinHtml ? `<div class="eval-stages-row">${fase2Html}${sinHtml}</div>` : ''}
         <div class="ejecucion-hint">doble clic = ver detalle</div>
       </div>
@@ -2894,9 +2902,11 @@ function generateEjecucionAnalysis(ej) {
     </div>`;
   }
   if (ev.ph !== undefined) {
+    const phColor = ev.ph <= 4.0 ? '#10B981' : ev.ph <= 4.4 ? '#F59E0B' : '#EF4444';
+    const phLabel = ev.ph <= 4.0 ? '✓ Óptimo' : ev.ph <= 4.4 ? '⚠ Aceptable (no óptimo)' : '✗ Revisar';
     html += `<div class="analysis-row">
       <span class="analysis-label">pH medido</span>
-      <span class="analysis-value" style="color:${ev.ph <= 4.0 ? '#10B981' : '#EF4444'}">${ev.ph} ${ev.ph <= 4.0 ? '✓ Seguro' : '✗ Revisar'}</span>
+      <span class="analysis-value" style="color:${phColor}">${ev.ph} ${phLabel}</span>
     </div>`;
   }
   if (ev.rendimiento) {
@@ -2936,10 +2946,15 @@ function openEjecucionDetail(ejId) {
           const insHTML = (et.insumosConfirmados || []).map(ins =>
             `<div class="detail-insumo-row">• ${esc(ins.nombre)}: <strong>${ins.cantidadReal} ${esc(ins.unidad)}</strong><span class="detail-insumo-planned"> (plan: ${ins.cantidadPlanificada})</span></div>`
           ).join('');
+          const stageObs = normalizeObsList(et.observaciones);
+          const obsHTML = stageObs.length
+            ? `<div class="detail-etapa-obs-title">Observaciones:</div>${stageObs.map(o => `<div class="detail-insumo-row">• ${esc(o.text)}</div>`).join('')}`
+            : '';
           return `<div class="detail-etapa-item">
             <div class="detail-etapa-nombre">Etapa ${i + 1}: ${esc(et.nombre)}</div>
             <div class="detail-etapa-dur">⏱ ${durEt}</div>
             ${insHTML}
+            ${obsHTML}
           </div>`;
         }).join('')}
       </div>`
@@ -2957,7 +2972,7 @@ function openEjecucionDetail(ejId) {
     <div class="detail-row"><span class="detail-label">Fin</span><span class="detail-value">${fmtDate(ej.fechaFin)}</span></div>
     <div class="detail-row"><span class="detail-label">Duración</span><span class="detail-value">${durMin}</span></div>
     ${stars ? `<div class="detail-row"><span class="detail-label">Calificación</span><span class="detail-value ejecucion-stars">${stars}</span></div>` : ''}
-    ${ev.observaciones ? `<div class="detail-row detail-row--col"><span class="detail-label">Evaluación</span><span class="detail-value">${esc(ev.observaciones)}</span></div>` : ''}
+    ${normalizeObsList(ev.observaciones).length ? `<div class="detail-row detail-row--col"><span class="detail-label">Evaluación</span><span class="detail-value">${normalizeObsList(ev.observaciones).map(o => `• ${esc(o.text)}`).join('<br>')}</span></div>` : ''}
     ${etapasHTML ? `<div class="detail-row detail-row--col"><span class="detail-label">Etapas</span>${etapasHTML}</div>` : ''}
     ${analysisHTML}
     <div style="margin-top:12px">
@@ -3558,6 +3573,7 @@ function saveExecutionProgress() {
       recetaId:          executionState.receta.id,
       currentStageIndex: executionState.currentStageIndex,
       stagesData:        executionState.stagesData,
+      stageObsDraft:     executionState.stageObsDraft || {},
       savedAt:           new Date().toISOString()
     }));
   } catch {}
@@ -3581,7 +3597,8 @@ function startExecution(recetaId) {
         currentStageIndex: saved.currentStageIndex,
         stageStartTime:    Date.now(),
         timerInterval:     null,
-        stagesData:        saved.stagesData
+        stagesData:        saved.stagesData,
+        stageObsDraft:     saved.stageObsDraft || {}
       };
       document.getElementById('ejecutarTitle').textContent = `Receta: ${receta.nombre}`;
       document.getElementById('ejecutarOverlay').classList.add('open');
@@ -3596,7 +3613,8 @@ function startExecution(recetaId) {
     currentStageIndex: 0,
     stageStartTime: Date.now(),
     timerInterval: null,
-    stagesData: []
+    stagesData: [],
+    stageObsDraft: {}
   };
 
   document.getElementById('ejecutarTitle').textContent = `Receta: ${receta.nombre}`;
@@ -3708,6 +3726,18 @@ document.getElementById('btnContinuarEval').addEventListener('click', () => {
   startEvalClock();
 });
 
+function renderExecStageObsList() {
+  const list = document.getElementById('execStageObsList');
+  if (!list || !executionState) return;
+  const rows = (executionState.stageObsDraft || {})[executionState.currentStageIndex] || [];
+  if (!rows.length) {
+    list.innerHTML = '<div class="obs-empty">Aún sin observaciones</div>';
+    return;
+  }
+  list.innerHTML = rows.map(o => `<div class="obs-item"><div class="obs-text">${esc(o.text)}</div></div>`).join('');
+  list.scrollTop = list.scrollHeight;
+}
+
 function renderExecutionStep() {
   if (!executionState) return;
   const { receta, currentStageIndex } = executionState;
@@ -3742,6 +3772,15 @@ function renderExecutionStep() {
 
     ${buildExecInsumosSection(receta, etapa)}
 
+    <div class="exec-obs-section">
+      <h4 class="exec-insumos-title">Observaciones de esta etapa</h4>
+      <div id="execStageObsList" class="obs-list"></div>
+      <div class="obs-input-wrap">
+        <textarea class="field-textarea obs-textarea" id="execStageObsInput" rows="2" placeholder="Escribe una observación de esta etapa…"></textarea>
+        <button type="button" class="btn-outline obs-btn" id="btnAddExecStageObs">Agregar</button>
+      </div>
+    </div>
+
     <div style="margin-top:20px">
       <button class="btn-primary exec-next-btn" id="btnNextStage">
         ${isLast
@@ -3750,6 +3789,20 @@ function renderExecutionStep() {
       </button>
     </div>
   `;
+
+  renderExecStageObsList();
+  document.getElementById('btnAddExecStageObs').addEventListener('click', () => {
+    const input = document.getElementById('execStageObsInput');
+    const text  = input.value.trim();
+    if (!text) return;
+    executionState.stageObsDraft = executionState.stageObsDraft || {};
+    const idx = executionState.currentStageIndex;
+    executionState.stageObsDraft[idx] = executionState.stageObsDraft[idx] || [];
+    executionState.stageObsDraft[idx].push({ text, createdAt: new Date().toISOString() });
+    input.value = '';
+    renderExecStageObsList();
+    saveExecutionProgress();
+  });
 
   executionState.timerInterval = setInterval(() => {
     const elapsed = Math.floor((Date.now() - executionState.stageStartTime) / 1000);
@@ -3898,7 +3951,8 @@ function advanceStage() {
   executionState.stagesData.push({
     nombre:              etapa.nombre,
     duracionReal:        duracion,
-    insumosConfirmados
+    insumosConfirmados,
+    observaciones:       (executionState.stageObsDraft || {})[currentStageIndex] || []
   });
 
   saveExecutionProgress();
@@ -3951,7 +4005,9 @@ function finishExecution() {
   document.getElementById('evalScoreValue').textContent = '—/20';
   document.getElementById('evalScoreLevel').textContent  = '';
   document.getElementById('evalScoreLevel').className    = 'eval-score-level';
-  document.getElementById('evalObs').value    = '';
+  evalObsRows = [];
+  document.getElementById('evalObsInput').value = '';
+  renderEvalObsList();
   document.getElementById('evaluacionFeedback').textContent = '';
   setEvalStars(0);
 
@@ -4024,12 +4080,11 @@ document.getElementById('btnCloseEvaluacion').addEventListener('click', () => {
 document.getElementById('btnSaveEvaluacion').addEventListener('click', async () => {
   const loteId = document.getElementById('evalLoteId').value.trim();
   const phVal  = parseFloat(document.getElementById('evalPH').value);
-  const obs    = document.getElementById('evalObs').value.trim();
   const fb     = document.getElementById('evaluacionFeedback');
 
   if (!loteId) return setFb(fb, 'El número de lote es obligatorio.', 'err');
   if (isNaN(phVal)) return setFb(fb, 'El pH es obligatorio antes de envasar (I-01).', 'err');
-  if (phVal > 4.0)  return setFb(fb, `⚠️ pH ${phVal.toFixed(2)} > 4.0 — agregar ácido cítrico 0.5 g y remedir. No se puede finalizar sin pH ≤ 4.0.`, 'err');
+  if (phVal > 4.4)  return setFb(fb, `⚠️ pH ${phVal.toFixed(2)} > 4.4 — agregar ácido cítrico 0.5 g y remedir. No se puede finalizar sin pH ≤ 4.4.`, 'err');
   if (!evaluacionPendiente) return;
 
   const f230 = parseInt(document.getElementById('evalFrascos230').value) || 0;
@@ -4047,7 +4102,7 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
     evaluacionPendiente.loteId = loteId;
     evaluacionPendiente.evaluacion = {
       calificacion:       evalRating,
-      observaciones:      obs,
+      observaciones:      [...evalObsRows],
       ph:                 phVal,
       scores:             { ...evalScores },
       scoreTotal,
@@ -4110,8 +4165,11 @@ document.getElementById('evalPH').addEventListener('input', function () {
   const status = document.getElementById('evalPHStatus');
   if (!isNaN(val)) {
     if (val <= 4.0) {
-      status.textContent = '✓ pH seguro';
+      status.textContent = '✓ pH óptimo';
       status.className   = 'eval-ph-status ok';
+    } else if (val <= 4.4) {
+      status.textContent = '⚠ Aceptable, no óptimo (margen hasta 4.4)';
+      status.className   = 'eval-ph-status warn';
     } else {
       status.textContent = '✗ Ajustar — agregar ácido cítrico 0.5 g';
       status.className   = 'eval-ph-status err';
@@ -4120,6 +4178,25 @@ document.getElementById('evalPH').addEventListener('input', function () {
     status.textContent = '';
     status.className   = 'eval-ph-status';
   }
+});
+
+function renderEvalObsList() {
+  const list = document.getElementById('evalObsList');
+  if (!evalObsRows.length) {
+    list.innerHTML = '<div class="obs-empty">Aún sin observaciones</div>';
+    return;
+  }
+  list.innerHTML = evalObsRows.map(o => `<div class="obs-item"><div class="obs-text">${esc(o.text)}</div></div>`).join('');
+  list.scrollTop = list.scrollHeight;
+}
+
+document.getElementById('btnAddEvalObs').addEventListener('click', () => {
+  const input = document.getElementById('evalObsInput');
+  const text  = input.value.trim();
+  if (!text) return;
+  evalObsRows.push({ text, createdAt: new Date().toISOString() });
+  input.value = '';
+  renderEvalObsList();
 });
 
 // ── Rendimiento & Frascos auto-calc ───────────────────────────────────────────
@@ -4153,41 +4230,146 @@ function updateFrascosTotal() {
 
 // ── Download ejecuciones TXT ──────────────────────────────────────────────────
 
+const EVAL_DIM_LABELS = {
+  D1: 'D1 · Adherencia al alimento (I-03)',
+  D2: 'D2 · Homogeneidad de textura (I-05)',
+  D3: 'D3 · Prueba en frío (I-06)',
+  D4: 'D4 · Prueba de inversión (I-02)',
+  D5: 'D5 · Brillo superficial (I-04)',
+  D6: 'D6 · Estabilidad de color al aire (I-07)'
+};
+
 function ejecucionToText(ej) {
   const ev = ej.evaluacion || {};
-  const lines = [
-    `═══════════════════════════════════════`,
-    `LOTE: ${ej.loteId || '—'}  |  ${ej.nombreReceta}`,
-    `Fecha: ${new Date(ej.fechaFin || ej.creadoEn).toLocaleString('es-CO')}`,
-    `Duración: ${Math.round((ej.duracionTotal || 0) / 60)} min`,
-  ];
-  if (ev.fechaElaboracion) lines.push(`Elaboración: ${ev.fechaElaboracion}  |  Vencimiento: ${ev.fechaVencimiento || '—'}`);
+  const sep = '═══════════════════════════════════════';
+  const lines = [];
+
+  lines.push(sep);
+  lines.push(`REGISTRO DE LOTE: ${ej.loteId || '—'}`);
+  lines.push(`Receta: ${ej.nombreReceta}`);
+  lines.push(sep);
+  lines.push('');
+  lines.push(`Estado: ${ej.estado || '—'}`);
+  lines.push(`Inicio de producción: ${ej.fechaInicio ? new Date(ej.fechaInicio).toLocaleString('es-CO') : '—'}`);
+  lines.push(`Fin de producción: ${ej.fechaFin ? new Date(ej.fechaFin).toLocaleString('es-CO') : '—'}`);
+  lines.push(`Duración total: ${Math.round((ej.duracionTotal || 0) / 60)} min`);
+  if (ev.fechaElaboracion) lines.push(`Fecha de elaboración: ${ev.fechaElaboracion}   Vencimiento estimado: ${ev.fechaVencimiento || '—'}`);
+
+  // ── Etapas ──
+  lines.push('', '── ETAPAS REALIZADAS (qué se hizo y cómo) ─────────────');
+  if (ej.etapasData?.length) {
+    ej.etapasData.forEach((s, i) => {
+      const durMin = Math.floor((s.duracionReal || 0) / 60);
+      const durSeg = (s.duracionReal || 0) % 60;
+      lines.push(`Etapa ${i + 1}: ${s.nombre || '—'}  (duración: ${durMin} min ${durSeg}s)`);
+      const insumos = s.insumosConfirmados || [];
+      if (insumos.length) {
+        lines.push('  Insumos usados:');
+        insumos.forEach(ins =>
+          lines.push(`    - ${ins.nombre}: ${ins.cantidadReal} ${ins.unidad} (planeado: ${ins.cantidadPlanificada} ${ins.unidad})`)
+        );
+      }
+      const stageObs = normalizeObsList(s.observaciones);
+      if (stageObs.length) {
+        lines.push('  Observaciones de la etapa:');
+        stageObs.forEach(o => lines.push(`    - ${o.text}`));
+      }
+    });
+  } else {
+    lines.push('Sin etapas registradas.');
+  }
+
+  // ── Envasado y rendimiento ──
   if (ev.frascos230 != null || ev.frascos180 != null) {
     const f230 = ev.frascos230 || 0, f180 = ev.frascos180 || 0, exc = ev.excedente || 0;
     const ml = f230 * 230 + f180 * 180 + exc;
+    lines.push('', '── ENVASADO Y RENDIMIENTO (I-09) ───────────────────────');
     lines.push(`Frascos: ${f230}×230ml + ${f180}×180ml + ${exc}ml excedente = ${ml} ml total`);
+    lines.push(`Total insumos usados: ${ev.totalInsumosG ?? '?'} g`);
+    if (ev.rendimiento != null) lines.push(`Rendimiento: ${ev.rendimiento}%`);
   }
-  if (ev.rendimiento != null) {
-    lines.push(`Rendimiento I-09: ${ev.rendimiento}% (${(ev.frascos230||0)*230+(ev.frascos180||0)*180+(ev.excedente||0)} ml de ${ev.totalInsumosG || '?'} g insumos)`);
+
+  // ── Fase 1 ──
+  lines.push('', '── EVALUACIÓN TÉCNICA — FASE 1 (antes de envasar) ─────');
+  if (ev.ph != null) {
+    const phEstado = ev.ph <= 4.0 ? 'Óptimo' : ev.ph <= 4.4 ? 'Aceptable, no óptimo (margen hasta 4.4)' : 'Fuera de rango — requería corrección';
+    lines.push(`pH medido: ${ev.ph} (${phEstado}; óptimo 4.0, límite 4.4)`);
+  } else {
+    lines.push('pH medido: no registrado');
   }
-  if (ev.ph != null) lines.push(`pH: ${ev.ph}`);
-  if (ev.sineresis) lines.push(`Sinéresis: ${ev.sineresis === 'ok' ? 'Sin separación ✓' : 'Separación visible ✗'}`);
-  if (ev.fase2?.sello) {
-    const s = ev.fase2.sello;
-    lines.push(`Sello: Tapa ${s.tapa ? '✓' : '✗'} | Pop ${s.pop ? '✓' : '✗'} | Color/olor ${s.olor ? '✓' : '✗'}`);
+  ['D4', 'D1', 'D2', 'D5'].forEach(d => {
+    if (ev.scores?.[d] != null) lines.push(`${EVAL_DIM_LABELS[d]}: ${ev.scores[d]}/5`);
+  });
+  const fase1Total = ['D1', 'D2', 'D4', 'D5'].reduce((s, d) => s + (ev.scores?.[d] || 0), 0);
+  if (ev.scores) {
+    const lvl1 = SCORE_LEVELS_FASE1.find(l => fase1Total >= l.min) || SCORE_LEVELS_FASE1[SCORE_LEVELS_FASE1.length - 1];
+    lines.push(`Puntaje Fase 1: ${fase1Total}/20 (${lvl1.label})`);
   }
-  if (ev.scoreTotal != null) {
-    const maxScore = ev.fase2 ? 30 : 20;
-    lines.push(`Puntaje técnico: ${ev.scoreTotal}/${maxScore}${ev.fase2 ? '' : ' (Fase 1)'}`);
-  }
-  if (ev.observaciones) lines.push(`Observaciones: ${ev.observaciones}`);
-  if (ej.etapasData?.length) {
-    lines.push('', 'Etapas:');
-    ej.etapasData.forEach((s, i) => {
-      lines.push(`  ${i + 1}. ${s.nombre || '—'}  ${Math.round(s.duracionReal / 60)} min`);
+
+  // ── Fase 2 ──
+  lines.push('', '── EVALUACIÓN TÉCNICA — FASE 2 (1h después, en frío) ──');
+  if (ev.fase2) {
+    ['D3', 'D6'].forEach(d => {
+      if (ev.fase2.scores?.[d] != null) lines.push(`${EVAL_DIM_LABELS[d]}: ${ev.fase2.scores[d]}/5`);
     });
+    const s = ev.fase2.sello || {};
+    lines.push(`Sello y vacío (I-10): Tapa cóncava ${s.tapa ? '✓' : '✗'} | Pop audible ${s.pop ? '✓' : '✗'} | Color/olor sin alteración ${s.olor ? '✓' : '✗'}`);
+  } else {
+    lines.push('Pendiente — aún no evaluada.');
   }
-  lines.push('');
+
+  // ── Sinéresis ──
+  lines.push('', '── EVALUACIÓN — SINÉRESIS (24h después) ────────────────');
+  lines.push(ev.sineresis
+    ? `Resultado: ${ev.sineresis === 'ok' ? 'Sin separación visible ✓' : 'Separación visible ✗ — emulsión inestable'}`
+    : 'Pendiente — aún no evaluada.');
+
+  // ── Puntaje total ──
+  if (ev.scoreTotal != null) {
+    lines.push('', '── PUNTAJE TÉCNICO TOTAL ────────────────────────────────');
+    const maxScore = ev.fase2 ? 30 : 20;
+    const levels = ev.fase2 ? SCORE_LEVELS : SCORE_LEVELS_FASE1;
+    const lvl = levels.find(l => ev.scoreTotal >= l.min) || levels[levels.length - 1];
+    lines.push(`${ev.scoreTotal}/${maxScore}${ev.fase2 ? '' : ' (solo Fase 1, Fase 2 pendiente)'} — ${lvl.label}`);
+  }
+
+  // ── Calificación general ──
+  if (ev.calificacion) {
+    lines.push('', '── CALIFICACIÓN GENERAL DEL LOTE ───────────────────────');
+    lines.push(`${'★'.repeat(ev.calificacion)}${'☆'.repeat(5 - ev.calificacion)} (${ev.calificacion}/5)`);
+  }
+
+  // ── Observaciones de la evaluación ──
+  lines.push('', '── OBSERVACIONES DE LA EVALUACIÓN ──────────────────────');
+  const evalObs = normalizeObsList(ev.observaciones);
+  if (evalObs.length) evalObs.forEach(o => lines.push(`- ${o.text}`));
+  else lines.push('Sin observaciones registradas.');
+
+  // ── Observaciones posteriores (seguimiento del lote) ──
+  const followUpObs = normalizeObsList(ej.observations);
+  if (followUpObs.length) {
+    lines.push('', '── OBSERVACIONES DE SEGUIMIENTO POSTERIORES ────────────');
+    followUpObs.forEach(o => lines.push(`- ${o.text}${o.createdAt ? ` (${new Date(o.createdAt).toLocaleString('es-CO')})` : ''}`));
+  }
+
+  // ── Conclusión ──
+  lines.push('', '── CONCLUSIÓN ───────────────────────────────────────────');
+  const problemas = [];
+  if (ev.ph != null && ev.ph > 4.4) problemas.push(`pH ${ev.ph} fuera de rango (> 4.4)`);
+  if (ev.sineresis === 'fail') problemas.push('sinéresis con separación visible');
+  if (ev.fase2?.sello && (!ev.fase2.sello.tapa || !ev.fase2.sello.pop || !ev.fase2.sello.olor)) problemas.push('sello/vacío no conforme');
+  if (problemas.length) {
+    lines.push(`Lote con observaciones críticas: ${problemas.join('; ')}. Requiere revisión antes de despacho.`);
+  } else if (ev.scoreTotal != null) {
+    const maxScore = ev.fase2 ? 30 : 20;
+    const levels = ev.fase2 ? SCORE_LEVELS : SCORE_LEVELS_FASE1;
+    const lvl = levels.find(l => ev.scoreTotal >= l.min) || levels[levels.length - 1];
+    lines.push(`Lote clasificado como "${lvl.label}" (${ev.scoreTotal}/${maxScore}), sin observaciones críticas registradas.`);
+  } else {
+    lines.push('Evaluación incompleta — sin puntaje técnico registrado todavía.');
+  }
+
+  lines.push('', sep, '');
   return lines.join('\n');
 }
 
