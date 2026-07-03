@@ -826,6 +826,27 @@ body {
 .gantt-bar:hover .gantt-bar-done { opacity: 1; }
 .gantt-bar-done:hover { background: rgba(255,255,255,.45); }
 
+.gantt-bar-connect {
+  position: absolute; right: -6px; top: 50%; transform: translateY(-50%);
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--brand);
+  cursor: crosshair; touch-action: none;
+  opacity: 0; transition: opacity .15s, transform .15s;
+  z-index: 3;
+}
+.gantt-bar:hover .gantt-bar-connect { opacity: 1; }
+.gantt-bar-connect:hover { transform: translateY(-50%) scale(1.25); }
+.gantt-bar.connect-target {
+  outline: 2px dashed var(--brand); outline-offset: 2px;
+}
+
+.gantt-connect-preview {
+  position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; overflow: visible;
+}
+.gantt-connect-preview line {
+  stroke: var(--brand); stroke-width: 2; stroke-dasharray: 4 3;
+}
+
 .gantt-deps-svg {
   position: absolute; top: 0; left: 0; z-index: 1; pointer-events: none; overflow: visible;
 }
@@ -942,6 +963,12 @@ body {
 .app-card-icon--green {
   background: linear-gradient(140deg, #8BC34A 0%, #558B2F 100%);
   box-shadow: 0 4px 12px rgba(85,139,47,.25);
+}
+
+/* ── Informes home card (blue) ────────────────────────────────────────────── */
+.app-card-icon--blue {
+  background: linear-gradient(140deg, #42A5F5 0%, #1565C0 100%);
+  box-shadow: 0 4px 12px rgba(21,101,192,.25);
 }
 
 /* ── Sub-tareas (viñetas) en modal tarea ─────────────────────────────────── */
@@ -1657,3 +1684,23 @@ body {
   background: var(--border); border-radius: 6px;
   padding: 6px 10px; margin-bottom: 10px;
 }
+
+/* ── Informes ─────────────────────────────────────────────────────────────── */
+.informes-stats-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px; margin-top: 20px;
+}
+.informes-stat-tile {
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.informes-stat-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-sub);
+}
+.informes-stat-value {
+  font-size: 28px; font-weight: 700; color: var(--vinotinto);
+  font-variant-numeric: tabular-nums;
+}
+.informes-stat-hint { font-size: 11.5px; color: var(--text-sub); }

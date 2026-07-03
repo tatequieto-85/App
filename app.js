@@ -32,6 +32,9 @@ let ganttProjectsLoaded   = false;
 let currentGanttProjectId = null;
 let ganttZoom              = 'week'; // 'day' | 'week' | 'month'
 
+// Informes state
+let informesRange = 'semana'; // 'semana' | 'mes' | 'todo'
+
 // Navigation state
 let currentView   = 'home';
 let currentSubTab = 'kanban';
@@ -130,6 +133,7 @@ function navigateTo(view) {
   document.getElementById('viewContenido').style.display = view === 'contenido' ? '' : 'none';
   document.getElementById('viewTareas').style.display    = view === 'tareas'    ? '' : 'none';
   document.getElementById('viewProcesos').style.display  = view === 'procesos'  ? '' : 'none';
+  document.getElementById('viewInformes').style.display  = view === 'informes'  ? '' : 'none';
 
   // Back button: hidden on home, visible in modules
   document.getElementById('btnBack').style.display = view === 'home' ? 'none' : '';
@@ -163,6 +167,9 @@ function navigateTo(view) {
   }
   if (view === 'procesos') {
     loadProcesos();
+  }
+  if (view === 'informes') {
+    renderInformes();
   }
 
   window.scrollTo(0, 0);
@@ -1147,18 +1154,29 @@ function storyCardHTML(s) {
 
 // ── Settings modal ────────────────────────────────────────────────────────────
 
+let settingsOriginal = { phone: '', apikey: '' };
+
 btnSettings.addEventListener('click', async () => {
   try {
     const cfg = await loadConfig();
     settingsPhone.value  = cfg.phone  || '3122132279';
     settingsApikey.value = cfg.apikey || '';
   } catch {}
+  settingsOriginal = { phone: settingsPhone.value, apikey: settingsApikey.value };
   settingsFeedback.className = 'feedback';
   settingsFeedback.textContent = '';
   settingsOverlay.classList.add('open');
 });
 
-btnCloseSettings.addEventListener('click', () => settingsOverlay.classList.remove('open'));
+function isSettingsFormDirty() {
+  return settingsPhone.value !== settingsOriginal.phone || settingsApikey.value !== settingsOriginal.apikey;
+}
+
+function closeSettingsModal() {
+  confirmCloseIfDirty('settingsOverlay', isSettingsFormDirty);
+}
+
+btnCloseSettings.addEventListener('click', closeSettingsModal);
 
 document.getElementById('btnTestWhatsApp').addEventListener('click', async () => {
   const fb = settingsFeedback;
@@ -1171,7 +1189,7 @@ document.getElementById('btnTestWhatsApp').addEventListener('click', async () =>
   }
 });
 settingsOverlay.addEventListener('click', e => {
-  if (e.target === settingsOverlay) settingsOverlay.classList.remove('open');
+  if (e.target === settingsOverlay) closeSettingsModal();
 });
 
 btnSaveSettings.addEventListener('click', async () => {
@@ -1244,6 +1262,11 @@ window.addEventListener('load', initEmojiPicker);
 function setFb(el, msg, type) {
   el.textContent = msg; el.className = `feedback ${type}`;
   if (type === 'ok') setTimeout(() => { el.textContent = ''; el.className = 'feedback'; }, 4500);
+}
+
+function confirmCloseIfDirty(overlayId, isDirtyFn) {
+  if (isDirtyFn() && !confirm('¿Salir sin guardar? Se perderán los cambios.')) return;
+  document.getElementById(overlayId).classList.remove('open');
 }
 
 function fmtDate(iso) {
@@ -2065,6 +2088,7 @@ function renderGanttChart() {
           <span class="gantt-bar-label">${app.icon}${esc(t.title)}</span>
           <button type="button" class="gantt-bar-done" data-done="${esc(t.id)}" title="Marcar como Realizado">✓</button>
           <div class="gantt-bar-handle gantt-bar-handle--right" data-handle="end"></div>
+          <div class="gantt-bar-connect" title="Arrastra para conectar con otra tarea"></div>
         </div>
       </div>`;
   }).join('');
@@ -2127,12 +2151,16 @@ function wireGanttBarInteractions(tasks, unitWidth) {
       });
     });
     barEl.addEventListener('pointerdown', e => {
-      if (e.target.closest('.gantt-bar-handle') || e.target.closest('.gantt-bar-done')) return;
+      if (e.target.closest('.gantt-bar-handle') || e.target.closest('.gantt-bar-done') || e.target.closest('.gantt-bar-connect')) return;
       startGanttDrag(e, task, 'move', barEl, unitWidth);
     });
     barEl.addEventListener('dblclick', e => {
-      if (e.target.closest('.gantt-bar-done') || e.target.closest('.gantt-bar-handle')) return;
+      if (e.target.closest('.gantt-bar-done') || e.target.closest('.gantt-bar-handle') || e.target.closest('.gantt-bar-connect')) return;
       openTaskDetail(task.id);
+    });
+    barEl.querySelector('.gantt-bar-connect')?.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      startDependencyConnect(e, task, barEl, tasks);
     });
     barEl.querySelector('.gantt-bar-done')?.addEventListener('click', async e => {
       e.stopPropagation();
@@ -2204,6 +2232,81 @@ function startGanttDrag(e, task, mode, barEl, unitWidth) {
   barEl.addEventListener('pointermove', onMove);
   barEl.addEventListener('pointerup', onUp);
   barEl.addEventListener('pointercancel', onUp);
+}
+
+function startDependencyConnect(e, sourceTask, sourceBarEl, tasks) {
+  e.preventDefault();
+  const barsContainer = sourceBarEl.closest('.gantt-bars');
+  if (!barsContainer) return;
+
+  const containerRect = barsContainer.getBoundingClientRect();
+  const barRect        = sourceBarEl.getBoundingClientRect();
+  const startX = barRect.right - containerRect.left;
+  const startY = barRect.top + barRect.height / 2 - containerRect.top;
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'gantt-connect-preview');
+  svg.setAttribute('width', containerRect.width);
+  svg.setAttribute('height', containerRect.height);
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', startX); line.setAttribute('y1', startY);
+  line.setAttribute('x2', startX); line.setAttribute('y2', startY);
+  svg.appendChild(line);
+  barsContainer.appendChild(svg);
+
+  const handle = e.target;
+  handle.setPointerCapture(e.pointerId);
+  let hoveredBar = null;
+
+  function onMove(ev) {
+    const x = ev.clientX - containerRect.left;
+    const y = ev.clientY - containerRect.top;
+    line.setAttribute('x2', x);
+    line.setAttribute('y2', y);
+
+    const barUnder = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.gantt-bar');
+    const valid = barUnder && barUnder !== sourceBarEl ? barUnder : null;
+    if (valid !== hoveredBar) {
+      hoveredBar?.classList.remove('connect-target');
+      hoveredBar = valid;
+      hoveredBar?.classList.add('connect-target');
+    }
+  }
+
+  async function onUp(ev) {
+    handle.releasePointerCapture(ev.pointerId);
+    handle.removeEventListener('pointermove', onMove);
+    handle.removeEventListener('pointerup', onUp);
+    handle.removeEventListener('pointercancel', onUp);
+    hoveredBar?.classList.remove('connect-target');
+    svg.remove();
+
+    const targetBarEl = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.gantt-bar');
+    if (!targetBarEl || targetBarEl === sourceBarEl) return;
+    const targetTask = tasks.find(t => t.id === targetBarEl.dataset.task);
+    if (!targetTask || (targetTask.dependsOn || []).includes(sourceTask.id)) return;
+
+    const projectTasks = kanbanTasks.filter(t => t.projectId === sourceTask.projectId);
+    if (getTransitiveDependents(targetTask.id, projectTasks).has(sourceTask.id)) {
+      alert('No se puede conectar: crearía una dependencia circular.');
+      return;
+    }
+
+    targetTask.dependsOn = [...new Set([...(targetTask.dependsOn || []), sourceTask.id])];
+    try {
+      await updateKanbanTask(targetTask);
+      await applyCascade(sourceTask);
+      renderGanttChart();
+    } catch (err) {
+      alert('Error al guardar: ' + err.message);
+      await loadKanbanTasks();
+      renderGanttChart();
+    }
+  }
+
+  handle.addEventListener('pointermove', onMove);
+  handle.addEventListener('pointerup', onUp);
+  handle.addEventListener('pointercancel', onUp);
 }
 
 // ── Selects population ────────────────────────────────────────────────────────
@@ -2337,7 +2440,7 @@ async function openTaskModal(defaultStatus, editId, defaultProjectId) {
       document.getElementById('taskDue').value    = '';
       const firstNonTerm = kanbanColumns.find(c => !c.terminal);
       document.getElementById('taskStatus').value = defaultStatus || firstNonTerm?.name || '';
-      document.getElementById('taskPriority').value = '';
+      document.getElementById('taskPriority').value = 'alta';
       document.getElementById('taskProject').value  = defaultProjectId || '';
       document.getElementById('taskStart').value     = '';
       renderDependsChecklist(defaultProjectId || '', null, []);
@@ -2360,12 +2463,20 @@ document.getElementById('taskProject').addEventListener('change', function() {
   if (!kanbanEditId) saveTaskDraft();
 });
 
-document.getElementById('btnCloseTask').addEventListener('click', () => {
-  document.getElementById('taskOverlay').classList.remove('open');
-});
+function isTaskFormDirty() {
+  const title    = document.getElementById('taskTitle')?.value.trim();
+  const desc     = document.getElementById('taskDesc')?.value.trim();
+  const subtasks = collectSubtasks();
+  return !!(title || desc || subtasks.length);
+}
+
+function closeTaskModal() {
+  confirmCloseIfDirty('taskOverlay', isTaskFormDirty);
+}
+
+document.getElementById('btnCloseTask').addEventListener('click', closeTaskModal);
 document.getElementById('taskOverlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('taskOverlay'))
-    document.getElementById('taskOverlay').classList.remove('open');
+  if (e.target === document.getElementById('taskOverlay')) closeTaskModal();
 });
 
 document.getElementById('btnSaveTask').addEventListener('click', async () => {
@@ -2381,8 +2492,9 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
   const subtasks = collectSubtasks();
   const fb       = document.getElementById('taskFeedback');
 
-  if (!title) return setFb(fb, 'El título es obligatorio.', 'err');
-  if (!due)   return setFb(fb, 'La fecha límite es obligatoria.', 'err');
+  if (!title)    return setFb(fb, 'El título es obligatorio.', 'err');
+  if (!due)      return setFb(fb, 'La fecha límite es obligatoria.', 'err');
+  if (!priority) return setFb(fb, 'La prioridad es obligatoria.', 'err');
   if (projectId) {
     if (!area)      return setFb(fb, 'El área es obligatoria en tareas de un proyecto Gantt.', 'err');
     if (!startDate) return setFb(fb, 'La fecha de inicio es obligatoria en tareas de un proyecto Gantt.', 'err');
@@ -2503,12 +2615,19 @@ document.getElementById('btnManageBoard').addEventListener('click', () => {
   document.getElementById('boardFeedback').textContent = '';
   document.getElementById('boardOverlay').classList.add('open');
 });
-document.getElementById('btnCloseBoard').addEventListener('click', () => {
-  document.getElementById('boardOverlay').classList.remove('open');
-});
+function isBoardFormDirty() {
+  const colName  = document.getElementById('newColName')?.value.trim();
+  const areaName = document.getElementById('newAreaName')?.value.trim();
+  return !!(colName || areaName);
+}
+
+function closeBoardModal() {
+  confirmCloseIfDirty('boardOverlay', isBoardFormDirty);
+}
+
+document.getElementById('btnCloseBoard').addEventListener('click', closeBoardModal);
 document.getElementById('boardOverlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('boardOverlay'))
-    document.getElementById('boardOverlay').classList.remove('open');
+  if (e.target === document.getElementById('boardOverlay')) closeBoardModal();
 });
 
 document.getElementById('btnAddCol').addEventListener('click', async () => {
@@ -2583,12 +2702,17 @@ document.getElementById('btnManageGanttProjects').addEventListener('click', () =
   document.getElementById('ganttProjectFeedback').textContent = '';
   document.getElementById('ganttProjectOverlay').classList.add('open');
 });
-document.getElementById('btnCloseGanttProjects').addEventListener('click', () => {
-  document.getElementById('ganttProjectOverlay').classList.remove('open');
-});
+function isGanttProjectFormDirty() {
+  return !!document.getElementById('newGanttProjectName')?.value.trim();
+}
+
+function closeGanttProjectModal() {
+  confirmCloseIfDirty('ganttProjectOverlay', isGanttProjectFormDirty);
+}
+
+document.getElementById('btnCloseGanttProjects').addEventListener('click', closeGanttProjectModal);
 document.getElementById('ganttProjectOverlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('ganttProjectOverlay'))
-    document.getElementById('ganttProjectOverlay').classList.remove('open');
+  if (e.target === document.getElementById('ganttProjectOverlay')) closeGanttProjectModal();
 });
 
 document.getElementById('btnAddGanttProject').addEventListener('click', async () => {
@@ -2621,6 +2745,7 @@ function renderSubtasksList(items) {
   items.forEach((item, idx) => {
     container.appendChild(buildSubtaskRow(item, idx));
   });
+  recalcTaskDueFromSubtasks();
 }
 
 function buildSubtaskRow(item, idx) {
@@ -2633,7 +2758,8 @@ function buildSubtaskRow(item, idx) {
     <input class="subtask-date-input field-input" type="date" value="${item.dueDate || ''}" title="Fecha límite de esta viñeta" />
     <button class="subtask-remove" title="Quitar">✕</button>
   `;
-  row.querySelector('.subtask-remove').addEventListener('click', () => row.remove());
+  row.querySelector('.subtask-remove').addEventListener('click', () => { row.remove(); recalcTaskDueFromSubtasks(); });
+  row.querySelector('.subtask-date-input').addEventListener('input', recalcTaskDueFromSubtasks);
   return row;
 }
 
@@ -2644,6 +2770,21 @@ function collectSubtasks() {
     dueDate: row.querySelector('.subtask-date-input').value || '',
     done:    false
   })).filter(s => s.text);
+}
+
+function recalcTaskDueFromSubtasks() {
+  const dueInput = document.getElementById('taskDue');
+  if (!dueInput) return;
+  const dates = Array.from(document.querySelectorAll('#subtasksList .subtask-date-input'))
+    .map(el => el.value).filter(Boolean);
+  if (dates.length) {
+    dueInput.value = dates.reduce((max, d) => d > max ? d : max);
+    dueInput.disabled = true;
+    dueInput.title = 'Se calcula automáticamente: la fecha más lejana entre las sub-tareas.';
+  } else {
+    dueInput.disabled = false;
+    dueInput.title = '';
+  }
 }
 
 document.getElementById('btnAddSubtask').addEventListener('click', () => {
@@ -2853,10 +2994,10 @@ document.getElementById('listaStatusFilter').addEventListener('change', renderKa
 document.getElementById('listaPriorityFilter').addEventListener('change', renderKanbanList);
 document.getElementById('listaDueFilter').addEventListener('change', renderKanbanList);
 
-document.querySelectorAll('.gantt-zoom-btn').forEach(btn => {
+document.querySelectorAll('#ganttZoomSwitch .gantt-zoom-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     ganttZoom = btn.dataset.zoom;
-    document.querySelectorAll('.gantt-zoom-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('#ganttZoomSwitch .gantt-zoom-btn').forEach(b => b.classList.toggle('active', b === btn));
     renderGanttChart();
   });
 });
@@ -3055,12 +3196,17 @@ function renderIngredientesList() {
   });
 }
 
-document.getElementById('btnCloseIngredientes').addEventListener('click', () => {
-  document.getElementById('ingredientesOverlay').classList.remove('open');
-});
+function isIngredientesFormDirty() {
+  return !!document.getElementById('nuevoIngrediente')?.value.trim();
+}
+
+function closeIngredientesModal() {
+  confirmCloseIfDirty('ingredientesOverlay', isIngredientesFormDirty);
+}
+
+document.getElementById('btnCloseIngredientes').addEventListener('click', closeIngredientesModal);
 document.getElementById('ingredientesOverlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('ingredientesOverlay'))
-    document.getElementById('ingredientesOverlay').classList.remove('open');
+  if (e.target === document.getElementById('ingredientesOverlay')) closeIngredientesModal();
 });
 
 document.getElementById('btnManageIngredientes').addEventListener('click', () => openIngredientesModal(false));
@@ -4092,8 +4238,7 @@ function isRecetaFormDirty() {
 }
 
 function closeRecetaModal() {
-  if (isRecetaFormDirty() && !confirm('¿Salir sin guardar? Se perderán los cambios de esta receta.')) return;
-  document.getElementById('recetaOverlay').classList.remove('open');
+  confirmCloseIfDirty('recetaOverlay', isRecetaFormDirty);
 }
 
 document.getElementById('btnCloseReceta').addEventListener('click', closeRecetaModal);
@@ -4742,7 +4887,15 @@ document.querySelectorAll('.star-btn').forEach(btn => {
   btn.addEventListener('click', () => setEvalStars(+btn.dataset.val));
 });
 
+function isEvaluacionFormDirty() {
+  const hasScores = Object.values(evalScores).some(v => v > 0);
+  const hasPH     = !!document.getElementById('evalPH')?.value;
+  const hasObs    = evalObsRows.length > 0;
+  return hasScores || hasPH || hasObs || evalRating > 0;
+}
+
 document.getElementById('btnCloseEvaluacion').addEventListener('click', () => {
+  if (isEvaluacionFormDirty() && !confirm('¿Salir sin guardar? Se perderán los cambios.')) return;
   stopEvalClock();
   document.getElementById('evaluacionOverlay').classList.remove('open');
 });
@@ -5075,6 +5228,68 @@ document.getElementById('btnDownloadEjecuciones').addEventListener('click', down
 });
 document.getElementById('subtasksList')?.addEventListener('input', () => {
   if (!kanbanEditId) saveTaskDraft();
+});
+
+// ── Informes ──────────────────────────────────────────────────────────────────
+
+function getInformesRangeDates(range) {
+  if (range === 'todo') return { start: null, end: null };
+  const now = new Date();
+  if (range === 'mes') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end   = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return { start, end };
+  }
+  // 'semana': lunes 00:00 → lunes siguiente
+  const start = new Date(now); start.setHours(0, 0, 0, 0);
+  const dow = (start.getDay() + 6) % 7; // lunes = 0
+  start.setDate(start.getDate() - dow);
+  const end = addDays(start, 7);
+  return { start, end };
+}
+
+function computeInformesStats(range) {
+  const { start, end } = getInformesRangeDates(range);
+  const inRange = iso => {
+    if (!iso) return false;
+    if (!start) return true;
+    const d = new Date(iso);
+    return d >= start && d < end;
+  };
+
+  let investedMs = 0, pendingMs = 0;
+  kanbanTasks.forEach(t => {
+    const ms = (t.timeSessions || [])
+      .filter(s => inRange(s.start))
+      .reduce((sum, s) => sum + ((s.end ? new Date(s.end) : new Date()) - new Date(s.start)), 0);
+    if (t.status === 'Realizado') investedMs += ms;
+    else if (!TERMINAL_STATES.includes(t.status)) pendingMs += ms;
+  });
+  ejecuciones.forEach(ej => {
+    if (inRange(ej.fechaFin || ej.fechaInicio)) investedMs += (+ej.duracionTotal || 0) * 1000;
+  });
+
+  return { investedMs, pendingMs };
+}
+
+async function renderInformes() {
+  if (!kanbanTasks.length) await loadKanbanTasks().catch(() => {});
+  if (!ejecuciones.length) await loadEjecucionesData().catch(() => {});
+
+  document.querySelectorAll('#informesRangeSwitch .gantt-zoom-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.range === informesRange);
+  });
+
+  const { investedMs, pendingMs } = computeInformesStats(informesRange);
+  document.getElementById('informesInvestedValue').textContent = fmtDuration(investedMs);
+  document.getElementById('informesPendingValue').textContent  = fmtDuration(pendingMs);
+}
+
+document.querySelectorAll('#informesRangeSwitch .gantt-zoom-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    informesRange = btn.dataset.range;
+    renderInformes();
+  });
 });
 
 // ── Service Worker ────────────────────────────────────────────────────────────
