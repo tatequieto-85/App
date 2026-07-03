@@ -214,6 +214,7 @@
               <div class="sub-tabs">
                 <button class="sub-tab-btn active" data-subtab="kanban">Kanban</button>
                 <button class="sub-tab-btn" data-subtab="lista">Lista</button>
+                <button class="sub-tab-btn" data-subtab="gantt">Gantt</button>
               </div>
               <div class="sub-tab-actions">
                 <div id="kanbanToolbar">
@@ -231,6 +232,14 @@
                     <option value="vencido">⚠️ Vencidos</option>
                     <option value="porVencer">🟡 Por vencer</option>
                   </select>
+                </div>
+                <div id="ganttToolbar" style="display:none">
+                  <div class="gantt-zoom-switch" id="ganttZoomSwitch">
+                    <button type="button" class="gantt-zoom-btn" data-zoom="day">Día</button>
+                    <button type="button" class="gantt-zoom-btn active" data-zoom="week">Semana</button>
+                    <button type="button" class="gantt-zoom-btn" data-zoom="month">Mes</button>
+                  </div>
+                  <button class="btn-outline" id="btnManageGanttProjects">Proyectos</button>
                 </div>
                 <button class="btn-outline" id="btnManageBoard">Gestionar</button>
                 <button class="btn-add-task" id="btnNewTask">+ Nueva tarea</button>
@@ -273,6 +282,13 @@
                 </div>
                 <div id="tasksList"><div class="loading-state">Cargando tareas…</div></div>
               </section>
+            </div>
+          </div>
+
+          <div id="subTabGantt" style="display:none">
+            <div class="gantt-projects-bar" id="ganttProjectsBar"></div>
+            <div class="gantt-wrap" id="ganttWrap">
+              <div class="loading-state" style="padding:48px 0">Cargando…</div>
             </div>
           </div>
         </div>
@@ -373,6 +389,14 @@
         <input class="field-input" id="taskDue" type="date" />
         <label class="field-label">Estado</label>
         <select class="field-input" id="taskStatus"></select>
+        <label class="field-label">Proyecto Gantt <span class="field-label-hint">· opcional, agrupa la tarea en una línea de tiempo</span></label>
+        <select class="field-input" id="taskProject">
+          <option value="">Ninguno</option>
+        </select>
+        <div id="taskStartWrap" style="display:none">
+          <label class="field-label">Fecha de inicio *</label>
+          <input class="field-input" id="taskStart" type="date" />
+        </div>
         <label class="field-label">Prioridad</label>
         <select class="field-input" id="taskPriority">
           <option value="">Sin prioridad</option>
@@ -409,6 +433,26 @@
           <button class="btn-outline" id="btnAddArea">Agregar</button>
         </div>
         <div class="feedback" id="boardFeedback" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Gestionar proyectos Gantt -->
+  <div class="modal-overlay" id="ganttProjectOverlay">
+    <div class="modal modal-board">
+      <div class="modal-header">
+        <h2>Proyectos Gantt</h2>
+        <button class="btn-icon" id="btnCloseGanttProjects"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <p class="mgmt-note">Cada proyecto es una línea de tiempo independiente. Al borrar un proyecto, sus tareas no se eliminan: quedan sin proyecto asignado.</p>
+        <div id="ganttProjectsList"></div>
+        <div class="add-row">
+          <input class="field-input add-row-input" id="newGanttProjectName" type="text" placeholder="Nombre del proyecto" />
+          <input type="color" class="color-picker" id="newGanttProjectColor" value="#F05B22" title="Color" />
+          <button class="btn-outline" id="btnAddGanttProject">Agregar</button>
+        </div>
+        <div class="feedback" id="ganttProjectFeedback" style="margin-top:12px"></div>
       </div>
     </div>
   </div>
