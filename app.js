@@ -32,6 +32,10 @@ let ganttProjectsSheetId  = null;
 let ganttProjectsLoaded   = false;
 let currentGanttProjectId = null;
 let ganttZoom              = 'week'; // 'day' | 'week' | 'month'
+let ganttCollapsedAreas    = new Set();
+
+// Calendar state
+let calendarMonth = (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; })();
 
 // Informes state
 let informesRange = 'semana'; // 'semana' | 'mes' | 'todo'
@@ -86,6 +90,25 @@ const DEFAULT_COLUMNS = [
   { name: 'Postpuesto',  color: '#546E7A', terminal: true  },
 ];
 const DEFAULT_AREAS = ['Marketing', 'Ventas', 'Producción', 'Administración'];
+
+// Paleta crema/pastel para diferenciar áreas (Gantt) sin romper el look de la app.
+const AREA_PASTEL_PALETTE = [
+  { bg: '#F5E8D3', text: '#7A6A45' }, // crema
+  { bg: '#F0DCC9', text: '#7A5A3E' }, // durazno
+  { bg: '#E9D8E3', text: '#71495F' }, // malva pastel (eco del brand)
+  { bg: '#DCE6D6', text: '#4E6B45' }, // salvia
+  { bg: '#D8E1EA', text: '#3E5B75' }, // azul grisáceo
+  { bg: '#E7E1CE', text: '#6B6440' }, // oliva claro
+  { bg: '#F1DEDA', text: '#8A4F47' }, // coral pastel
+  { bg: '#DDE8E3', text: '#3E7264' }, // menta
+];
+
+function getAreaColor(area) {
+  const key = area || 'Sin área';
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  return AREA_PASTEL_PALETTE[Math.abs(hash) % AREA_PASTEL_PALETTE.length];
+}
 
 const CRED_KEY   = 'ss_credId';
 const USER_KEY   = 'ss_userInfo';
@@ -155,12 +178,14 @@ function navigateTo(view) {
     document.querySelectorAll('.sub-tab-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.subtab === 'kanban');
     });
-    document.getElementById('subTabKanban').style.display   = '';
-    document.getElementById('subTabLista').style.display    = 'none';
-    document.getElementById('subTabGantt').style.display    = 'none';
-    document.getElementById('kanbanToolbar').style.display  = '';
-    document.getElementById('ganttToolbar').style.display   = 'none';
-    document.getElementById('btnManageBoard').style.display = '';
+    document.getElementById('subTabKanban').style.display     = '';
+    document.getElementById('subTabLista').style.display      = 'none';
+    document.getElementById('subTabGantt').style.display      = 'none';
+    document.getElementById('subTabCalendario').style.display = 'none';
+    document.getElementById('kanbanToolbar').style.display    = '';
+    document.getElementById('ganttToolbar').style.display     = 'none';
+    document.getElementById('calendarToolbar').style.display  = 'none';
+    document.getElementById('btnManageBoard').style.display   = '';
 
     document.getElementById('kanbanBoard').innerHTML =
       '<div class="loading-state" style="padding:48px 0">Cargando…</div>';
@@ -180,18 +205,27 @@ function navigateTo(view) {
   window.scrollTo(0, 0);
 }
 
+function renderCurrentSubTab() {
+  if (currentSubTab === 'kanban') renderKanban();
+  else if (currentSubTab === 'gantt') renderGanttChart();
+  else if (currentSubTab === 'calendario') renderCalendar();
+  else renderKanbanList();
+}
+
 async function switchSubTab(subtab) {
   currentSubTab = subtab;
 
   document.querySelectorAll('.sub-tab-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.subtab === subtab);
+    if (b.dataset.subtab) b.classList.toggle('active', b.dataset.subtab === subtab);
   });
-  document.getElementById('subTabKanban').style.display   = subtab === 'kanban' ? '' : 'none';
-  document.getElementById('subTabLista').style.display    = subtab === 'lista'  ? '' : 'none';
-  document.getElementById('subTabGantt').style.display    = subtab === 'gantt'  ? '' : 'none';
-  document.getElementById('kanbanToolbar').style.display  = subtab === 'kanban' ? '' : 'none';
-  document.getElementById('ganttToolbar').style.display   = subtab === 'gantt'  ? '' : 'none';
-  document.getElementById('btnManageBoard').style.display = subtab === 'gantt'  ? 'none' : '';
+  document.getElementById('subTabKanban').style.display     = subtab === 'kanban'     ? '' : 'none';
+  document.getElementById('subTabLista').style.display      = subtab === 'lista'      ? '' : 'none';
+  document.getElementById('subTabGantt').style.display      = subtab === 'gantt'      ? '' : 'none';
+  document.getElementById('subTabCalendario').style.display = subtab === 'calendario' ? '' : 'none';
+  document.getElementById('kanbanToolbar').style.display    = subtab === 'kanban'     ? '' : 'none';
+  document.getElementById('ganttToolbar').style.display     = subtab === 'gantt'      ? '' : 'none';
+  document.getElementById('calendarToolbar').style.display  = subtab === 'calendario' ? '' : 'none';
+  document.getElementById('btnManageBoard').style.display   = (subtab === 'gantt' || subtab === 'calendario') ? 'none' : '';
 
   await loadKanbanConfig();
   await loadKanbanTasks();
@@ -202,6 +236,7 @@ async function switchSubTab(subtab) {
 
   if (subtab === 'kanban') renderKanban();
   else if (subtab === 'gantt') renderGanttChart();
+  else if (subtab === 'calendario') renderCalendar();
   else renderKanbanList();
 }
 
@@ -2000,6 +2035,65 @@ function renderKanbanList() {
   });
 }
 
+// ── Calendario Render ────────────────────────────────────────────────────────
+
+function renderCalendar() {
+  const wrap = document.getElementById('calendarWrap');
+  if (!wrap) return;
+
+  const year  = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+  const monthLabelEl = document.getElementById('calendarMonthLabel');
+  if (monthLabelEl) {
+    const label = calendarMonth.toLocaleDateString('es-CO', { month: 'long', year: 'numeric', timeZone: 'America/Bogota' });
+    monthLabelEl.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+  }
+
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset  = (firstOfMonth.getDay() + 6) % 7; // lunes = 0
+  const gridStart    = new Date(year, month, 1 - startOffset);
+  const daysInGrid   = 42; // 6 semanas
+  const todayISO     = toISODate(new Date());
+
+  const tasksByDate = {};
+  kanbanTasks.forEach(t => {
+    if (!t.dueDate) return;
+    (tasksByDate[t.dueDate] ||= []).push(t);
+  });
+
+  const weekdayLabels = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const headerHTML = weekdayLabels.map(d => `<div class="calendar-weekday">${d}</div>`).join('');
+
+  let cellsHTML = '';
+  for (let i = 0; i < daysInGrid; i++) {
+    const d = addDays(gridStart, i);
+    const iso = toISODate(d);
+    const inMonth = d.getMonth() === month;
+    const dayTasks = (tasksByDate[iso] || []).slice().sort((a, b) => (a.title || '') < (b.title || '') ? -1 : 1);
+    const chips = dayTasks.map(t => {
+      const app = ganttBarAppearance(t);
+      const c   = getAreaColor(t.area);
+      return `<div class="calendar-chip ${app.cls}" data-task="${esc(t.id)}" style="background:${c.bg};color:${c.text}" title="${esc(t.area)} · ${esc(t.title)}">${esc(t.title)}</div>`;
+    }).join('');
+    cellsHTML += `
+      <div class="calendar-cell${inMonth ? '' : ' calendar-cell--out'}${iso === todayISO ? ' calendar-cell--today' : ''}">
+        <div class="calendar-cell-date">${d.getDate()}</div>
+        <div class="calendar-cell-chips">${chips}</div>
+      </div>`;
+  }
+
+  wrap.innerHTML = `
+    <div class="calendar-grid">
+      <div class="calendar-header-row">${headerHTML}</div>
+      <div class="calendar-body">${cellsHTML}</div>
+    </div>
+  `;
+
+  wrap.querySelectorAll('[data-task]').forEach(el => {
+    el.addEventListener('click', () => openTaskDetail(el.dataset.task));
+  });
+}
+
 // ── Gantt render engine ───────────────────────────────────────────────────────
 
 const GANTT_UNIT_WIDTH = { day: 60, week: 22, month: 6 };
@@ -2188,19 +2282,61 @@ function renderGanttChart() {
   const todayLine = (todayOffset >= 0 && todayOffset < totalDays)
     ? `<div class="gantt-today-line" style="left:${todayOffset * unitWidth}px"></div>` : '';
 
-  const sidebarHTML = tasks.map(t => `<div class="gantt-row-label" draggable="true" data-task="${esc(t.id)}" title="Arrastra para reordenar · ${esc(t.title)}">${esc(t.title)}</div>`).join('');
+  // ── Agrupar tareas por área ────────────────────────────────────────────────
+  const GROUP_ROW_H = 32, TASK_ROW_H = 40;
+  const areaOrder = [];
+  kanbanAreas.forEach(a => { if (tasks.some(t => t.area === a)) areaOrder.push(a); });
+  tasks.forEach(t => { if (t.area && !areaOrder.includes(t.area)) areaOrder.push(t.area); });
+  if (tasks.some(t => !t.area)) areaOrder.push('');
 
+  const displayItems = [];
+  areaOrder.forEach(area => {
+    const groupTasks = tasks.filter(t => (t.area || '') === area);
+    if (!groupTasks.length) return;
+    const areaKey = area || 'Sin área';
+    displayItems.push({ type: 'group', area, areaKey, count: groupTasks.length, collapsed: ganttCollapsedAreas.has(areaKey) });
+    if (!ganttCollapsedAreas.has(areaKey)) groupTasks.forEach(t => displayItems.push({ type: 'task', task: t }));
+  });
+
+  let curY = 0;
   const barGeom = {};
-  const rowsHTML = tasks.map((t, idx) => {
+  displayItems.forEach(item => {
+    if (item.type === 'group') { curY += GROUP_ROW_H; return; }
+    const t = item.task;
     const s = parseISODate(t.startDate || t.dueDate);
     const e = parseISODate(t.dueDate || t.startDate);
     const left  = diffDays(minDate, s) * unitWidth;
     const width = Math.max(unitWidth * 0.6, (diffDays(s, e) + 1) * unitWidth - 2);
-    barGeom[t.id] = { left, width, rowIndex: idx };
-    const app   = ganttBarAppearance(t);
+    barGeom[t.id] = { left, width, y: curY };
+    curY += TASK_ROW_H;
+  });
+  const totalRowsHeight = curY;
+
+  const sidebarHTML = displayItems.map(item => {
+    if (item.type === 'group') {
+      const c = getAreaColor(item.areaKey);
+      return `
+        <div class="gantt-group-row" data-area-toggle="${esc(item.areaKey)}" style="background:${c.bg};color:${c.text}">
+          <span class="gantt-group-chevron">${item.collapsed ? '▸' : '▾'}</span>
+          <span class="gantt-group-name">${esc(item.areaKey)}</span>
+          <span class="gantt-group-count">${item.count}</span>
+        </div>`;
+    }
+    const t = item.task;
+    return `<div class="gantt-row-label" draggable="true" data-task="${esc(t.id)}" title="Arrastra para reordenar · ${esc(t.title)}">${esc(t.title)}</div>`;
+  }).join('');
+
+  const rowsHTML = displayItems.map(item => {
+    if (item.type === 'group') {
+      const c = getAreaColor(item.areaKey);
+      return `<div class="gantt-group-band" style="background:${c.bg}"></div>`;
+    }
+    const t   = item.task;
+    const geom = barGeom[t.id];
+    const app = ganttBarAppearance(t);
     return `
       <div class="gantt-row">
-        <div class="gantt-bar ${app.cls}" data-task="${esc(t.id)}" style="left:${left}px;width:${width}px;background:${app.color}">
+        <div class="gantt-bar ${app.cls}" data-task="${esc(t.id)}" style="left:${geom.left}px;width:${geom.width}px;background:${app.color}">
           <div class="gantt-bar-handle gantt-bar-handle--left" data-handle="start"></div>
           <span class="gantt-bar-label">${app.icon}${esc(t.title)}</span>
           <button type="button" class="gantt-bar-done" data-done="${esc(t.id)}" title="Marcar como Realizado">✓</button>
@@ -2216,14 +2352,14 @@ function renderGanttChart() {
       const pred = barGeom[predId];
       const dep  = barGeom[t.id];
       if (!pred || !dep) return;
-      const x1 = pred.left + pred.width, y1 = pred.rowIndex * 40 + 20;
-      const x2 = dep.left,               y2 = dep.rowIndex * 40 + 20;
+      const x1 = pred.left + pred.width, y1 = pred.y + 20;
+      const x2 = dep.left,               y2 = dep.y + 20;
       const midX = x1 + Math.max(10, (x2 - x1) / 2);
       depsPaths += `<path d="M${x1},${y1} L${midX},${y1} L${midX},${y2} L${x2},${y2}" class="gantt-dep-path" marker-end="url(#ganttArrow)"/>`;
     });
   });
   const depsSvg = depsPaths
-    ? `<svg class="gantt-deps-svg" width="${timelineWidth}" height="${tasks.length * 40}">
+    ? `<svg class="gantt-deps-svg" width="${timelineWidth}" height="${totalRowsHeight}">
         <defs><marker id="ganttArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" class="gantt-dep-arrowhead"/>
         </marker></defs>
@@ -2252,6 +2388,15 @@ function renderGanttChart() {
 
   wireGanttBarInteractions(tasks, unitWidth);
   wireGanttRowReorder(tasks);
+
+  document.querySelectorAll('[data-area-toggle]').forEach(el => {
+    el.addEventListener('click', () => {
+      const key = el.dataset.areaToggle;
+      if (ganttCollapsedAreas.has(key)) ganttCollapsedAreas.delete(key);
+      else ganttCollapsedAreas.add(key);
+      renderGanttChart();
+    });
+  });
 
   const scrollEl = document.getElementById('ganttTimelineScroll');
   if (scrollEl) scrollEl.scrollLeft = Math.max(0, todayOffset * unitWidth - 200);
@@ -2718,9 +2863,7 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
 
     document.getElementById('taskOverlay').classList.remove('open');
 
-    if (currentSubTab === 'kanban') renderKanban();
-    else if (currentSubTab === 'gantt') renderGanttChart();
-    else renderKanbanList();
+    renderCurrentSubTab();
   } catch (e) {
     setFb(fb, 'Error: ' + e.message, 'err');
   } finally {
@@ -3036,9 +3179,7 @@ function openTaskDetail(taskId) {
       try {
         await updateKanbanTask(t);
         openTaskDetail(taskDetailId);
-        if (currentSubTab === 'kanban') renderKanban();
-        else if (currentSubTab === 'gantt') renderGanttChart();
-        else renderKanbanList();
+        renderCurrentSubTab();
       } catch (e) {
         t.status   = prev;
         this.value = prev;
@@ -3072,9 +3213,7 @@ function openTaskDetail(taskId) {
       try {
         await updateKanbanTask(t);
         openTaskDetail(taskDetailId);
-        if (currentSubTab === 'kanban') renderKanban();
-        else if (currentSubTab === 'gantt') renderGanttChart();
-        else renderKanbanList();
+        renderCurrentSubTab();
       } catch (e) {
         alert('Error al guardar: ' + e.message);
         await loadKanbanTasks();
@@ -3172,6 +3311,19 @@ document.querySelectorAll('#ganttZoomSwitch .gantt-zoom-btn').forEach(btn => {
     document.querySelectorAll('#ganttZoomSwitch .gantt-zoom-btn').forEach(b => b.classList.toggle('active', b === btn));
     renderGanttChart();
   });
+});
+
+document.getElementById('btnCalendarPrev').addEventListener('click', () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+  renderCalendar();
+});
+document.getElementById('btnCalendarNext').addEventListener('click', () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+  renderCalendar();
+});
+document.getElementById('btnCalendarToday').addEventListener('click', () => {
+  calendarMonth = (() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; })();
+  renderCalendar();
 });
 
 // ── Ingredientes: Sheet CRUD ──────────────────────────────────────────────────

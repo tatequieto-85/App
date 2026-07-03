@@ -258,8 +258,9 @@
             <div class="sub-tab-nav-inner">
               <div class="sub-tabs">
                 <button class="sub-tab-btn active" data-subtab="kanban">Kanban</button>
-                <button class="sub-tab-btn" data-subtab="lista">Lista</button>
                 <button class="sub-tab-btn" data-subtab="gantt">Gantt</button>
+                <button class="sub-tab-btn" data-subtab="lista">Lista</button>
+                <button class="sub-tab-btn" data-subtab="calendario">Calendario</button>
               </div>
               <div class="sub-tab-actions">
                 <div id="kanbanToolbar">
@@ -286,6 +287,14 @@
                   </div>
                   <button class="btn-outline" id="btnManageGanttProjects">Proyectos</button>
                 </div>
+                <div id="calendarToolbar" style="display:none">
+                  <div class="gantt-zoom-switch">
+                    <button type="button" class="gantt-zoom-btn" id="btnCalendarPrev">◀</button>
+                    <button type="button" class="gantt-zoom-btn" id="btnCalendarToday">Hoy</button>
+                    <button type="button" class="gantt-zoom-btn" id="btnCalendarNext">▶</button>
+                  </div>
+                  <span id="calendarMonthLabel" style="font-weight:700;color:var(--text);margin-left:8px"></span>
+                </div>
                 <button class="btn-outline" id="btnManageBoard">Gestionar</button>
                 <button class="btn-add-task" id="btnNewTask">+ Nueva tarea</button>
               </div>
@@ -297,6 +306,13 @@
               <div class="kanban-board" id="kanbanBoard">
                 <div class="loading-state" style="padding:48px 0">Cargando tablero…</div>
               </div>
+            </div>
+          </div>
+
+          <div id="subTabGantt" style="display:none">
+            <div class="gantt-projects-bar" id="ganttProjectsBar"></div>
+            <div class="gantt-wrap" id="ganttWrap">
+              <div class="loading-state" style="padding:48px 0">Cargando…</div>
             </div>
           </div>
 
@@ -330,9 +346,8 @@
             </div>
           </div>
 
-          <div id="subTabGantt" style="display:none">
-            <div class="gantt-projects-bar" id="ganttProjectsBar"></div>
-            <div class="gantt-wrap" id="ganttWrap">
+          <div id="subTabCalendario" style="display:none">
+            <div class="calendar-wrap" id="calendarWrap">
               <div class="loading-state" style="padding:48px 0">Cargando…</div>
             </div>
           </div>
