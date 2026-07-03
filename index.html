@@ -397,6 +397,10 @@
           <label class="field-label">Fecha de inicio *</label>
           <input class="field-input" id="taskStart" type="date" />
         </div>
+        <div id="taskDependsWrap" style="display:none">
+          <label class="field-label">Depende de <span class="field-label-hint">· la tarea no puede empezar antes de que estas terminen</span></label>
+          <div id="taskDependsList" class="task-depends-list"></div>
+        </div>
         <label class="field-label">Prioridad</label>
         <select class="field-input" id="taskPriority">
           <option value="">Sin prioridad</option>

@@ -1366,11 +1366,11 @@ async function initKanbanSheets() {
     });
   }
 
-  const td = await sheetsReq('/values/KanbanTasks!A1:M1').catch(() => ({}));
-  if (!td.values || (td.values[0] || []).length < 13) {
-    await sheetsReq('/values/KanbanTasks!A1:M1?valueInputOption=RAW', {
+  const td = await sheetsReq('/values/KanbanTasks!A1:O1').catch(() => ({}));
+  if (!td.values || (td.values[0] || []).length < 15) {
+    await sheetsReq('/values/KanbanTasks!A1:O1?valueInputOption=RAW', {
       method: 'PUT',
-      body: JSON.stringify({ values: [['ID','Area','Title','Description','DueDate','Status','CreatedAt','UpdatedAt','Subtasks','Observations','Priority','StartDate','ProjectId']] })
+      body: JSON.stringify({ values: [['ID','Area','Title','Description','DueDate','Status','CreatedAt','UpdatedAt','Subtasks','Observations','Priority','StartDate','ProjectId','DependsOn','TimeSessions']] })
     });
   }
 
@@ -1421,7 +1421,7 @@ async function saveKanbanConfig() {
 // ── Kanban Tasks CRUD ─────────────────────────────────────────────────────────
 
 async function loadKanbanTasks() {
-  const data = await sheetsReq('/values/KanbanTasks!A:M');
+  const data = await sheetsReq('/values/KanbanTasks!A:O');
   const rows = (data.values || []).slice(1);
   kanbanTasks = rows
     .filter(r => r[0])
@@ -1439,12 +1439,14 @@ async function loadKanbanTasks() {
       priority:     r[10] || '',
       startDate:    r[11] || '',
       projectId:    r[12] || '',
+      dependsOn:    safeParseJSON(r[13], []),
+      timeSessions: safeParseJSON(r[14], []),
       rowIndex:     i + 2
     }));
 }
 
 async function appendKanbanTask(task) {
-  await sheetsReq('/values/KanbanTasks!A:M:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/KanbanTasks!A:O:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       task.id, task.area, task.title, task.desc,
@@ -1453,13 +1455,15 @@ async function appendKanbanTask(task) {
       JSON.stringify(task.observations || []),
       task.priority || '',
       task.startDate || '',
-      task.projectId || ''
+      task.projectId || '',
+      JSON.stringify(task.dependsOn || []),
+      JSON.stringify(task.timeSessions || [])
     ]]})
   });
 }
 
 async function updateKanbanTask(task) {
-  await sheetsReq(`/values/KanbanTasks!A${task.rowIndex}:M${task.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/KanbanTasks!A${task.rowIndex}:O${task.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
       task.id, task.area, task.title, task.desc,
@@ -1468,7 +1472,9 @@ async function updateKanbanTask(task) {
       JSON.stringify(task.observations || []),
       task.priority || '',
       task.startDate || '',
-      task.projectId || ''
+      task.projectId || '',
+      JSON.stringify(task.dependsOn || []),
+      JSON.stringify(task.timeSessions || [])
     ]]})
   });
 }
@@ -1742,6 +1748,7 @@ function renderKanban() {
         if (!confirm(`¿Finalizar la tarea como "${newStatus}"?`)) return;
       }
       task.status = newStatus;
+      if (TERMINAL_STATES.includes(newStatus)) stopTaskTimer(task);
       renderKanban();
       try { await updateKanbanTask(task); }
       catch (err) { alert('Error al guardar: ' + err.message); await loadKanbanTasks(); renderKanban(); }
@@ -1803,7 +1810,7 @@ function renderKanbanList() {
   const table = document.createElement('table');
   table.className = 'tasks-table';
   table.innerHTML = `<thead><tr>
-    <th>Área</th><th>Tarea</th><th>Estado</th><th>Prioridad</th><th>Fecha límite</th><th></th>
+    <th>Área</th><th>Tarea</th><th>Estado</th><th>Prioridad</th><th>Fecha límite</th><th>Tiempo</th><th></th>
   </tr></thead><tbody></tbody>`;
 
   const tbody = table.querySelector('tbody');
@@ -1824,6 +1831,7 @@ function renderKanbanList() {
       <td><span class="status-pill" style="background:${color}22;color:${color}">${esc(task.status)}</span></td>
       <td>${task.priority ? `<span class="kanban-card-priority kanban-priority-${esc(task.priority)}">${PRIORITY_LABELS[task.priority] || ''}</span>` : ''}</td>
       <td><span class="kanban-card-due ${due.cls}" style="font-size:12px">${due.text}</span></td>
+      <td><span style="font-size:12px;color:var(--text-sub)">${(task.timeSessions || []).length ? fmtDuration(getTaskTotalMs(task)) : '—'}</span></td>
       <td style="white-space:nowrap">
         <button class="task-action-btn" data-view="${task.id}" title="Ver detalle">👁</button>
         <button class="task-action-btn" data-edit="${task.id}" title="Editar">${ICON_EDIT}</button>
@@ -1869,6 +1877,101 @@ function toISODate(d) {
 }
 function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
 function diffDays(a, b) { return Math.round((b - a) / 86400000); }
+
+// ── Dependencias entre tareas ─────────────────────────────────────────────────
+
+function getTransitiveDependents(taskId, tasks) {
+  const result = new Set();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    tasks.forEach(t => {
+      if (!result.has(t.id) && (t.dependsOn || []).some(id => id === taskId || result.has(id))) {
+        result.add(t.id);
+        changed = true;
+      }
+    });
+  }
+  return result;
+}
+
+function cascadeDependencyShift(changedTask, projectTasks, visited = new Set()) {
+  if (visited.has(changedTask.id)) return [];
+  visited.add(changedTask.id);
+  const changedEnd = parseISODate(changedTask.dueDate);
+  const moved = [];
+  projectTasks
+    .filter(t => (t.dependsOn || []).includes(changedTask.id))
+    .forEach(dep => {
+      const depStart = parseISODate(dep.startDate || dep.dueDate);
+      if (depStart < changedEnd) {
+        const dur = diffDays(parseISODate(dep.startDate || dep.dueDate), parseISODate(dep.dueDate || dep.startDate));
+        dep.startDate = toISODate(changedEnd);
+        dep.dueDate   = toISODate(addDays(changedEnd, dur));
+        moved.push(dep, ...cascadeDependencyShift(dep, projectTasks, visited));
+      }
+    });
+  return moved;
+}
+
+async function applyCascade(changedTask) {
+  const projectTasks = kanbanTasks.filter(t => t.projectId === changedTask.projectId);
+  const moved = cascadeDependencyShift(changedTask, projectTasks);
+  for (const t of moved) await updateKanbanTask(t);
+  return moved;
+}
+
+// ── Cronómetro por tarea ──────────────────────────────────────────────────────
+
+let taskTimerInterval = null;
+
+function isTimerRunning(task) {
+  const sessions = task.timeSessions || [];
+  const last = sessions[sessions.length - 1];
+  return !!last && !last.end;
+}
+
+function getTaskTotalMs(task) {
+  return (task.timeSessions || []).reduce((sum, s) =>
+    sum + ((s.end ? new Date(s.end) : new Date()) - new Date(s.start)), 0);
+}
+
+function fmtDuration(ms) {
+  if (!ms || ms < 0) ms = 0;
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function getInProgressColumnName() {
+  const named = kanbanColumns.find(c => !c.terminal && c.name.trim().toLowerCase() === 'en proceso');
+  if (named) return named.name;
+  const nonTerm = kanbanColumns.filter(c => !c.terminal);
+  return (nonTerm[1] || nonTerm[0])?.name || null;
+}
+
+function stopTaskTimer(task) {
+  const sessions = task.timeSessions || [];
+  const last = sessions[sessions.length - 1];
+  if (last && !last.end) last.end = new Date().toISOString();
+}
+
+function startTaskTimerClock(task) {
+  stopTaskTimerClock();
+  const el = document.getElementById('taskTimerTotal');
+  if (!el) return;
+  const update = () => { el.textContent = fmtDuration(getTaskTotalMs(task)); };
+  update();
+  taskTimerInterval = setInterval(update, 1000);
+}
+
+function stopTaskTimerClock() {
+  if (taskTimerInterval) { clearInterval(taskTimerInterval); taskTimerInterval = null; }
+}
 
 function ganttBarAppearance(task) {
   if (task.status === 'Realizado') return { cls: 'status-done', color: '#2E7D32', icon: '✓ ' };
@@ -1947,11 +2050,13 @@ function renderGanttChart() {
 
   const sidebarHTML = tasks.map(t => `<div class="gantt-row-label" title="${esc(t.title)}">${esc(t.title)}</div>`).join('');
 
-  const rowsHTML = tasks.map(t => {
+  const barGeom = {};
+  const rowsHTML = tasks.map((t, idx) => {
     const s = parseISODate(t.startDate || t.dueDate);
     const e = parseISODate(t.dueDate || t.startDate);
     const left  = diffDays(minDate, s) * unitWidth;
     const width = Math.max(unitWidth * 0.6, (diffDays(s, e) + 1) * unitWidth - 2);
+    barGeom[t.id] = { left, width, rowIndex: idx };
     const app   = ganttBarAppearance(t);
     return `
       <div class="gantt-row">
@@ -1964,6 +2069,27 @@ function renderGanttChart() {
       </div>`;
   }).join('');
 
+  let depsPaths = '';
+  tasks.forEach(t => {
+    (t.dependsOn || []).forEach(predId => {
+      const pred = barGeom[predId];
+      const dep  = barGeom[t.id];
+      if (!pred || !dep) return;
+      const x1 = pred.left + pred.width, y1 = pred.rowIndex * 40 + 20;
+      const x2 = dep.left,               y2 = dep.rowIndex * 40 + 20;
+      const midX = x1 + Math.max(10, (x2 - x1) / 2);
+      depsPaths += `<path d="M${x1},${y1} L${midX},${y1} L${midX},${y2} L${x2},${y2}" class="gantt-dep-path" marker-end="url(#ganttArrow)"/>`;
+    });
+  });
+  const depsSvg = depsPaths
+    ? `<svg class="gantt-deps-svg" width="${timelineWidth}" height="${tasks.length * 40}">
+        <defs><marker id="ganttArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" class="gantt-dep-arrowhead"/>
+        </marker></defs>
+        ${depsPaths}
+      </svg>`
+    : '';
+
   wrap.innerHTML = `
     <div class="gantt-grid">
       <div class="gantt-sidebar">
@@ -1974,6 +2100,7 @@ function renderGanttChart() {
         <div class="gantt-timeline-inner" style="width:${timelineWidth}px">
           <div class="gantt-header-row">${headerHTML}</div>
           <div class="gantt-bars" style="width:${timelineWidth}px">
+            ${depsSvg}
             ${todayLine}
             ${rowsHTML}
           </div>
@@ -2012,6 +2139,7 @@ function wireGanttBarInteractions(tasks, unitWidth) {
       if (task.status === 'Realizado') return;
       if (!confirm(`¿Finalizar la tarea como "Realizado"?`)) return;
       task.status = 'Realizado';
+      stopTaskTimer(task);
       try {
         await updateKanbanTask(task);
         renderGanttChart();
@@ -2064,6 +2192,7 @@ function startGanttDrag(e, task, mode, barEl, unitWidth) {
     task.dueDate    = toISODate(newEnd);
     try {
       await updateKanbanTask(task);
+      await applyCascade(task);
       renderGanttChart();
     } catch (err) {
       alert('Error al guardar: ' + err.message);
@@ -2129,6 +2258,36 @@ function toggleTaskStartVisibility() {
   document.getElementById('taskStartWrap').style.display = hasProject ? '' : 'none';
 }
 
+function renderDependsChecklist(projectId, excludeTaskId, checkedIds) {
+  const wrap      = document.getElementById('taskDependsWrap');
+  const container = document.getElementById('taskDependsList');
+  if (!wrap || !container) return;
+  if (!projectId) { wrap.style.display = 'none'; container.innerHTML = ''; return; }
+  wrap.style.display = '';
+
+  const projectTasks = kanbanTasks.filter(t => t.projectId === projectId && t.id !== excludeTaskId);
+  const blocked = excludeTaskId
+    ? getTransitiveDependents(excludeTaskId, kanbanTasks.filter(t => t.projectId === projectId))
+    : new Set();
+  const eligible = projectTasks.filter(t => !blocked.has(t.id));
+
+  if (!eligible.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:6px 0;font-size:12px">No hay otras tareas disponibles en este proyecto.</div>';
+    return;
+  }
+  const checked = new Set(checkedIds || []);
+  container.innerHTML = eligible.map(t => `
+    <label class="task-depends-item">
+      <input type="checkbox" value="${esc(t.id)}" ${checked.has(t.id) ? 'checked' : ''}/>
+      <span>${esc(t.title)}</span>
+    </label>
+  `).join('');
+}
+
+function collectDependsOn() {
+  return Array.from(document.querySelectorAll('#taskDependsList input[type=checkbox]:checked')).map(cb => cb.value);
+}
+
 // ── Task modal ────────────────────────────────────────────────────────────────
 
 async function openTaskModal(defaultStatus, editId, defaultProjectId) {
@@ -2151,6 +2310,7 @@ async function openTaskModal(defaultStatus, editId, defaultProjectId) {
     document.getElementById('taskPriority').value = task.priority || '';
     document.getElementById('taskProject').value  = task.projectId || '';
     document.getElementById('taskStart').value    = task.startDate || '';
+    renderDependsChecklist(task.projectId || '', task.id, task.dependsOn || []);
     renderSubtasksList(task.subtasks || []);
   } else {
     document.getElementById('taskModalTitle').textContent = 'Nueva tarea';
@@ -2164,6 +2324,7 @@ async function openTaskModal(defaultStatus, editId, defaultProjectId) {
       document.getElementById('taskPriority').value = draft.priority || '';
       document.getElementById('taskProject').value  = draft.project || defaultProjectId || '';
       document.getElementById('taskStart').value     = draft.start   || '';
+      renderDependsChecklist(draft.project || defaultProjectId || '', null, []);
       renderSubtasksList(draft.subtasks || []);
       const fb = document.getElementById('taskFeedback');
       fb.textContent = '↩ Borrador restaurado';
@@ -2179,6 +2340,7 @@ async function openTaskModal(defaultStatus, editId, defaultProjectId) {
       document.getElementById('taskPriority').value = '';
       document.getElementById('taskProject').value  = defaultProjectId || '';
       document.getElementById('taskStart').value     = '';
+      renderDependsChecklist(defaultProjectId || '', null, []);
       renderSubtasksList([]);
       document.getElementById('taskFeedback').textContent = '';
       document.getElementById('taskFeedback').className   = 'feedback';
@@ -2192,8 +2354,9 @@ async function openTaskModal(defaultStatus, editId, defaultProjectId) {
   setTimeout(() => document.getElementById('taskTitle').focus(), 100);
 }
 
-document.getElementById('taskProject').addEventListener('change', () => {
+document.getElementById('taskProject').addEventListener('change', function() {
   toggleTaskStartVisibility();
+  renderDependsChecklist(this.value, kanbanEditId, []);
   if (!kanbanEditId) saveTaskDraft();
 });
 
@@ -2214,6 +2377,7 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
   const priority = document.getElementById('taskPriority').value;
   const projectId = document.getElementById('taskProject').value;
   const startDate  = document.getElementById('taskStart').value;
+  const dependsOn  = projectId ? collectDependsOn() : [];
   const subtasks = collectSubtasks();
   const fb       = document.getElementById('taskFeedback');
 
@@ -2229,25 +2393,45 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
   btn.disabled = true; btn.textContent = 'Guardando…';
 
   try {
+    let savedId = kanbanEditId;
     if (kanbanEditId) {
       const task = kanbanTasks.find(t => t.id === kanbanEditId);
       if (task) {
         task.area = area; task.title = title; task.desc = desc;
         task.dueDate = due; task.status = status; task.subtasks = subtasks;
         task.priority = priority; task.projectId = projectId; task.startDate = projectId ? startDate : '';
+        task.dependsOn = dependsOn;
+        if (TERMINAL_STATES.includes(status)) stopTaskTimer(task);
         await updateKanbanTask(task);
       }
     } else {
       const now = new Date().toISOString();
+      savedId = crypto.randomUUID();
       await appendKanbanTask({
-        id: crypto.randomUUID(), area, title, desc,
+        id: savedId, area, title, desc,
         dueDate: due, status, createdAt: now, updatedAt: now,
         subtasks, observations: [], priority,
-        projectId, startDate: projectId ? startDate : ''
+        projectId, startDate: projectId ? startDate : '',
+        dependsOn, timeSessions: []
       });
     }
     clearTaskDraft();
     await loadKanbanTasks();
+
+    const savedTask = kanbanTasks.find(t => t.id === savedId);
+    if (savedTask && savedTask.projectId) {
+      const projectTasks = kanbanTasks.filter(t => t.projectId === savedTask.projectId);
+      const moved = [];
+      (savedTask.dependsOn || []).forEach(predId => {
+        const pred = projectTasks.find(t => t.id === predId);
+        if (pred) moved.push(...cascadeDependencyShift(pred, projectTasks));
+      });
+      if (moved.length) {
+        for (const t of moved) await updateKanbanTask(t);
+        await loadKanbanTasks();
+      }
+    }
+
     document.getElementById('taskOverlay').classList.remove('open');
 
     if (currentSubTab === 'kanban') renderKanban();
@@ -2507,6 +2691,13 @@ function openTaskDetail(taskId) {
       <span id="detailStatusSaving" style="font-size:11px;color:var(--text-sub);display:none">Guardando…</span>
     </div>
     <div class="detail-row"><span class="detail-label">Fecha límite</span><span class="kanban-card-due ${due.cls}">${due.text || '—'}</span></div>
+    <div class="detail-row">
+      <span class="detail-label">Tiempo dedicado</span>
+      <span class="detail-timer-total" id="taskTimerTotal">${fmtDuration(getTaskTotalMs(task))}</span>
+      <button class="btn-outline btn-sm" id="taskTimerBtn" type="button">${
+        (task.timeSessions || []).length === 0 ? '▶ Iniciar tarea' : (isTimerRunning(task) ? '⏸ Pausar' : '▶ Retomar')
+      }</button>
+    </div>
     ${task.priority ? `<div class="detail-row"><span class="detail-label">Prioridad</span><span class="kanban-card-priority kanban-priority-${esc(task.priority)}">${PRIORITY_LABELS[task.priority] || ''}</span></div>` : ''}
     ${task.desc ? `<div class="detail-row detail-row--col"><span class="detail-label">Descripción</span><span class="detail-value">${esc(task.desc)}</span></div>` : ''}
     ${subtasksHTML ? `<div class="detail-row detail-row--col"><span class="detail-label">Sub-tareas</span>${subtasksHTML}</div>` : ''}
@@ -2526,10 +2717,12 @@ function openTaskDetail(taskId) {
       }
       const prev = t.status;
       t.status   = newStatus;
+      if (TERMINAL_STATES.includes(newStatus)) stopTaskTimer(t);
       const savingEl = document.getElementById('detailStatusSaving');
       if (savingEl) savingEl.style.display = '';
       try {
         await updateKanbanTask(t);
+        openTaskDetail(taskDetailId);
         if (currentSubTab === 'kanban') renderKanban();
         else if (currentSubTab === 'gantt') renderGanttChart();
         else renderKanbanList();
@@ -2542,6 +2735,41 @@ function openTaskDetail(taskId) {
       }
     });
   }
+
+  const timerBtn = document.getElementById('taskTimerBtn');
+  if (timerBtn) {
+    timerBtn.addEventListener('click', async () => {
+      const t = kanbanTasks.find(x => x.id === taskDetailId);
+      if (!t) return;
+      t.timeSessions = t.timeSessions || [];
+      const neverStarted = t.timeSessions.length === 0;
+      if (isTimerRunning(t)) {
+        stopTaskTimer(t);
+      } else {
+        t.timeSessions.push({ start: new Date().toISOString(), end: null });
+        if (neverStarted) {
+          const firstNonTerm = kanbanColumns.find(c => !c.terminal);
+          if (TERMINAL_STATES.includes(t.status) || t.status === firstNonTerm?.name) {
+            const target = getInProgressColumnName();
+            if (target) t.status = target;
+          }
+        }
+      }
+      timerBtn.disabled = true;
+      try {
+        await updateKanbanTask(t);
+        openTaskDetail(taskDetailId);
+        if (currentSubTab === 'kanban') renderKanban();
+        else if (currentSubTab === 'gantt') renderGanttChart();
+        else renderKanbanList();
+      } catch (e) {
+        alert('Error al guardar: ' + e.message);
+        await loadKanbanTasks();
+        openTaskDetail(taskDetailId);
+      }
+    });
+  }
+  if (isTimerRunning(task)) startTaskTimerClock(task); else stopTaskTimerClock();
 
   renderObservations(task);
 
@@ -2566,14 +2794,18 @@ function renderObservations(task) {
 }
 
 document.getElementById('btnCloseTaskDetail').addEventListener('click', () => {
+  stopTaskTimerClock();
   document.getElementById('taskDetailOverlay').classList.remove('open');
 });
 document.getElementById('taskDetailOverlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('taskDetailOverlay'))
+  if (e.target === document.getElementById('taskDetailOverlay')) {
+    stopTaskTimerClock();
     document.getElementById('taskDetailOverlay').classList.remove('open');
+  }
 });
 
 document.getElementById('btnEditFromDetail').addEventListener('click', () => {
+  stopTaskTimerClock();
   document.getElementById('taskDetailOverlay').classList.remove('open');
   openTaskModal(null, taskDetailId);
 });
