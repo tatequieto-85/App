@@ -8,6 +8,7 @@ const ICON_CALENDAR = '<svg width="13" height="13" viewBox="0 0 24 24" fill="non
 const ICON_TRASH    = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 const ICON_EDIT     = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>';
 const ICON_SPINNER  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="icon-spin"><path d="M21 12a9 9 0 11-9-9"/></svg>';
+const ICON_COPY     = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let accessToken    = null;
@@ -49,6 +50,10 @@ let recetas              = [];
 let ejecuciones          = [];
 let recetasSheetId       = null;
 let ejecucionesSheetId   = null;
+let recetaBlocks         = [];
+let recetaBlocksSheetId  = null;
+let recetaBlocksLoaded   = false;
+let draggedRecetaId      = null;
 let currentProcesosTab   = 'recetas';
 let editRecetaId         = null;
 let recetaFixedFirst     = null; // etapa fija de inicio (oculta en el editor)
@@ -430,6 +435,7 @@ async function onAuthSuccess() {
 
   await initSheet();
   await initKanbanSheets();
+  await loadKanbanTasks();
   await initRecetasSheets();
   await initIngredientesSheet();
   setDefaultDateTime();
@@ -461,6 +467,19 @@ document.getElementById('btnSettings').addEventListener('click', () => {
 });
 document.getElementById('btnSignOut').addEventListener('click', () => {
   document.getElementById('userMenuDropdown').style.display = 'none';
+});
+
+document.querySelectorAll('.due-badge').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const cat = btn.dataset.dueCat;
+    const isOpenForThis = document.getElementById('dueBadgeDropdown').style.display !== 'none' && btn.classList.contains('active');
+    if (isOpenForThis) closeDueBadgeDropdown();
+    else openDueBadgeDropdown(cat);
+  });
+});
+document.addEventListener('click', e => {
+  if (!document.getElementById('dueBadges').contains(e.target)) closeDueBadgeDropdown();
 });
 
 // ── WhatsApp notification (recordatorio diario) ──────────────────────────────
@@ -1412,11 +1431,11 @@ async function initKanbanSheets() {
     });
   }
 
-  const td = await sheetsReq('/values/KanbanTasks!A1:O1').catch(() => ({}));
-  if (!td.values || (td.values[0] || []).length < 15) {
-    await sheetsReq('/values/KanbanTasks!A1:O1?valueInputOption=RAW', {
+  const td = await sheetsReq('/values/KanbanTasks!A1:P1').catch(() => ({}));
+  if (!td.values || (td.values[0] || []).length < 16) {
+    await sheetsReq('/values/KanbanTasks!A1:P1?valueInputOption=RAW', {
       method: 'PUT',
-      body: JSON.stringify({ values: [['ID','Area','Title','Description','DueDate','Status','CreatedAt','UpdatedAt','Subtasks','Observations','Priority','StartDate','ProjectId','DependsOn','TimeSessions']] })
+      body: JSON.stringify({ values: [['ID','Area','Title','Description','DueDate','Status','CreatedAt','UpdatedAt','Subtasks','Observations','Priority','StartDate','ProjectId','DependsOn','TimeSessions','SortOrder']] })
     });
   }
 
@@ -1467,7 +1486,7 @@ async function saveKanbanConfig() {
 // ── Kanban Tasks CRUD ─────────────────────────────────────────────────────────
 
 async function loadKanbanTasks() {
-  const data = await sheetsReq('/values/KanbanTasks!A:O');
+  const data = await sheetsReq('/values/KanbanTasks!A:P');
   const rows = (data.values || []).slice(1);
   kanbanTasks = rows
     .filter(r => r[0])
@@ -1487,12 +1506,14 @@ async function loadKanbanTasks() {
       projectId:    r[12] || '',
       dependsOn:    safeParseJSON(r[13], []),
       timeSessions: safeParseJSON(r[14], []),
+      sortOrder:    r[15] !== undefined && r[15] !== '' ? +r[15] : null,
       rowIndex:     i + 2
     }));
+  updateDueBadgeCounts();
 }
 
 async function appendKanbanTask(task) {
-  await sheetsReq('/values/KanbanTasks!A:O:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/KanbanTasks!A:P:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       task.id, task.area, task.title, task.desc,
@@ -1503,13 +1524,14 @@ async function appendKanbanTask(task) {
       task.startDate || '',
       task.projectId || '',
       JSON.stringify(task.dependsOn || []),
-      JSON.stringify(task.timeSessions || [])
+      JSON.stringify(task.timeSessions || []),
+      task.sortOrder ?? ''
     ]]})
   });
 }
 
 async function updateKanbanTask(task) {
-  await sheetsReq(`/values/KanbanTasks!A${task.rowIndex}:O${task.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/KanbanTasks!A${task.rowIndex}:P${task.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
       task.id, task.area, task.title, task.desc,
@@ -1520,7 +1542,8 @@ async function updateKanbanTask(task) {
       task.startDate || '',
       task.projectId || '',
       JSON.stringify(task.dependsOn || []),
-      JSON.stringify(task.timeSessions || [])
+      JSON.stringify(task.timeSessions || []),
+      task.sortOrder ?? ''
     ]]})
   });
 }
@@ -1637,6 +1660,70 @@ function getDueStatus(dateStr) {
   return 'normal';
 }
 
+// ── Header due-date badges (Hoy / Atrasado / A futuro) ────────────────────────
+
+function getDueCategory(dateStr) {
+  if (!dateStr) return null;
+  const d     = new Date(dateStr + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff  = Math.round((d - today) / 86400000);
+  if (diff < 0)  return 'atrasado';
+  if (diff === 0) return 'hoy';
+  return 'futuro';
+}
+
+function getTasksByDueCategory(cat) {
+  return kanbanTasks
+    .filter(t => !TERMINAL_STATES.includes(t.status) && getDueCategory(t.dueDate) === cat)
+    .sort((a, b) => (a.dueDate || '') < (b.dueDate || '') ? -1 : 1);
+}
+
+function updateDueBadgeCounts() {
+  const hoyEl      = document.getElementById('dueCountHoy');
+  const atrasadoEl = document.getElementById('dueCountAtrasado');
+  const futuroEl   = document.getElementById('dueCountFuturo');
+  if (!hoyEl || !atrasadoEl || !futuroEl) return;
+  hoyEl.textContent      = getTasksByDueCategory('hoy').length;
+  atrasadoEl.textContent = getTasksByDueCategory('atrasado').length;
+  futuroEl.textContent   = getTasksByDueCategory('futuro').length;
+}
+
+const DUE_CATEGORY_LABELS = { hoy: 'Tareas para hoy', atrasado: 'Tareas atrasadas', futuro: 'Tareas a futuro' };
+
+function renderDueBadgeDropdown(cat) {
+  const tasks = getTasksByDueCategory(cat);
+  document.getElementById('dueBadgeDropdownTitle').textContent = `${DUE_CATEGORY_LABELS[cat]} (${tasks.length})`;
+  const list = document.getElementById('dueBadgeDropdownList');
+  if (!tasks.length) {
+    list.innerHTML = '<div class="due-badge-dropdown-empty">No hay tareas.</div>';
+    return;
+  }
+  list.innerHTML = tasks.map(t => `
+    <div class="due-badge-dropdown-item" data-task="${esc(t.id)}">
+      <span class="due-badge-item-title">${esc(t.title)}</span>
+      <span class="due-badge-item-meta">${esc(t.area)} · ${fmtDueShort(t.dueDate)}</span>
+    </div>
+  `).join('');
+  list.querySelectorAll('[data-task]').forEach(el => {
+    el.addEventListener('click', () => {
+      closeDueBadgeDropdown();
+      navigateTo('tareas');
+      openTaskDetail(el.dataset.task);
+    });
+  });
+}
+
+function openDueBadgeDropdown(cat) {
+  renderDueBadgeDropdown(cat);
+  document.querySelectorAll('.due-badge').forEach(b => b.classList.toggle('active', b.dataset.dueCat === cat));
+  document.getElementById('dueBadgeDropdown').style.display = '';
+}
+
+function closeDueBadgeDropdown() {
+  document.getElementById('dueBadgeDropdown').style.display = 'none';
+  document.querySelectorAll('.due-badge').forEach(b => b.classList.remove('active'));
+}
+
 const PRIORITY_LABELS = { alta: '🔴 Alta', media: '🟡 Media', baja: '🟢 Baja' };
 
 function getTrafficLight(dateStr) {
@@ -1676,10 +1763,10 @@ function renderKanban() {
         <span class="kanban-col-dot" style="background:${esc(col.color)}"></span>
         <span class="kanban-col-title">${esc(col.name)}</span>
         <span class="kanban-col-count">${colTasks.length}</span>
+        ${col.terminal ? '' : `<button class="kanban-add-card-icon" data-col="${esc(col.name)}" title="Agregar tarea" draggable="false">+</button>`}
         <span class="col-drag-handle" title="Mover columna">⠿</span>
       </div>
       <div class="kanban-col-body" data-col="${esc(col.name)}"></div>
-      ${col.terminal ? '' : `<div class="kanban-col-footer"><button class="kanban-add-card" data-col="${esc(col.name)}">+ Agregar</button></div>`}
     `;
 
     // ── Column drag-to-reorder ────────────────────────────────────────────
@@ -1768,26 +1855,26 @@ function renderKanban() {
       });
       card.addEventListener('dragend', () => {
         card.classList.remove('dragging');
-        document.querySelectorAll('.kanban-col-body.drag-over').forEach(el => el.classList.remove('drag-over'));
+        document.querySelectorAll('.kanban-col.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
         draggedId = null;
       });
 
       colBody.appendChild(card);
     });
 
-    colBody.addEventListener('dragover', e => {
-      if (draggedColName) return; // column drag takes priority
+    colEl.addEventListener('dragover', e => {
+      if (draggedColName || !draggedId) return; // column drag takes priority
       e.preventDefault();
-      colBody.classList.add('drag-over');
+      colEl.classList.add('card-drag-over');
     });
-    colBody.addEventListener('dragleave', e => {
-      if (!colBody.contains(e.relatedTarget)) colBody.classList.remove('drag-over');
+    colEl.addEventListener('dragleave', e => {
+      if (!colEl.contains(e.relatedTarget)) colEl.classList.remove('card-drag-over');
     });
-    colBody.addEventListener('drop', async e => {
-      e.preventDefault();
-      colBody.classList.remove('drag-over');
+    colEl.addEventListener('drop', async e => {
       if (!draggedId) return;
-      const newStatus = colBody.dataset.col;
+      e.preventDefault();
+      colEl.classList.remove('card-drag-over');
+      const newStatus = col.name;
       const task = kanbanTasks.find(t => t.id === draggedId);
       if (!task || task.status === newStatus) return;
       if (TERMINAL_STATES.includes(newStatus)) {
@@ -1826,8 +1913,8 @@ function renderKanban() {
       } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
     });
   });
-  board.querySelectorAll('.kanban-add-card').forEach(btn => {
-    btn.addEventListener('click', () => openTaskModal(btn.dataset.col, null));
+  board.querySelectorAll('.kanban-add-card-icon').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); openTaskModal(btn.dataset.col, null); });
   });
 }
 
@@ -2054,7 +2141,14 @@ function renderGanttChart() {
   const tasks = kanbanTasks
     .filter(t => t.projectId === currentGanttProjectId)
     .slice()
-    .sort((a, b) => (a.startDate || '9999') < (b.startDate || '9999') ? -1 : 1);
+    .sort((a, b) => {
+      const hasA = a.sortOrder !== null && a.sortOrder !== undefined;
+      const hasB = b.sortOrder !== null && b.sortOrder !== undefined;
+      if (hasA && hasB) return a.sortOrder - b.sortOrder;
+      if (hasA) return -1;
+      if (hasB) return 1;
+      return (a.startDate || '9999') < (b.startDate || '9999') ? -1 : 1;
+    });
 
   if (!tasks.length) {
     wrap.innerHTML = `<div class="empty-state">Este proyecto aún no tiene tareas.<br/><button class="btn-primary" id="ganttEmptyAddTask" style="margin-top:12px">+ Nueva tarea</button></div>`;
@@ -2094,7 +2188,7 @@ function renderGanttChart() {
   const todayLine = (todayOffset >= 0 && todayOffset < totalDays)
     ? `<div class="gantt-today-line" style="left:${todayOffset * unitWidth}px"></div>` : '';
 
-  const sidebarHTML = tasks.map(t => `<div class="gantt-row-label" title="${esc(t.title)}">${esc(t.title)}</div>`).join('');
+  const sidebarHTML = tasks.map(t => `<div class="gantt-row-label" draggable="true" data-task="${esc(t.id)}" title="Arrastra para reordenar · ${esc(t.title)}">${esc(t.title)}</div>`).join('');
 
   const barGeom = {};
   const rowsHTML = tasks.map((t, idx) => {
@@ -2157,9 +2251,64 @@ function renderGanttChart() {
   `;
 
   wireGanttBarInteractions(tasks, unitWidth);
+  wireGanttRowReorder(tasks);
 
   const scrollEl = document.getElementById('ganttTimelineScroll');
   if (scrollEl) scrollEl.scrollLeft = Math.max(0, todayOffset * unitWidth - 200);
+}
+
+function wireGanttRowReorder(tasks) {
+  let draggedGanttTaskId = null;
+
+  document.querySelectorAll('.gantt-row-label').forEach(label => {
+    label.addEventListener('dragstart', e => {
+      draggedGanttTaskId = label.dataset.task;
+      label.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    label.addEventListener('dragend', () => {
+      label.classList.remove('dragging');
+      document.querySelectorAll('.gantt-row-label.drag-over-top, .gantt-row-label.drag-over-bottom')
+        .forEach(el => el.classList.remove('drag-over-top', 'drag-over-bottom'));
+      draggedGanttTaskId = null;
+    });
+    label.addEventListener('dragover', e => {
+      if (!draggedGanttTaskId || draggedGanttTaskId === label.dataset.task) return;
+      e.preventDefault();
+      const rect = label.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height / 2;
+      label.classList.toggle('drag-over-top', before);
+      label.classList.toggle('drag-over-bottom', !before);
+    });
+    label.addEventListener('dragleave', () => {
+      label.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    label.addEventListener('drop', async e => {
+      if (!draggedGanttTaskId || draggedGanttTaskId === label.dataset.task) return;
+      e.preventDefault();
+      const before = label.classList.contains('drag-over-top');
+      label.classList.remove('drag-over-top', 'drag-over-bottom');
+
+      const fromIdx = tasks.findIndex(t => t.id === draggedGanttTaskId);
+      let toIdx     = tasks.findIndex(t => t.id === label.dataset.task);
+      if (fromIdx === -1 || toIdx === -1) return;
+
+      const reordered = tasks.slice();
+      const [moved] = reordered.splice(fromIdx, 1);
+      toIdx = reordered.findIndex(t => t.id === label.dataset.task);
+      reordered.splice(before ? toIdx : toIdx + 1, 0, moved);
+
+      reordered.forEach((t, i) => { t.sortOrder = i; });
+      renderGanttChart();
+      try {
+        for (const t of reordered) await updateKanbanTask(t);
+      } catch (err) {
+        alert('Error al guardar el orden: ' + err.message);
+        await loadKanbanTasks();
+        renderGanttChart();
+      }
+    });
+  });
 }
 
 function wireGanttBarInteractions(tasks, unitWidth) {
@@ -3269,13 +3418,16 @@ async function initRecetasSheets() {
   const tabs  = info.sheets || [];
   const hasR  = tabs.find(s => s.properties.title === 'RecetasPlantillas');
   const hasE  = tabs.find(s => s.properties.title === 'RecetasEjecuciones');
+  const hasB  = tabs.find(s => s.properties.title === 'RecetaBlocks');
 
-  if (hasR) recetasSheetId     = hasR.properties.sheetId;
-  if (hasE) ejecucionesSheetId = hasE.properties.sheetId;
+  if (hasR) recetasSheetId       = hasR.properties.sheetId;
+  if (hasE) ejecucionesSheetId   = hasE.properties.sheetId;
+  if (hasB) recetaBlocksSheetId  = hasB.properties.sheetId;
 
   const reqs = [];
   if (!hasR) reqs.push({ addSheet: { properties: { title: 'RecetasPlantillas'  } } });
   if (!hasE) reqs.push({ addSheet: { properties: { title: 'RecetasEjecuciones' } } });
+  if (!hasB) reqs.push({ addSheet: { properties: { title: 'RecetaBlocks' } } });
 
   if (reqs.length) {
     const res = await sheetsReq(':batchUpdate', {
@@ -3286,14 +3438,24 @@ async function initRecetasSheets() {
         recetasSheetId = r.addSheet.properties.sheetId;
       if (r.addSheet?.properties?.title === 'RecetasEjecuciones')
         ejecucionesSheetId = r.addSheet.properties.sheetId;
+      if (r.addSheet?.properties?.title === 'RecetaBlocks')
+        recetaBlocksSheetId = r.addSheet.properties.sheetId;
     });
   }
 
-  const rd = await sheetsReq('/values/RecetasPlantillas!A1').catch(() => ({}));
-  if (!rd.values) {
-    await sheetsReq('/values/RecetasPlantillas!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  const rd = await sheetsReq('/values/RecetasPlantillas!A1:G1').catch(() => ({}));
+  if (!rd.values || (rd.values[0] || []).length < 7) {
+    await sheetsReq('/values/RecetasPlantillas!A1:G1?valueInputOption=RAW', {
+      method: 'PUT',
+      body: JSON.stringify({ values: [['ID','Nombre','Descripcion','Etapas','CreadoEn','IngredientesMaestros','BlockId']] })
+    });
+  }
+
+  const bd = await sheetsReq('/values/RecetaBlocks!A1').catch(() => ({}));
+  if (!bd.values) {
+    await sheetsReq('/values/RecetaBlocks!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID','Nombre','Descripcion','Etapas','CreadoEn','IngredientesMaestros']] })
+      body: JSON.stringify({ values: [['ID','Nombre','CreadoEn']] })
     });
   }
 
@@ -3309,7 +3471,7 @@ async function initRecetasSheets() {
 // ── Procesos: CRUD ────────────────────────────────────────────────────────────
 
 async function loadRecetasData() {
-  const data = await sheetsReq('/values/RecetasPlantillas!A:F');
+  const data = await sheetsReq('/values/RecetasPlantillas!A:G');
   const rows = (data.values || []).slice(1);
   recetas = rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0] || '',
@@ -3318,26 +3480,27 @@ async function loadRecetasData() {
     etapas:               safeParseJSON(r[3], []),
     creadoEn:             r[4] || '',
     ingredientesMaestros: safeParseJSON(r[5], []),
+    blockId:              r[6] || '',
     rowIndex:             i + 2
   }));
 }
 
 async function appendReceta(rec) {
-  await sheetsReq('/values/RecetasPlantillas!A:F:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/RecetasPlantillas!A:G:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       rec.id, rec.nombre, rec.descripcion, JSON.stringify(rec.etapas), rec.creadoEn,
-      JSON.stringify(rec.ingredientesMaestros || [])
+      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || ''
     ]]})
   });
 }
 
 async function updateReceta(rec) {
-  await sheetsReq(`/values/RecetasPlantillas!A${rec.rowIndex}:F${rec.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/RecetasPlantillas!A${rec.rowIndex}:G${rec.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
       rec.id, rec.nombre, rec.descripcion, JSON.stringify(rec.etapas), rec.creadoEn,
-      JSON.stringify(rec.ingredientesMaestros || [])
+      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || ''
     ]]})
   });
 }
@@ -3354,6 +3517,53 @@ async function deleteRecetaRow(rowIndex) {
       range: { sheetId: recetasSheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex }
     }}]})
   });
+}
+
+// ── Recetas: Bloques CRUD ────────────────────────────────────────────────────
+
+async function loadRecetaBlocks() {
+  const data = await sheetsReq('/values/RecetaBlocks!A:C');
+  const rows = (data.values || []).slice(1);
+  recetaBlocks = rows.filter(r => r[0]).map((r, i) => ({
+    id:        r[0] || '',
+    nombre:    r[1] || '',
+    creadoEn:  r[2] || '',
+    rowIndex:  i + 2
+  }));
+  recetaBlocksLoaded = true;
+}
+
+async function appendRecetaBlock(block) {
+  await sheetsReq('/values/RecetaBlocks!A:C:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+    method: 'POST',
+    body: JSON.stringify({ values: [[block.id, block.nombre, block.creadoEn]] })
+  });
+}
+
+async function deleteRecetaBlockRow(rowIndex) {
+  if (!recetaBlocksSheetId) {
+    const info = await sheetsReq('');
+    const tab  = info.sheets.find(s => s.properties.title === 'RecetaBlocks');
+    if (tab) recetaBlocksSheetId = tab.properties.sheetId;
+  }
+  await sheetsReq(':batchUpdate', {
+    method: 'POST',
+    body: JSON.stringify({ requests: [{ deleteDimension: {
+      range: { sheetId: recetaBlocksSheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex }
+    }}]})
+  });
+}
+
+async function deleteRecetaBlock(blockId) {
+  const block = recetaBlocks.find(b => b.id === blockId);
+  if (!block) return;
+  const affected = recetas.filter(r => r.blockId === blockId);
+  await deleteRecetaBlockRow(block.rowIndex);
+  for (const r of affected) {
+    r.blockId = '';
+    await updateReceta(r);
+  }
+  await loadRecetaBlocks();
 }
 
 async function loadEjecucionesData() {
@@ -3405,12 +3615,30 @@ async function updateEjecucion(ej) {
 async function loadProcesos() {
   try {
     await loadRecetasData();
+    await loadRecetaBlocks();
     await loadEjecucionesData();
     renderRecetasList();
     renderEjecucionesList();
   } catch (e) {
     console.error('loadProcesos:', e);
   }
+}
+
+function recetaCardHTML(r) {
+  return `
+    <div class="receta-card" data-id="${esc(r.id)}" draggable="true" title="Doble clic para ver detalle">
+      <div class="receta-card-body">
+        <div class="receta-card-title">${esc(r.nombre)}</div>
+        ${r.descripcion ? `<div class="receta-card-desc">${esc(r.descripcion)}</div>` : ''}
+        <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''} &nbsp;·&nbsp; doble clic = ver pasos</div>
+      </div>
+      <div class="receta-card-actions">
+        <button class="btn-ejecutar" data-ejecutar="${esc(r.id)}">▶ Ejecutar</button>
+        <button class="btn-outline btn-sm" data-dup-receta="${esc(r.id)}" title="Duplicar receta">${ICON_COPY}</button>
+        <button class="btn-outline btn-sm" data-edit-receta="${esc(r.id)}">${ICON_EDIT}</button>
+        <button class="btn-outline btn-sm" data-del-receta="${esc(r.id)}" data-row="${r.rowIndex}">${ICON_TRASH}</button>
+      </div>
+    </div>`;
 }
 
 function renderRecetasList() {
@@ -3422,20 +3650,53 @@ function renderRecetasList() {
     return;
   }
 
-  container.innerHTML = recetas.map(r => `
-    <div class="receta-card" data-id="${esc(r.id)}" title="Doble clic para ver detalle">
-      <div class="receta-card-body">
-        <div class="receta-card-title">${esc(r.nombre)}</div>
-        ${r.descripcion ? `<div class="receta-card-desc">${esc(r.descripcion)}</div>` : ''}
-        <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''} &nbsp;·&nbsp; doble clic = ver pasos</div>
+  if (!recetaBlocks.length) {
+    container.innerHTML = recetas.map(recetaCardHTML).join('');
+  } else {
+    const sections = recetaBlocks.map(b => ({
+      id: b.id, nombre: b.nombre, items: recetas.filter(r => r.blockId === b.id)
+    }));
+    sections.push({
+      id: '', nombre: 'Sin bloque',
+      items: recetas.filter(r => !r.blockId || !recetaBlocks.find(b => b.id === r.blockId))
+    });
+
+    container.innerHTML = sections.map(sec => `
+      <div class="receta-block-section">
+        <div class="receta-block-header">
+          <span class="receta-block-title">${esc(sec.nombre)}</span>
+          <span class="receta-block-count">${sec.items.length}</span>
+        </div>
+        <div class="receta-block-body" data-block-drop="${esc(sec.id)}">
+          ${sec.items.length ? sec.items.map(recetaCardHTML).join('') : '<div class="receta-block-empty">Arrastra una receta aquí</div>'}
+        </div>
       </div>
-      <div class="receta-card-actions">
-        <button class="btn-ejecutar" data-ejecutar="${esc(r.id)}">▶ Ejecutar</button>
-        <button class="btn-outline btn-sm" data-edit-receta="${esc(r.id)}">${ICON_EDIT}</button>
-        <button class="btn-outline btn-sm" data-del-receta="${esc(r.id)}" data-row="${r.rowIndex}">${ICON_TRASH}</button>
-      </div>
-    </div>
-  `).join('');
+    `).join('');
+
+    container.querySelectorAll('.receta-block-body').forEach(zone => {
+      zone.addEventListener('dragover', e => {
+        if (!draggedRecetaId) return;
+        e.preventDefault();
+        zone.classList.add('drag-over');
+      });
+      zone.addEventListener('dragleave', e => {
+        if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over');
+      });
+      zone.addEventListener('drop', async e => {
+        if (!draggedRecetaId) return;
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        const rec = recetas.find(r => r.id === draggedRecetaId);
+        if (!rec) return;
+        const newBlockId = zone.dataset.blockDrop;
+        if ((rec.blockId || '') === newBlockId) return;
+        rec.blockId = newBlockId;
+        renderRecetasList();
+        try { await updateReceta(rec); }
+        catch (err) { alert('Error al guardar: ' + err.message); await loadRecetasData(); renderRecetasList(); }
+      });
+    });
+  }
 
   container.querySelectorAll('.receta-card[data-id]').forEach(card => {
     card.addEventListener('dblclick', e => {
@@ -3449,9 +3710,39 @@ function renderRecetasList() {
       lastTapTime['rec_' + card.dataset.id] = now;
       if (now - last < 350) openRecetaDetail(card.dataset.id);
     });
+    card.addEventListener('dragstart', e => {
+      draggedRecetaId = card.dataset.id;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      document.querySelectorAll('.receta-block-body.drag-over').forEach(el => el.classList.remove('drag-over'));
+      draggedRecetaId = null;
+    });
   });
   container.querySelectorAll('[data-ejecutar]').forEach(btn => {
     btn.addEventListener('click', () => startExecution(btn.dataset.ejecutar));
+  });
+  container.querySelectorAll('[data-dup-receta]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const rec = recetas.find(r => r.id === btn.dataset.dupReceta);
+      if (!rec) return;
+      btn.disabled = true;
+      try {
+        await appendReceta({
+          id: crypto.randomUUID(),
+          nombre: rec.nombre + ' (copia)',
+          descripcion: rec.descripcion,
+          etapas: JSON.parse(JSON.stringify(rec.etapas)),
+          ingredientesMaestros: JSON.parse(JSON.stringify(rec.ingredientesMaestros || [])),
+          blockId: rec.blockId || '',
+          creadoEn: new Date().toISOString()
+        });
+        await loadRecetasData();
+        renderRecetasList();
+      } catch (e) { alert('Error al duplicar: ' + e.message); btn.disabled = false; }
+    });
   });
   container.querySelectorAll('[data-edit-receta]').forEach(btn => {
     btn.addEventListener('click', () => openRecetaModal(btn.dataset.editReceta));
@@ -3468,6 +3759,74 @@ function renderRecetasList() {
     });
   });
 }
+
+// ── Recetas: Bloques management modal ────────────────────────────────────────
+
+function renderRecetaBlocksList() {
+  const container = document.getElementById('recetaBlocksList');
+  if (recetaBlocks.length === 0) {
+    container.innerHTML = '<div class="empty-state">Aún no hay bloques.</div>';
+    return;
+  }
+  container.innerHTML = recetaBlocks.map(b => `
+    <div class="mgmt-item">
+      <span class="mgmt-item-name">${esc(b.nombre)}</span>
+      <button class="mgmt-item-del" data-del-block="${esc(b.id)}">✕</button>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('[data-del-block]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const block = recetaBlocks.find(b => b.id === btn.dataset.delBlock);
+      if (!block) return;
+      if (!confirm(`¿Eliminar el bloque "${block.nombre}"? Las recetas no se borrarán, quedarán sin bloque.`)) return;
+      const fb = document.getElementById('recetaBlockFeedback');
+      try {
+        await deleteRecetaBlock(block.id);
+        renderRecetaBlocksList();
+        renderRecetasList();
+        setFb(fb, `✅ Bloque eliminado.`, 'ok');
+      } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); }
+    });
+  });
+}
+
+document.getElementById('btnManageRecetaBlocks').addEventListener('click', async () => {
+  if (!recetaBlocksLoaded) await loadRecetaBlocks();
+  renderRecetaBlocksList();
+  document.getElementById('recetaBlockFeedback').textContent = '';
+  document.getElementById('recetaBlockOverlay').classList.add('open');
+});
+
+function isRecetaBlockFormDirty() {
+  return !!document.getElementById('newRecetaBlockName')?.value.trim();
+}
+
+function closeRecetaBlockModal() {
+  confirmCloseIfDirty('recetaBlockOverlay', isRecetaBlockFormDirty);
+}
+
+document.getElementById('btnCloseRecetaBlocks').addEventListener('click', closeRecetaBlockModal);
+document.getElementById('recetaBlockOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('recetaBlockOverlay')) closeRecetaBlockModal();
+});
+
+document.getElementById('btnAddRecetaBlock').addEventListener('click', async () => {
+  const nombre = document.getElementById('newRecetaBlockName').value.trim();
+  const fb     = document.getElementById('recetaBlockFeedback');
+  if (!nombre) return setFb(fb, 'El nombre del bloque es obligatorio.', 'err');
+  if (recetaBlocks.find(b => b.nombre.toLowerCase() === nombre.toLowerCase()))
+    return setFb(fb, 'Ya existe un bloque con ese nombre.', 'err');
+
+  try {
+    await appendRecetaBlock({ id: crypto.randomUUID(), nombre, creadoEn: new Date().toISOString() });
+    await loadRecetaBlocks();
+    document.getElementById('newRecetaBlockName').value = '';
+    renderRecetaBlocksList();
+    renderRecetasList();
+    setFb(fb, `✅ Bloque "${nombre}" agregado.`, 'ok');
+  } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); }
+});
 
 function renderEjecucionesList() {
   const container = document.getElementById('ejecucionesList');
@@ -3882,6 +4241,7 @@ document.querySelectorAll('[data-procesostab]').forEach(btn => {
     document.getElementById('subTabRecetas').style.display     = currentProcesosTab === 'recetas'     ? '' : 'none';
     document.getElementById('subTabEjecuciones').style.display = currentProcesosTab === 'ejecuciones' ? '' : 'none';
     document.getElementById('btnNewReceta').style.display      = currentProcesosTab === 'recetas'     ? '' : 'none';
+    document.getElementById('btnManageRecetaBlocks').style.display = currentProcesosTab === 'recetas' ? '' : 'none';
   });
 });
 

@@ -31,6 +31,24 @@
         </div>
       </div>
       <div class="header-actions">
+        <div class="due-badges" id="dueBadges">
+          <button class="due-badge due-badge--hoy" id="btnDueHoy" data-due-cat="hoy" title="Tareas para hoy">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span class="due-badge-count" id="dueCountHoy">0</span>
+          </button>
+          <button class="due-badge due-badge--atrasado" id="btnDueAtrasado" data-due-cat="atrasado" title="Tareas atrasadas">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span class="due-badge-count" id="dueCountAtrasado">0</span>
+          </button>
+          <button class="due-badge due-badge--futuro" id="btnDueFuturo" data-due-cat="futuro" title="Tareas a futuro">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span class="due-badge-count" id="dueCountFuturo">0</span>
+          </button>
+          <div class="due-badge-dropdown" id="dueBadgeDropdown" style="display:none">
+            <div class="due-badge-dropdown-title" id="dueBadgeDropdownTitle"></div>
+            <div class="due-badge-dropdown-list" id="dueBadgeDropdownList"></div>
+          </div>
+        </div>
         <button class="btn-icon" id="btnCommandPalette" title="Buscar (Ctrl+K)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         </button>
@@ -332,6 +350,9 @@
                 <button class="btn-outline btn-sm" id="btnManageIngredientes" style="margin-right:6px">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Ingredientes
                 </button>
+                <button class="btn-outline btn-sm" id="btnManageRecetaBlocks" style="margin-right:6px">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Bloques
+                </button>
                 <button class="btn-add-task" id="btnNewReceta">+ Nueva receta</button>
               </div>
             </div>
@@ -519,6 +540,25 @@
           <button class="btn-outline" id="btnAddGanttProject">Agregar</button>
         </div>
         <div class="feedback" id="ganttProjectFeedback" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Bloques de recetas -->
+  <div class="modal-overlay" id="recetaBlockOverlay">
+    <div class="modal modal-board">
+      <div class="modal-header">
+        <h2>Bloques de recetas</h2>
+        <button class="btn-icon" id="btnCloseRecetaBlocks"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <p class="mgmt-note">Un bloque agrupa recetas relacionadas. Arrastra cada receta hacia su bloque desde la lista de Recetas. Al borrar un bloque, sus recetas no se eliminan: quedan sin bloque.</p>
+        <div id="recetaBlocksList"></div>
+        <div class="add-row">
+          <input class="field-input add-row-input" id="newRecetaBlockName" type="text" placeholder="Nombre del bloque" />
+          <button class="btn-outline" id="btnAddRecetaBlock">Agregar</button>
+        </div>
+        <div class="feedback" id="recetaBlockFeedback" style="margin-top:12px"></div>
       </div>
     </div>
   </div>
