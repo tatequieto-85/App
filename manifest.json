@@ -4,8 +4,8 @@
   "description": "Programa historias de Instagram y gestiona tareas con Kanban",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#F4F5F9",
-  "theme_color": "#361214",
+  "background_color": "#F9FAFB",
+  "theme_color": "#FFFFFF",
   "orientation": "any",
   "icons": [
     {

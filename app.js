@@ -74,7 +74,7 @@ let fase2Scores          = { D3: 0, D6: 0 };
 const TERMINAL_STATES = ['Realizado', 'Cancelado', 'Postpuesto'];
 const DEFAULT_COLUMNS = [
   { name: 'Pendiente',   color: '#6B5050', terminal: false },
-  { name: 'En proceso',  color: '#F05B22', terminal: false },
+  { name: 'En proceso',  color: '#714B67', terminal: false },
   { name: 'En revisión', color: '#7A9C3E', terminal: false },
   { name: 'Realizado',   color: '#2E7D32', terminal: true  },
   { name: 'Cancelado',   color: '#C62828', terminal: true  },
@@ -98,7 +98,7 @@ const screenApp     = document.getElementById('screenApp');
 const btnSignIn     = document.getElementById('btnSignIn');
 const btnSignOut    = document.getElementById('btnSignOut');
 const btnSettings   = document.getElementById('btnSettings');
-const userInfoEl    = document.getElementById('userInfo');
+const userMenu      = document.getElementById('userMenu');
 
 const dropzone      = document.getElementById('dropzone');
 const dropzoneInner = document.getElementById('dropzoneInner');
@@ -319,9 +319,8 @@ function showSignInScreen() {
   screenBiometric.style.display = 'none';
   screenSignIn.style.display    = '';
   screenApp.style.display       = 'none';
-  btnSettings.style.display     = 'none';
-  btnSignOut.style.display      = 'none';
-  userInfoEl.textContent        = '';
+  userMenu.style.display        = 'none';
+  document.getElementById('userMenuDropdown').style.display = 'none';
 }
 
 // ── Google Auth ───────────────────────────────────────────────────────────────
@@ -411,20 +410,20 @@ async function onAuthSuccess() {
   screenBiometric.style.display = 'none';
   screenSignIn.style.display    = 'none';
   screenApp.style.display       = '';
-  btnSettings.style.display     = '';
-  btnSignOut.style.display      = '';
+  userMenu.style.display        = '';
   document.getElementById('bottomNav').style.display = '';
 
   try {
     const u = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` }
     }).then(r => r.json());
-    userInfoEl.textContent = u.name || u.email || '';
+    setUserMenuInfo(u.name, u.email);
     localStorage.setItem(USER_KEY, JSON.stringify({ name: u.name, email: u.email }));
     const firstName = (u.name || '').split(' ')[0];
     if (firstName) document.getElementById('homeGreeting').textContent = `Hola, ${firstName}`;
   } catch {
     const saved = JSON.parse(localStorage.getItem(USER_KEY) || '{}');
+    setUserMenuInfo(saved.name, saved.email);
     const firstName = (saved.name || '').split(' ')[0];
     if (firstName) document.getElementById('homeGreeting').textContent = `Hola, ${firstName}`;
   }
@@ -439,6 +438,30 @@ async function onAuthSuccess() {
   navigateTo('home');
   checkPendingEvalNotifications();
 }
+
+// ── User menu ─────────────────────────────────────────────────────────────────
+
+function setUserMenuInfo(name, email) {
+  const label = (name || email || '?').trim();
+  document.getElementById('userAvatar').textContent  = label ? label[0].toUpperCase() : '?';
+  document.getElementById('userMenuName').textContent  = name  || '';
+  document.getElementById('userMenuEmail').textContent = email || '';
+}
+
+document.getElementById('userMenuTrigger').addEventListener('click', e => {
+  e.stopPropagation();
+  const dropdown = document.getElementById('userMenuDropdown');
+  dropdown.style.display = dropdown.style.display === 'none' ? '' : 'none';
+});
+document.addEventListener('click', e => {
+  if (!userMenu.contains(e.target)) document.getElementById('userMenuDropdown').style.display = 'none';
+});
+document.getElementById('btnSettings').addEventListener('click', () => {
+  document.getElementById('userMenuDropdown').style.display = 'none';
+});
+document.getElementById('btnSignOut').addEventListener('click', () => {
+  document.getElementById('userMenuDropdown').style.display = 'none';
+});
 
 // ── WhatsApp notification (recordatorio diario) ──────────────────────────────
 // El envío automático de las 9am/4pm lo hace notificacion-apps-script.gs desde
@@ -1533,7 +1556,7 @@ async function loadGanttProjects() {
     .map((r, i) => ({
       id:        r[0] || '',
       name:      r[1] || '',
-      color:     r[2] || '#F05B22',
+      color:     r[2] || '#714B67',
       createdAt: r[3] || '',
       rowIndex:  i + 2
     }));
@@ -5290,6 +5313,103 @@ document.querySelectorAll('#informesRangeSwitch .gantt-zoom-btn').forEach(btn =>
     informesRange = btn.dataset.range;
     renderInformes();
   });
+});
+
+// ── Command palette (Ctrl+K) ─────────────────────────────────────────────────
+
+const COMMAND_PALETTE_ITEMS = [
+  { label: 'Inicio',                 action: () => navigateTo('home') },
+  { label: 'Contenido',              action: () => navigateTo('contenido') },
+  { label: 'Tareas · Kanban',        action: () => { navigateTo('tareas'); switchSubTab('kanban'); } },
+  { label: 'Tareas · Lista',         action: () => { navigateTo('tareas'); switchSubTab('lista'); } },
+  { label: 'Tareas · Gantt',         action: () => { navigateTo('tareas'); switchSubTab('gantt'); } },
+  { label: 'Procesos · Recetas',     action: () => { navigateTo('procesos'); document.querySelector('[data-procesostab="recetas"]')?.click(); } },
+  { label: 'Procesos · Ejecuciones', action: () => { navigateTo('procesos'); document.querySelector('[data-procesostab="ejecuciones"]')?.click(); } },
+  { label: 'Informes',               action: () => navigateTo('informes') },
+  { label: '+ Nueva tarea',          action: () => { navigateTo('tareas'); openTaskModal(null, null); } },
+  { label: '+ Nueva receta',         action: () => { navigateTo('procesos'); document.getElementById('btnNewReceta')?.click(); } },
+];
+
+let commandPaletteIndex = 0;
+let commandPaletteFiltered = COMMAND_PALETTE_ITEMS;
+
+function normalizeForSearch(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function renderCommandPaletteList() {
+  const list = document.getElementById('commandPaletteList');
+  if (!commandPaletteFiltered.length) {
+    list.innerHTML = '<div class="command-palette-empty">Sin resultados.</div>';
+    return;
+  }
+  list.innerHTML = commandPaletteFiltered.map((item, i) =>
+    `<div class="command-palette-item${i === commandPaletteIndex ? ' active' : ''}" data-idx="${i}">${esc(item.label)}</div>`
+  ).join('');
+  list.querySelectorAll('.command-palette-item').forEach(el => {
+    el.addEventListener('click', () => runCommandPaletteItem(+el.dataset.idx));
+    el.addEventListener('mouseenter', () => { commandPaletteIndex = +el.dataset.idx; renderCommandPaletteList(); });
+  });
+}
+
+function filterCommandPalette(query) {
+  const q = normalizeForSearch(query);
+  commandPaletteFiltered = q
+    ? COMMAND_PALETTE_ITEMS.filter(item => normalizeForSearch(item.label).includes(q))
+    : COMMAND_PALETTE_ITEMS;
+  commandPaletteIndex = 0;
+  renderCommandPaletteList();
+}
+
+function runCommandPaletteItem(idx) {
+  const item = commandPaletteFiltered[idx];
+  if (!item) return;
+  closeCommandPalette();
+  item.action();
+}
+
+function openCommandPalette() {
+  const overlay = document.getElementById('commandPaletteOverlay');
+  const input   = document.getElementById('commandPaletteInput');
+  input.value = '';
+  filterCommandPalette('');
+  overlay.classList.add('open');
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeCommandPalette() {
+  document.getElementById('commandPaletteOverlay').classList.remove('open');
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openCommandPalette();
+  } else if (e.key === 'Escape' && document.getElementById('commandPaletteOverlay').classList.contains('open')) {
+    closeCommandPalette();
+  }
+});
+
+document.getElementById('btnCommandPalette').addEventListener('click', openCommandPalette);
+document.getElementById('commandPaletteOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('commandPaletteOverlay')) closeCommandPalette();
+});
+document.getElementById('commandPaletteInput').addEventListener('input', function () {
+  filterCommandPalette(this.value);
+});
+document.getElementById('commandPaletteInput').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    commandPaletteIndex = Math.min(commandPaletteIndex + 1, commandPaletteFiltered.length - 1);
+    renderCommandPaletteList();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    commandPaletteIndex = Math.max(commandPaletteIndex - 1, 0);
+    renderCommandPaletteList();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    runCommandPaletteItem(commandPaletteIndex);
+  }
 });
 
 // ── Service Worker ────────────────────────────────────────────────────────────
