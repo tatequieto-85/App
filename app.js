@@ -60,6 +60,15 @@ let compras              = [];
 let comprasSheetId       = null;
 let comprasHistorialIng  = null;
 
+// Ferias state
+let ferias               = [];
+let feriasSheetId        = null;
+let feriaEditId          = null;
+let feriaAlineacion      = 0;
+let feriaCounterId       = null;
+let feriaCounterSaveTimer = null;
+let currentFeriasTab     = 'disponibles';
+
 // Procesos / Recetas state
 let recetas              = [];
 let ejecuciones          = [];
@@ -175,6 +184,7 @@ function navigateTo(view) {
   document.getElementById('viewTareas').style.display    = view === 'tareas'    ? '' : 'none';
   document.getElementById('viewProcesos').style.display  = view === 'procesos'  ? '' : 'none';
   document.getElementById('viewCompras').style.display   = view === 'compras'   ? '' : 'none';
+  document.getElementById('viewFerias').style.display    = view === 'ferias'    ? '' : 'none';
   document.getElementById('viewInformes').style.display  = view === 'informes'  ? '' : 'none';
 
   // Back button: hidden on home, visible in modules
@@ -209,6 +219,9 @@ function navigateTo(view) {
   }
   if (view === 'compras') {
     loadCompras().then(() => renderComprasList());
+  }
+  if (view === 'ferias') {
+    loadFerias().then(() => { renderFeriasDisponibles(); renderFeriasConfirmadas(); });
   }
   if (view === 'informes') {
     renderInformes();
@@ -545,6 +558,7 @@ async function onAuthSuccess() {
   await initRecetasSheets();
   await initIngredientesSheet();
   await initComprasSheet();
+  await initFeriasSheet();
   setDefaultDateTime();
   await loadStories();
 
@@ -4508,6 +4522,390 @@ document.getElementById('compraHistorialOverlay').addEventListener('click', e =>
   if (e.target === document.getElementById('compraHistorialOverlay')) {
     document.getElementById('compraHistorialOverlay').classList.remove('open');
   }
+});
+
+// ── Ferias: Sheets init + CRUD ──────────────────────────────────────────────────
+
+async function initFeriasSheet() {
+  const info = await sheetsReq('');
+  const tabs = info.sheets || [];
+  const hasF = tabs.find(s => s.properties.title === 'Ferias');
+
+  if (hasF) {
+    feriasSheetId = hasF.properties.sheetId;
+  } else {
+    const res = await sheetsReq(':batchUpdate', {
+      method: 'POST',
+      body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'Ferias' } } }] })
+    });
+    const added = res.replies?.[0]?.addSheet?.properties;
+    if (added) feriasSheetId = added.sheetId;
+    await sheetsReq('/values/Ferias!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+      method: 'POST',
+      body: JSON.stringify({ values: [[
+        'ID','Empresa','FechaInicio','FechaFin','Precio','FechaImportante','Lugar',
+        'Observaciones','Alineacion','Estado','ConteoPersonas','CreadoEn'
+      ]] })
+    });
+  }
+  await loadFerias();
+}
+
+async function loadFerias() {
+  const data = await sheetsReq('/values/Ferias!A:L');
+  const rows = (data.values || []).slice(1);
+  ferias = rows.filter(r => r[0]).map((r, i) => ({
+    id:               r[0] || '',
+    empresa:          r[1] || '',
+    fechaInicio:      r[2] || '',
+    fechaFin:         r[3] || '',
+    precio:           parseFloat(r[4]) || 0,
+    fechaImportante:  r[5] || '',
+    lugar:            r[6] || '',
+    observaciones:    r[7] || '',
+    alineacion:       parseInt(r[8]) || 0,
+    estado:           r[9] || 'disponible',
+    conteoPersonas:   parseInt(r[10]) || 0,
+    creadoEn:         r[11] || '',
+    rowIndex:         i + 2
+  }));
+}
+
+async function appendFeria(f) {
+  await sheetsReq('/values/Ferias!A:L:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+    method: 'POST',
+    body: JSON.stringify({ values: [[
+      f.id, f.empresa, f.fechaInicio, f.fechaFin, f.precio, f.fechaImportante, f.lugar,
+      f.observaciones || '', f.alineacion || 0, f.estado || 'disponible', f.conteoPersonas || 0,
+      new Date().toISOString()
+    ]]})
+  });
+}
+
+async function updateFeria(f) {
+  await sheetsReq(`/values/Ferias!A${f.rowIndex}:L${f.rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[
+      f.id, f.empresa, f.fechaInicio, f.fechaFin, f.precio, f.fechaImportante, f.lugar,
+      f.observaciones || '', f.alineacion || 0, f.estado || 'disponible', f.conteoPersonas || 0,
+      f.creadoEn
+    ]]})
+  });
+}
+
+async function deleteFeriaRow(rowIndex) {
+  if (!feriasSheetId) {
+    const info = await sheetsReq('');
+    const tab  = info.sheets.find(s => s.properties.title === 'Ferias');
+    if (tab) feriasSheetId = tab.properties.sheetId;
+  }
+  await sheetsReq(':batchUpdate', {
+    method: 'POST',
+    body: JSON.stringify({ requests: [{ deleteDimension: {
+      range: { sheetId: feriasSheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex }
+    }}]})
+  });
+}
+
+// ── Ferias: UI ─────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('[data-feriastab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentFeriasTab = btn.dataset.feriastab;
+    document.querySelectorAll('[data-feriastab]').forEach(b =>
+      b.classList.toggle('active', b.dataset.feriastab === currentFeriasTab)
+    );
+    document.getElementById('subTabFeriasDisponibles').style.display = currentFeriasTab === 'disponibles' ? '' : 'none';
+    document.getElementById('subTabFeriasConfirmadas').style.display = currentFeriasTab === 'confirmadas' ? '' : 'none';
+  });
+});
+
+function feriaCardHTML(f) {
+  const fechas = (f.fechaInicio && f.fechaFin) ? `${fmtDateShortEs(f.fechaInicio)} → ${fmtDateShortEs(f.fechaFin)}` : '—';
+  const stars  = '★'.repeat(f.alineacion || 0) + '☆'.repeat(5 - (f.alineacion || 0));
+  return `
+    <div class="feria-card" data-id="${esc(f.id)}">
+      <div class="feria-card-body">
+        <div class="feria-card-title">${esc(f.empresa)}</div>
+        <div class="feria-card-meta">📅 ${fechas} &nbsp;·&nbsp; 📍 ${esc(f.lugar || '—')} &nbsp;·&nbsp; ${fmtCOP(f.precio)}</div>
+        ${f.fechaImportante ? `<div class="feria-card-desc">🎯 ${esc(f.fechaImportante)}</div>` : ''}
+        ${f.observaciones ? `<div class="feria-card-desc">${esc(f.observaciones)}</div>` : ''}
+        <div class="feria-card-stars" title="Alineación con TateQuieto">${stars}</div>
+      </div>
+      <div class="receta-card-actions">
+        <button class="feria-confirm-btn" data-confirmar="${esc(f.id)}">✓ Confirmar participación</button>
+        <button class="task-action-btn" data-edit-feria="${esc(f.id)}" title="Editar">${ICON_EDIT}</button>
+        <button class="task-action-btn" data-del-feria="${esc(f.id)}" data-row="${f.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
+      </div>
+    </div>`;
+}
+
+function feriaBlockHTML(f) {
+  const fechas = (f.fechaInicio && f.fechaFin) ? `${fmtDateShortEs(f.fechaInicio)} → ${fmtDateShortEs(f.fechaFin)}` : '—';
+  return `
+    <div class="feria-block" data-id="${esc(f.id)}" title="Doble clic para registrar conteo">
+      <div class="feria-block-title">${esc(f.empresa)}</div>
+      <div class="feria-block-meta">📅 ${fechas}</div>
+      <div class="feria-block-meta">📍 ${esc(f.lugar || '—')}</div>
+      <div class="feria-block-counter">👥 ${f.conteoPersonas || 0}</div>
+      <div class="feria-block-actions">
+        <button class="task-action-btn" data-edit-feria="${esc(f.id)}" title="Editar">${ICON_EDIT}</button>
+        <button class="task-action-btn" data-volver-feria="${esc(f.id)}" title="Volver a disponibles">↩</button>
+        <button class="task-action-btn" data-del-feria="${esc(f.id)}" data-row="${f.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
+      </div>
+    </div>`;
+}
+
+function wireFeriaCardActions(container) {
+  container.querySelectorAll('[data-edit-feria]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); openFeriaModal(btn.dataset.editFeria); });
+  });
+  container.querySelectorAll('[data-del-feria]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      if (!confirm('¿Eliminar esta feria?')) return;
+      btn.disabled = true;
+      try {
+        await deleteFeriaRow(+btn.dataset.row);
+        await loadFerias();
+        renderFeriasDisponibles();
+        renderFeriasConfirmadas();
+      } catch (err) { alert('Error: ' + err.message); btn.disabled = false; }
+    });
+  });
+}
+
+function renderFeriasDisponibles() {
+  const container = document.getElementById('feriasDisponiblesList');
+  if (!container) return;
+  const list = ferias.filter(f => f.estado !== 'confirmada');
+  if (!list.length) {
+    container.innerHTML = '<div class="empty-state">No hay ferias disponibles. Agrega la primera con "+ Nueva feria".</div>';
+    return;
+  }
+  container.innerHTML = list.map(feriaCardHTML).join('');
+  wireFeriaCardActions(container);
+  container.querySelectorAll('[data-confirmar]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const f = ferias.find(x => x.id === btn.dataset.confirmar);
+      if (!f) return;
+      btn.disabled = true;
+      try {
+        f.estado = 'confirmada';
+        await updateFeria(f);
+        renderFeriasDisponibles();
+        renderFeriasConfirmadas();
+      } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
+    });
+  });
+}
+
+function renderFeriasConfirmadas() {
+  const container = document.getElementById('feriasConfirmadasList');
+  if (!container) return;
+  const list = ferias.filter(f => f.estado === 'confirmada');
+  if (!list.length) {
+    container.innerHTML = '<div class="empty-state">Aún no hay ferias confirmadas.</div>';
+    return;
+  }
+  container.innerHTML = `<div class="feria-blocks-grid">${list.map(feriaBlockHTML).join('')}</div>`;
+  wireFeriaCardActions(container);
+  container.querySelectorAll('.feria-block').forEach(block => {
+    block.addEventListener('dblclick', e => {
+      if (e.target.closest('button')) return;
+      openFeriaCounter(block.dataset.id);
+    });
+    block.addEventListener('touchend', e => {
+      if (e.target.closest('button') || wasAccidentalTouch()) return;
+      const now  = Date.now();
+      const last = lastTapTime['feria_' + block.dataset.id] || 0;
+      lastTapTime['feria_' + block.dataset.id] = now;
+      if (now - last < 350) openFeriaCounter(block.dataset.id);
+    });
+  });
+  container.querySelectorAll('[data-volver-feria]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const f = ferias.find(x => x.id === btn.dataset.volverFeria);
+      if (!f) return;
+      btn.disabled = true;
+      try {
+        f.estado = 'disponible';
+        await updateFeria(f);
+        renderFeriasDisponibles();
+        renderFeriasConfirmadas();
+      } catch (e2) { alert('Error: ' + e2.message); btn.disabled = false; }
+    });
+  });
+}
+
+function setFeriaStars(val) {
+  feriaAlineacion = val;
+  document.querySelectorAll('#feriaStarsWrap .star-btn').forEach(btn => {
+    btn.classList.toggle('active', +btn.dataset.val <= val);
+  });
+}
+document.querySelectorAll('#feriaStarsWrap .star-btn').forEach(btn => {
+  btn.addEventListener('click', () => setFeriaStars(+btn.dataset.val));
+});
+
+function updateFeriaFechasTrigger() {
+  const trigger = document.getElementById('feriaFechasTrigger');
+  const ini = document.getElementById('feriaFechaInicio').value;
+  const fin = document.getElementById('feriaFechaFin').value;
+  trigger.textContent = (ini && fin) ? `${fmtDateShortEs(ini)} → ${fmtDateShortEs(fin)}` : 'Elegir fechas…';
+}
+document.getElementById('feriaFechasTrigger').addEventListener('click', () => {
+  const iniInput = document.getElementById('feriaFechaInicio');
+  const finInput = document.getElementById('feriaFechaFin');
+  const today = toISODate(new Date());
+  openCalendarPopover(document.getElementById('feriaFechasTrigger'), {
+    mode:  'range',
+    start: iniInput.value || today,
+    end:   finInput.value || today,
+    onApply: (start, end) => {
+      iniInput.value = start;
+      finInput.value = end;
+      updateFeriaFechasTrigger();
+    }
+  });
+});
+
+function openFeriaModal(editId) {
+  feriaEditId = editId || null;
+  document.getElementById('feriaFeedback').textContent = '';
+  const today = toISODate(new Date());
+  if (editId) {
+    const f = ferias.find(x => x.id === editId);
+    if (!f) return;
+    document.getElementById('feriaModalTitle').textContent    = 'Editar feria';
+    document.getElementById('feriaEmpresa').value             = f.empresa;
+    document.getElementById('feriaFechaInicio').value         = f.fechaInicio || today;
+    document.getElementById('feriaFechaFin').value            = f.fechaFin || today;
+    document.getElementById('feriaPrecio').value               = f.precio || '';
+    document.getElementById('feriaLugar').value                = f.lugar || '';
+    document.getElementById('feriaFechaImportante').value      = f.fechaImportante || '';
+    document.getElementById('feriaObservaciones').value        = f.observaciones || '';
+    setFeriaStars(f.alineacion || 0);
+  } else {
+    document.getElementById('feriaModalTitle').textContent    = 'Nueva feria';
+    document.getElementById('feriaEmpresa').value             = '';
+    document.getElementById('feriaFechaInicio').value         = today;
+    document.getElementById('feriaFechaFin').value            = today;
+    document.getElementById('feriaPrecio').value               = '';
+    document.getElementById('feriaLugar').value                = '';
+    document.getElementById('feriaFechaImportante').value      = '';
+    document.getElementById('feriaObservaciones').value        = '';
+    setFeriaStars(0);
+  }
+  updateFeriaFechasTrigger();
+  document.getElementById('feriaOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('feriaEmpresa').focus(), 100);
+}
+
+function closeFeriaModal() {
+  document.getElementById('feriaOverlay').classList.remove('open');
+}
+document.getElementById('btnCloseFeria').addEventListener('click', closeFeriaModal);
+document.getElementById('feriaOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('feriaOverlay')) closeFeriaModal();
+});
+document.getElementById('btnNewFeria').addEventListener('click', () => openFeriaModal(null));
+
+document.getElementById('btnSaveFeria').addEventListener('click', async () => {
+  const empresa         = document.getElementById('feriaEmpresa').value.trim();
+  const fechaInicio     = document.getElementById('feriaFechaInicio').value;
+  const fechaFin        = document.getElementById('feriaFechaFin').value;
+  const precio          = parseFloat(document.getElementById('feriaPrecio').value) || 0;
+  const lugar           = document.getElementById('feriaLugar').value.trim();
+  const fechaImportante = document.getElementById('feriaFechaImportante').value.trim();
+  const observaciones   = document.getElementById('feriaObservaciones').value.trim();
+  const fb              = document.getElementById('feriaFeedback');
+
+  if (!empresa) return setFb(fb, 'La empresa organizadora es obligatoria.', 'err');
+  if (!fechaInicio || !fechaFin) return setFb(fb, 'Las fechas de la feria son obligatorias.', 'err');
+  if (fechaInicio > fechaFin) return setFb(fb, 'La fecha de inicio no puede ser posterior a la de fin.', 'err');
+
+  const btn = document.getElementById('btnSaveFeria');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    if (feriaEditId) {
+      const f = ferias.find(x => x.id === feriaEditId);
+      if (f) {
+        Object.assign(f, { empresa, fechaInicio, fechaFin, precio, lugar, fechaImportante, observaciones, alineacion: feriaAlineacion });
+        await updateFeria(f);
+      }
+    } else {
+      await appendFeria({
+        id: crypto.randomUUID(), empresa, fechaInicio, fechaFin, precio, lugar, fechaImportante,
+        observaciones, alineacion: feriaAlineacion, estado: 'disponible', conteoPersonas: 0
+      });
+    }
+    await loadFerias();
+    renderFeriasDisponibles();
+    renderFeriasConfirmadas();
+    closeFeriaModal();
+  } catch (e) {
+    setFb(fb, 'Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar feria';
+  }
+});
+
+// ── Ferias: Conteo de personas ───────────────────────────────────────────────
+
+function openFeriaCounter(feriaId) {
+  const f = ferias.find(x => x.id === feriaId);
+  if (!f) return;
+  feriaCounterId = feriaId;
+  document.getElementById('feriaCounterTitle').textContent = `Conteo — ${f.empresa}`;
+  document.getElementById('feriaCounterValue').textContent = f.conteoPersonas || 0;
+  document.getElementById('feriaCounterOverlay').classList.add('open');
+}
+
+function scheduleFeriaCounterSave() {
+  clearTimeout(feriaCounterSaveTimer);
+  feriaCounterSaveTimer = setTimeout(async () => {
+    const f = ferias.find(x => x.id === feriaCounterId);
+    if (!f) return;
+    try { await updateFeria(f); }
+    catch (e) { console.warn('Error guardando conteo:', e.message); }
+  }, 700);
+}
+
+function adjustFeriaCounter(delta) {
+  const f = ferias.find(x => x.id === feriaCounterId);
+  if (!f) return;
+  f.conteoPersonas = Math.max(0, (f.conteoPersonas || 0) + delta);
+  document.getElementById('feriaCounterValue').textContent = f.conteoPersonas;
+  const blockCounterEl = document.querySelector(`.feria-block[data-id="${CSS.escape(feriaCounterId)}"] .feria-block-counter`);
+  if (blockCounterEl) blockCounterEl.textContent = `👥 ${f.conteoPersonas}`;
+  scheduleFeriaCounterSave();
+}
+
+document.getElementById('btnFeriaCounterPlus').addEventListener('click', () => adjustFeriaCounter(1));
+document.getElementById('btnFeriaCounterMinus').addEventListener('click', () => adjustFeriaCounter(-1));
+document.getElementById('btnFeriaCounterReset').addEventListener('click', () => {
+  if (!confirm('¿Reiniciar el conteo a 0?')) return;
+  const f = ferias.find(x => x.id === feriaCounterId);
+  if (!f) return;
+  f.conteoPersonas = 0;
+  document.getElementById('feriaCounterValue').textContent = 0;
+  const blockCounterEl = document.querySelector(`.feria-block[data-id="${CSS.escape(feriaCounterId)}"] .feria-block-counter`);
+  if (blockCounterEl) blockCounterEl.textContent = '👥 0';
+  scheduleFeriaCounterSave();
+});
+
+function closeFeriaCounter() {
+  clearTimeout(feriaCounterSaveTimer);
+  const f = ferias.find(x => x.id === feriaCounterId);
+  if (f) updateFeria(f).catch(e => console.warn('Error guardando conteo final:', e.message));
+  document.getElementById('feriaCounterOverlay').classList.remove('open');
+  feriaCounterId = null;
+}
+document.getElementById('btnCloseFeriaCounter').addEventListener('click', closeFeriaCounter);
+document.getElementById('feriaCounterOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('feriaCounterOverlay')) closeFeriaCounter();
 });
 
 // ── Procesos: Sheets init ─────────────────────────────────────────────────────

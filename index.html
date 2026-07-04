@@ -152,6 +152,13 @@
               <span class="app-card-label">Compras</span>
               <span class="app-card-sub">Ingredientes · Precios</span>
             </button>
+            <button class="app-card" data-nav="ferias">
+              <div class="app-card-icon app-card-icon--rose">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4a1 1 0 011-1h11l-1.5 4L16 11H5"/></svg>
+              </div>
+              <span class="app-card-label">Ferias</span>
+              <span class="app-card-sub">Participación · Conteo</span>
+            </button>
             <button class="app-card" data-nav="informes">
               <div class="app-card-icon app-card-icon--blue">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -348,6 +355,45 @@
               </div>
               <div id="comprasList"><div class="loading-state">Cargando…</div></div>
             </section>
+          </div>
+        </div>
+
+        <!-- FERIAS VIEW -->
+        <div id="viewFerias" class="view" style="display:none">
+          <div class="sub-tab-nav">
+            <div class="sub-tab-nav-inner">
+              <div class="sub-tabs">
+                <button class="sub-tab-btn active" data-feriastab="disponibles">Ferias Disponibles</button>
+                <button class="sub-tab-btn" data-feriastab="confirmadas">Ferias Confirmadas</button>
+              </div>
+              <div class="sub-tab-actions">
+                <button class="btn-add-task" id="btnNewFeria">+ Nueva feria</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="subTabFeriasDisponibles">
+            <div class="main">
+              <section class="card">
+                <div class="section-header">
+                  <h2 class="section-title">Ferias disponibles</h2>
+                  <span class="hint-chip">Doble clic para ver el detalle</span>
+                </div>
+                <div id="feriasDisponiblesList"><div class="loading-state">Cargando ferias…</div></div>
+              </section>
+            </div>
+          </div>
+
+          <div id="subTabFeriasConfirmadas" style="display:none">
+            <div class="main">
+              <section class="card">
+                <div class="section-header">
+                  <h2 class="section-title">Ferias confirmadas</h2>
+                  <span class="hint-chip">Doble clic en un bloque para registrar el conteo</span>
+                </div>
+                <div id="feriasConfirmadasList"><div class="loading-state">Cargando ferias…</div></div>
+              </section>
+            </div>
           </div>
         </div>
 
@@ -641,6 +687,61 @@
       </div>
       <div class="modal-body modal-body-scroll">
         <div id="compraHistorialList" class="mgmt-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nueva/Editar feria -->
+  <div class="modal-overlay" id="feriaOverlay">
+    <div class="modal" style="max-width:460px">
+      <div class="modal-header">
+        <h2 id="feriaModalTitle">Nueva feria</h2>
+        <button class="btn-icon" id="btnCloseFeria"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <label class="field-label">Empresa organizadora *</label>
+        <input class="field-input" id="feriaEmpresa" type="text" placeholder="Nombre de la empresa…" />
+        <label class="field-label">Fechas de la feria *</label>
+        <button type="button" class="field-input date-picker-trigger" id="feriaFechasTrigger"></button>
+        <input id="feriaFechaInicio" type="date" style="display:none" />
+        <input id="feriaFechaFin" type="date" style="display:none" />
+        <label class="field-label">Precio de participación</label>
+        <input class="field-input" id="feriaPrecio" type="number" min="0" step="any" placeholder="$" />
+        <label class="field-label">Lugar</label>
+        <input class="field-input" id="feriaLugar" type="text" placeholder="Ej: Centro de Convenciones…" />
+        <label class="field-label">Fecha importante cercana <span class="field-label-hint">· ej: Día del padre, feriado largo…</span></label>
+        <input class="field-input" id="feriaFechaImportante" type="text" placeholder="Ej: Día del padre" />
+        <label class="field-label">Alineación con TateQuieto</label>
+        <div class="rating-stars" id="feriaStarsWrap">
+          <button class="star-btn" data-val="1"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 7.1-1.01z"/></svg></button>
+          <button class="star-btn" data-val="2"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 7.1-1.01z"/></svg></button>
+          <button class="star-btn" data-val="3"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 7.1-1.01z"/></svg></button>
+          <button class="star-btn" data-val="4"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 7.1-1.01z"/></svg></button>
+          <button class="star-btn" data-val="5"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 7.1-1.01z"/></svg></button>
+        </div>
+        <label class="field-label">Observaciones</label>
+        <textarea class="field-textarea" id="feriaObservaciones" rows="3" placeholder="Notas sobre esta feria…"></textarea>
+        <button class="btn-primary" id="btnSaveFeria">Guardar feria</button>
+        <div class="feedback" id="feriaFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Conteo de personas en feria -->
+  <div class="modal-overlay" id="feriaCounterOverlay">
+    <div class="modal" style="max-width:360px">
+      <div class="modal-header">
+        <h2 id="feriaCounterTitle">Conteo de personas</h2>
+        <button class="btn-icon" id="btnCloseFeriaCounter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body" style="text-align:center">
+        <p class="mgmt-note">Personas que probaron TateQuieto en esta feria</p>
+        <div class="feria-counter-value" id="feriaCounterValue">0</div>
+        <div class="feria-counter-actions">
+          <button class="btn-outline" id="btnFeriaCounterMinus">−1</button>
+          <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlus">+1</button>
+        </div>
+        <button class="btn-outline btn-sm" id="btnFeriaCounterReset" style="margin-top:14px">Reiniciar conteo</button>
       </div>
     </div>
   </div>
