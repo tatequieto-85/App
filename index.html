@@ -145,6 +145,13 @@
               <span class="app-card-label">Procesos</span>
               <span class="app-card-sub">Recetas · Lotes</span>
             </button>
+            <button class="app-card" data-nav="compras">
+              <div class="app-card-icon app-card-icon--amber">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+              </div>
+              <span class="app-card-label">Compras</span>
+              <span class="app-card-sub">Ingredientes · Precios</span>
+            </button>
             <button class="app-card" data-nav="informes">
               <div class="app-card-icon app-card-icon--blue">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -328,6 +335,19 @@
                 <div id="ejecucionesList"><div class="loading-state">Cargando ejecuciones…</div></div>
               </section>
             </div>
+          </div>
+        </div>
+
+        <!-- COMPRAS VIEW -->
+        <div id="viewCompras" class="view" style="display:none">
+          <div class="main">
+            <section class="card">
+              <div class="section-header">
+                <h2 class="section-title">Compras de ingredientes</h2>
+                <button class="btn-add-task" id="btnNewCompra">+ Registrar compra</button>
+              </div>
+              <div id="comprasList"><div class="loading-state">Cargando…</div></div>
+            </section>
           </div>
         </div>
 
@@ -580,10 +600,47 @@
         <p class="mgmt-note">Lista maestra de ingredientes. No se permiten duplicados ni términos similares (ej: "cebolla" y "cebollas" se detectan como el mismo).</p>
         <div class="add-row" style="margin-bottom:12px">
           <input class="field-input add-row-input" id="nuevoIngrediente" type="text" placeholder="Nombre del ingrediente…" autocomplete="off" />
+          <input class="field-input" id="nuevoIngredienteUnidad" type="text" placeholder="Unidad (g, kg, L…)" style="max-width:140px" autocomplete="off" />
           <button class="btn-outline" id="btnAddIngrediente">Agregar</button>
         </div>
         <div class="feedback" id="ingredientesFeedback"></div>
         <div id="ingredientesList" class="mgmt-list" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Registrar compra -->
+  <div class="modal-overlay" id="compraOverlay">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <h2 id="compraModalTitle">Registrar compra</h2>
+        <button class="btn-icon" id="btnCloseCompra"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <label class="field-label">Ingrediente *</label>
+        <input class="field-input" id="compraIngrediente" type="text" placeholder="Nombre del ingrediente…" autocomplete="off" />
+        <label class="field-label">Cantidad comprada * <span class="field-label-hint" id="compraUnidadHint"></span></label>
+        <input class="field-input" id="compraCantidad" type="number" min="0" step="any" placeholder="Cantidad" />
+        <label class="field-label">Precio total pagado *</label>
+        <input class="field-input" id="compraPrecioTotal" type="number" min="0" step="any" placeholder="$" />
+        <label class="field-label">Fecha de compra *</label>
+        <button type="button" class="field-input date-picker-trigger" id="compraFechaTrigger"></button>
+        <input id="compraFecha" type="date" style="display:none" />
+        <button class="btn-primary" id="btnSaveCompra">Guardar compra</button>
+        <div class="feedback" id="compraFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Historial de compras de un ingrediente -->
+  <div class="modal-overlay" id="compraHistorialOverlay">
+    <div class="modal" style="max-width:480px">
+      <div class="modal-header">
+        <h2 id="compraHistorialTitle">Historial de compras</h2>
+        <button class="btn-icon" id="btnCloseCompraHistorial"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <div id="compraHistorialList" class="mgmt-list"></div>
       </div>
     </div>
   </div>
@@ -754,6 +811,7 @@
         <div class="eval-dim">
           <div class="eval-dim-title">Envasado y Rendimiento <span class="eval-dim-code">I-09</span></div>
           <div class="eval-insumos-total" id="evalInsumosTotal">Cargando insumos usados…</div>
+          <div class="eval-insumos-total" id="evalCostoProduccion"></div>
           <div class="eval-frascos-grid">
             <div class="eval-frasco-field">
               <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Frascos 230 ml</label>

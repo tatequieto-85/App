@@ -55,6 +55,11 @@ let undoStack = [];
 let ingredientes         = [];
 let ingredientesSheetId  = null;
 
+// Compras state
+let compras              = [];
+let comprasSheetId       = null;
+let comprasHistorialIng  = null;
+
 // Procesos / Recetas state
 let recetas              = [];
 let ejecuciones          = [];
@@ -64,6 +69,8 @@ let recetaBlocks         = [];
 let recetaBlocksSheetId  = null;
 let recetaBlocksLoaded   = false;
 let draggedRecetaId      = null;
+let draggedBlockId       = null;
+let collapsedRecetaBlocks = new Set();
 let currentProcesosTab   = 'recetas';
 let editRecetaId         = null;
 let recetaFixedFirst     = null; // etapa fija de inicio (oculta en el editor)
@@ -167,6 +174,7 @@ function navigateTo(view) {
   document.getElementById('viewContenido').style.display = view === 'contenido' ? '' : 'none';
   document.getElementById('viewTareas').style.display    = view === 'tareas'    ? '' : 'none';
   document.getElementById('viewProcesos').style.display  = view === 'procesos'  ? '' : 'none';
+  document.getElementById('viewCompras').style.display   = view === 'compras'   ? '' : 'none';
   document.getElementById('viewInformes').style.display  = view === 'informes'  ? '' : 'none';
 
   // Back button: hidden on home, visible in modules
@@ -198,6 +206,9 @@ function navigateTo(view) {
   }
   if (view === 'procesos') {
     loadProcesos();
+  }
+  if (view === 'compras') {
+    loadCompras().then(() => renderComprasList());
   }
   if (view === 'informes') {
     renderInformes();
@@ -533,6 +544,7 @@ async function onAuthSuccess() {
   await loadKanbanTasks();
   await initRecetasSheets();
   await initIngredientesSheet();
+  await initComprasSheet();
   setDefaultDateTime();
   await loadStories();
 
@@ -3964,28 +3976,41 @@ async function initIngredientesSheet() {
     if (added) ingredientesSheetId = added.sheetId;
     await sheetsReq('/values/Ingredientes!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID', 'Nombre', 'CreadoEn']] })
+      body: JSON.stringify({ values: [['ID', 'Nombre', 'CreadoEn', 'Unidad']] })
     });
   }
   await loadIngredientes();
 }
 
 async function loadIngredientes() {
-  const data = await sheetsReq('/values/Ingredientes!A:C');
+  const data = await sheetsReq('/values/Ingredientes!A:D');
   const rows = (data.values || []).slice(1);
   ingredientes = rows.filter(r => r[0]).map((r, i) => ({
     id:       r[0] || '',
     nombre:   r[1] || '',
     creadoEn: r[2] || '',
+    unidad:   r[3] || '',
     rowIndex: i + 2
   }));
 }
 
-async function appendIngrediente(nombre) {
-  await sheetsReq('/values/Ingredientes!A:C:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+async function appendIngrediente(nombre, unidad) {
+  await sheetsReq('/values/Ingredientes!A:D:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
-    body: JSON.stringify({ values: [[crypto.randomUUID(), nombre, new Date().toISOString()]] })
+    body: JSON.stringify({ values: [[crypto.randomUUID(), nombre, new Date().toISOString(), unidad || '']] })
   });
+}
+
+async function updateIngrediente(ing) {
+  await sheetsReq(`/values/Ingredientes!A${ing.rowIndex}:D${ing.rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[ing.id, ing.nombre, ing.creadoEn, ing.unidad || '']] })
+  });
+}
+
+function getIngredienteUnidad(nombre) {
+  const found = findIngredienteDuplicate(nombre);
+  return found?.unidad || '';
 }
 
 async function deleteIngredienteRow(rowIndex) {
@@ -4015,13 +4040,13 @@ function findIngredienteDuplicate(nombre) {
   return ingredientes.find(ing => normalizeIngName(ing.nombre) === norm) || null;
 }
 
-async function tryAddIngrediente(nombre) {
+async function tryAddIngrediente(nombre, unidad) {
   const trimmed = nombre.trim();
   if (!trimmed) return null;
   const dup = findIngredienteDuplicate(trimmed);
   if (dup) return dup.nombre;
   try {
-    await appendIngrediente(trimmed);
+    await appendIngrediente(trimmed, unidad);
     await loadIngredientes();
     return trimmed;
   } catch (e) {
@@ -4080,7 +4105,8 @@ function attachIngredienteAutocomplete(input) {
       addOpt.innerHTML = `+ Agregar "<strong>${esc(val)}</strong>"`;
       addOpt.addEventListener('mousedown', async e => {
         e.preventDefault();
-        const result = await tryAddIngrediente(val);
+        const unidad = prompt(`¿Unidad de medida para "${val}"? (g, kg, L, unidades…)`, '') || '';
+        const result = await tryAddIngrediente(val, unidad.trim());
         if (result) input.value = result;
         removeDropdown();
       });
@@ -4118,9 +4144,26 @@ function renderIngredientesList() {
   container.innerHTML = sorted.map(ing => `
     <div class="mgmt-item">
       <span class="mgmt-item-name">${esc(ing.nombre)}</span>
+      <input class="field-input mgmt-item-unidad" type="text" value="${esc(ing.unidad || '')}" placeholder="Unidad" data-row="${ing.rowIndex}" />
       <button class="mgmt-item-del" data-del-ing="${ing.rowIndex}">✕</button>
     </div>
   `).join('');
+  container.querySelectorAll('.mgmt-item-unidad').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      const ing = ingredientes.find(i => i.rowIndex === +inp.dataset.row);
+      if (!ing) return;
+      inp.disabled = true;
+      try {
+        await updateIngrediente({ ...ing, unidad: inp.value.trim() });
+        await loadIngredientes();
+        setFb(document.getElementById('ingredientesFeedback'), '✅ Unidad actualizada.', 'ok');
+      } catch (e) {
+        setFb(document.getElementById('ingredientesFeedback'), 'Error: ' + e.message, 'err');
+      } finally {
+        inp.disabled = false;
+      }
+    });
+  });
   container.querySelectorAll('[data-del-ing]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const row = +btn.dataset.delIng;
@@ -4156,10 +4199,13 @@ document.getElementById('ingredientesOverlay').addEventListener('click', e => {
 document.getElementById('btnManageIngredientes').addEventListener('click', () => openIngredientesModal(false));
 
 document.getElementById('btnAddIngrediente').addEventListener('click', async () => {
-  const input = document.getElementById('nuevoIngrediente');
-  const nombre = input.value.trim();
+  const input       = document.getElementById('nuevoIngrediente');
+  const unidadInput = document.getElementById('nuevoIngredienteUnidad');
+  const nombre      = input.value.trim();
+  const unidad      = unidadInput.value.trim();
   const fb = document.getElementById('ingredientesFeedback');
   if (!nombre) return setFb(fb, 'Escribe el nombre del ingrediente.', 'err');
+  if (!unidad) return setFb(fb, 'Indica la unidad de medida (g, kg, L…).', 'err');
 
   const dup = findIngredienteDuplicate(nombre);
   if (dup) return setFb(fb, `Ya existe "${dup.nombre}" (similar a "${nombre}").`, 'err');
@@ -4167,10 +4213,11 @@ document.getElementById('btnAddIngrediente').addEventListener('click', async () 
   const btn = document.getElementById('btnAddIngrediente');
   btn.disabled = true;
   try {
-    await appendIngrediente(nombre);
+    await appendIngrediente(nombre, unidad);
     await loadIngredientes();
     renderIngredientesList();
     input.value = '';
+    unidadInput.value = '';
     setFb(fb, `✅ "${nombre}" agregado.`, 'ok');
   } catch (e) {
     setFb(fb, 'Error: ' + e.message, 'err');
@@ -4181,6 +4228,286 @@ document.getElementById('btnAddIngrediente').addEventListener('click', async () 
 
 document.getElementById('nuevoIngrediente').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('btnAddIngrediente').click();
+});
+
+// ── Compras: Sheets init + CRUD ────────────────────────────────────────────────
+
+async function initComprasSheet() {
+  const info = await sheetsReq('');
+  const tabs = info.sheets || [];
+  const hasC = tabs.find(s => s.properties.title === 'Compras');
+
+  if (hasC) {
+    comprasSheetId = hasC.properties.sheetId;
+  } else {
+    const res = await sheetsReq(':batchUpdate', {
+      method: 'POST',
+      body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'Compras' } } }] })
+    });
+    const added = res.replies?.[0]?.addSheet?.properties;
+    if (added) comprasSheetId = added.sheetId;
+    await sheetsReq('/values/Compras!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+      method: 'POST',
+      body: JSON.stringify({ values: [['ID', 'Ingrediente', 'Cantidad', 'PrecioTotal', 'Fecha', 'CreadoEn']] })
+    });
+  }
+  await loadCompras();
+}
+
+async function loadCompras() {
+  const data = await sheetsReq('/values/Compras!A:F');
+  const rows = (data.values || []).slice(1);
+  compras = rows.filter(r => r[0]).map((r, i) => ({
+    id:          r[0] || '',
+    ingrediente: r[1] || '',
+    cantidad:    parseFloat(r[2]) || 0,
+    precioTotal: parseFloat(r[3]) || 0,
+    fecha:       r[4] || '',
+    creadoEn:    r[5] || '',
+    rowIndex:    i + 2
+  }));
+}
+
+async function appendCompra(c) {
+  await sheetsReq('/values/Compras!A:F:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+    method: 'POST',
+    body: JSON.stringify({ values: [[
+      crypto.randomUUID(), c.ingrediente, c.cantidad, c.precioTotal, c.fecha, new Date().toISOString()
+    ]]})
+  });
+}
+
+async function deleteCompraRow(rowIndex) {
+  if (!comprasSheetId) {
+    const info = await sheetsReq('');
+    const tab  = info.sheets.find(s => s.properties.title === 'Compras');
+    if (tab) comprasSheetId = tab.properties.sheetId;
+  }
+  await sheetsReq(':batchUpdate', {
+    method: 'POST',
+    body: JSON.stringify({ requests: [{ deleteDimension: {
+      range: { sheetId: comprasSheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex }
+    }}]})
+  });
+}
+
+function comprasForIngrediente(nombre) {
+  const key = normalizeIngName(nombre);
+  return compras.filter(c => normalizeIngName(c.ingrediente) === key);
+}
+
+function getLatestCompra(nombre) {
+  const list = comprasForIngrediente(nombre);
+  if (!list.length) return null;
+  return list.slice().sort((a, b) => {
+    const da = a.fecha || a.creadoEn || '';
+    const db = b.fecha || b.creadoEn || '';
+    if (da !== db) return da < db ? 1 : -1;
+    return (a.creadoEn || '') < (b.creadoEn || '') ? 1 : -1;
+  })[0];
+}
+
+function getUnitPrice(nombre) {
+  const last = getLatestCompra(nombre);
+  if (!last || !last.cantidad) return null;
+  return last.precioTotal / last.cantidad;
+}
+
+function fmtCOP(n) {
+  return (n || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+}
+
+function computeCostoProduccion(etapasData) {
+  let total = 0;
+  const incompleto = [];
+  (etapasData || []).forEach(stage => {
+    (stage.insumosConfirmados || []).forEach(ins => {
+      const qty = parseFloat(ins.cantidadReal) || 0;
+      if (!qty) return;
+      const price = getUnitPrice(ins.nombre);
+      if (price == null) {
+        if (!incompleto.includes(ins.nombre)) incompleto.push(ins.nombre);
+        return;
+      }
+      total += qty * price;
+    });
+  });
+  return { total, incompleto };
+}
+
+// ── Compras: UI ────────────────────────────────────────────────────────────────
+
+function renderComprasList() {
+  const container = document.getElementById('comprasList');
+  if (!container) return;
+  if (!ingredientes.length) {
+    container.innerHTML = '<div class="empty-state">No hay ingredientes registrados todavía. Agrégalos desde Procesos → Ingredientes.</div>';
+    return;
+  }
+  const sorted = [...ingredientes].sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const rowsHTML = sorted.map(ing => {
+    const last      = getLatestCompra(ing.nombre);
+    const unitPrice = last && last.cantidad ? last.precioTotal / last.cantidad : null;
+    return `
+      <tr>
+        <td>${esc(ing.nombre)}</td>
+        <td>${esc(ing.unidad || '—')}</td>
+        <td>${unitPrice != null ? `${fmtCOP(unitPrice)} / ${esc(ing.unidad || 'u')}` : 'Sin compras'}</td>
+        <td>${last ? (fmtDateShortEs(last.fecha) || fmtDate(last.creadoEn)) : '—'}</td>
+        <td style="white-space:nowrap">
+          <button class="task-action-btn" data-add-compra="${esc(ing.nombre)}" title="Registrar compra">🛒</button>
+          ${last ? `<button class="task-action-btn" data-historial="${esc(ing.nombre)}" title="Ver historial">📜</button>` : ''}
+        </td>
+      </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <table class="tasks-table">
+      <thead><tr><th>Ingrediente</th><th>Unidad</th><th>Último precio</th><th>Última compra</th><th></th></tr></thead>
+      <tbody>${rowsHTML}</tbody>
+    </table>
+  `;
+
+  container.querySelectorAll('[data-add-compra]').forEach(btn => {
+    btn.addEventListener('click', () => openCompraModal(btn.dataset.addCompra));
+  });
+  container.querySelectorAll('[data-historial]').forEach(btn => {
+    btn.addEventListener('click', () => openCompraHistorial(btn.dataset.historial));
+  });
+}
+
+function updateCompraUnidadHint() {
+  const nombre = document.getElementById('compraIngrediente').value.trim();
+  const unidad = getIngredienteUnidad(nombre);
+  document.getElementById('compraUnidadHint').textContent = unidad ? `· en ${unidad}` : '';
+}
+
+function updateCompraFechaTrigger() {
+  const trigger = document.getElementById('compraFechaTrigger');
+  const val     = document.getElementById('compraFecha').value;
+  trigger.textContent = val ? fmtDateShortEs(val) : 'Elegir fecha…';
+}
+
+function openCompraModal(nombrePrefill) {
+  document.getElementById('compraFeedback').textContent = '';
+  const ingInput = document.getElementById('compraIngrediente');
+  ingInput.value    = nombrePrefill || '';
+  ingInput.disabled = !!nombrePrefill;
+  document.getElementById('compraCantidad').value    = '';
+  document.getElementById('compraPrecioTotal').value = '';
+  document.getElementById('compraFecha').value = toISODate(new Date());
+  updateCompraFechaTrigger();
+  updateCompraUnidadHint();
+  document.getElementById('compraOverlay').classList.add('open');
+  if (!nombrePrefill) setTimeout(() => ingInput.focus(), 100);
+}
+
+attachIngredienteAutocomplete(document.getElementById('compraIngrediente'));
+document.getElementById('compraIngrediente').addEventListener('input', updateCompraUnidadHint);
+document.getElementById('compraIngrediente').addEventListener('change', updateCompraUnidadHint);
+
+document.getElementById('compraFechaTrigger').addEventListener('click', () => {
+  const fechaInput = document.getElementById('compraFecha');
+  openCalendarPopover(document.getElementById('compraFechaTrigger'), {
+    mode:  'single',
+    start: fechaInput.value || toISODate(new Date()),
+    end:   fechaInput.value || toISODate(new Date()),
+    onApply: (start, end) => {
+      fechaInput.value = end;
+      updateCompraFechaTrigger();
+    }
+  });
+});
+
+function closeCompraModal() {
+  document.getElementById('compraOverlay').classList.remove('open');
+}
+document.getElementById('btnCloseCompra').addEventListener('click', closeCompraModal);
+document.getElementById('compraOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('compraOverlay')) closeCompraModal();
+});
+document.getElementById('btnNewCompra').addEventListener('click', () => openCompraModal(null));
+
+document.getElementById('btnSaveCompra').addEventListener('click', async () => {
+  const ingInput     = document.getElementById('compraIngrediente');
+  const nombre       = ingInput.value.trim();
+  const cantidad     = parseFloat(document.getElementById('compraCantidad').value);
+  const precioTotal  = parseFloat(document.getElementById('compraPrecioTotal').value);
+  const fecha        = document.getElementById('compraFecha').value;
+  const fb           = document.getElementById('compraFeedback');
+
+  if (!nombre) return setFb(fb, 'Indica el ingrediente.', 'err');
+  const dup = findIngredienteDuplicate(nombre);
+  if (!dup) return setFb(fb, `"${nombre}" no está en la lista de ingredientes. Elígelo de las sugerencias o usa "+ Agregar" mientras escribes.`, 'err');
+  if (!cantidad || cantidad <= 0) return setFb(fb, 'La cantidad debe ser mayor a 0.', 'err');
+  if (!precioTotal || precioTotal <= 0) return setFb(fb, 'El precio total debe ser mayor a 0.', 'err');
+  if (!fecha) return setFb(fb, 'Indica la fecha de compra.', 'err');
+
+  const btn = document.getElementById('btnSaveCompra');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    await appendCompra({ ingrediente: dup.nombre, cantidad, precioTotal, fecha });
+    await loadCompras();
+    renderComprasList();
+    closeCompraModal();
+  } catch (e) {
+    setFb(fb, 'Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar compra';
+  }
+});
+
+function openCompraHistorial(nombre) {
+  comprasHistorialIng = nombre;
+  document.getElementById('compraHistorialTitle').textContent = `Historial de compras — ${nombre}`;
+  renderCompraHistorialList();
+  document.getElementById('compraHistorialOverlay').classList.add('open');
+}
+
+function renderCompraHistorialList() {
+  const container = document.getElementById('compraHistorialList');
+  const list = comprasForIngrediente(comprasHistorialIng).slice().sort((a, b) => {
+    const da = a.fecha || a.creadoEn || '', db = b.fecha || b.creadoEn || '';
+    return da < db ? 1 : da > db ? -1 : 0;
+  });
+  if (!list.length) {
+    container.innerHTML = '<div class="empty-state">Sin compras registradas.</div>';
+    return;
+  }
+  const unidad = getIngredienteUnidad(comprasHistorialIng) || 'u';
+  container.innerHTML = list.map(c => `
+    <div class="mgmt-item">
+      <span class="mgmt-item-name">
+        ${esc(fmtDateShortEs(c.fecha) || '—')} — ${c.cantidad} ${esc(unidad)} por ${fmtCOP(c.precioTotal)}
+        <span class="mgmt-item-tag">${fmtCOP(c.cantidad ? c.precioTotal / c.cantidad : 0)}/${esc(unidad)}</span>
+      </span>
+      <button class="mgmt-item-del" data-del-compra="${c.rowIndex}">✕</button>
+    </div>
+  `).join('');
+  container.querySelectorAll('[data-del-compra]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar esta compra?')) return;
+      btn.disabled = true;
+      try {
+        await deleteCompraRow(+btn.dataset.delCompra);
+        await loadCompras();
+        renderCompraHistorialList();
+        renderComprasList();
+      } catch (e) {
+        alert('Error: ' + e.message);
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+document.getElementById('btnCloseCompraHistorial').addEventListener('click', () => {
+  document.getElementById('compraHistorialOverlay').classList.remove('open');
+});
+document.getElementById('compraHistorialOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('compraHistorialOverlay')) {
+    document.getElementById('compraHistorialOverlay').classList.remove('open');
+  }
 });
 
 // ── Procesos: Sheets init ─────────────────────────────────────────────────────
@@ -4227,7 +4554,7 @@ async function initRecetasSheets() {
   if (!bd.values) {
     await sheetsReq('/values/RecetaBlocks!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID','Nombre','CreadoEn']] })
+      body: JSON.stringify({ values: [['ID','Nombre','CreadoEn','SortOrder']] })
     });
   }
 
@@ -4294,21 +4621,31 @@ async function deleteRecetaRow(rowIndex) {
 // ── Recetas: Bloques CRUD ────────────────────────────────────────────────────
 
 async function loadRecetaBlocks() {
-  const data = await sheetsReq('/values/RecetaBlocks!A:C');
+  const data = await sheetsReq('/values/RecetaBlocks!A:D');
   const rows = (data.values || []).slice(1);
   recetaBlocks = rows.filter(r => r[0]).map((r, i) => ({
     id:        r[0] || '',
     nombre:    r[1] || '',
     creadoEn:  r[2] || '',
+    sortOrder: r[3] !== undefined && r[3] !== '' ? +r[3] : i,
     rowIndex:  i + 2
   }));
+  recetaBlocks.sort((a, b) => a.sortOrder - b.sortOrder);
   recetaBlocksLoaded = true;
 }
 
 async function appendRecetaBlock(block) {
-  await sheetsReq('/values/RecetaBlocks!A:C:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  const sortOrder = recetaBlocks.length;
+  await sheetsReq('/values/RecetaBlocks!A:D:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
-    body: JSON.stringify({ values: [[block.id, block.nombre, block.creadoEn]] })
+    body: JSON.stringify({ values: [[block.id, block.nombre, block.creadoEn, sortOrder]] })
+  });
+}
+
+async function updateRecetaBlock(block) {
+  await sheetsReq(`/values/RecetaBlocks!A${block.rowIndex}:D${block.rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[block.id, block.nombre, block.creadoEn, block.sortOrder ?? 0]] })
   });
 }
 
@@ -4433,17 +4770,24 @@ function renderRecetasList() {
       items: recetas.filter(r => !r.blockId || !recetaBlocks.find(b => b.id === r.blockId))
     });
 
-    container.innerHTML = sections.map(sec => `
+    container.innerHTML = sections.map(sec => {
+      const toggleKey  = sec.id || '__sinbloque__';
+      const collapsed  = collapsedRecetaBlocks.has(toggleKey);
+      const draggable  = !!sec.id;
+      return `
       <div class="receta-block-section">
-        <div class="receta-block-header">
+        <div class="receta-block-header" data-block-id="${esc(sec.id)}" ${draggable ? 'draggable="true"' : ''}>
+          ${draggable ? '<span class="receta-block-drag-handle" title="Arrastra para reordenar bloque">⠿</span>' : ''}
+          <button type="button" class="receta-block-collapse-btn" data-block-toggle="${esc(toggleKey)}" title="Colapsar/Expandir">${collapsed ? '▸' : '▾'}</button>
           <span class="receta-block-title">${esc(sec.nombre)}</span>
           <span class="receta-block-count">${sec.items.length}</span>
         </div>
-        <div class="receta-block-body" data-block-drop="${esc(sec.id)}">
+        <div class="receta-block-body" data-block-drop="${esc(sec.id)}" style="${collapsed ? 'display:none' : ''}">
           ${sec.items.length ? sec.items.map(recetaCardHTML).join('') : '<div class="receta-block-empty">Arrastra una receta aquí</div>'}
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     container.querySelectorAll('.receta-block-body').forEach(zone => {
       zone.addEventListener('dragover', e => {
@@ -4466,6 +4810,54 @@ function renderRecetasList() {
         renderRecetasList();
         try { await updateReceta(rec); }
         catch (err) { alert('Error al guardar: ' + err.message); await loadRecetasData(); renderRecetasList(); }
+      });
+    });
+
+    container.querySelectorAll('[data-block-toggle]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.blockToggle;
+        if (collapsedRecetaBlocks.has(key)) collapsedRecetaBlocks.delete(key);
+        else collapsedRecetaBlocks.add(key);
+        renderRecetasList();
+      });
+    });
+
+    container.querySelectorAll('.receta-block-header[draggable="true"]').forEach(header => {
+      const blockId = header.dataset.blockId;
+      const section = header.closest('.receta-block-section');
+      header.addEventListener('dragstart', e => {
+        draggedBlockId = blockId;
+        section.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.stopPropagation();
+      });
+      header.addEventListener('dragend', () => {
+        section.classList.remove('dragging');
+        document.querySelectorAll('.receta-block-section.block-drag-over').forEach(el => el.classList.remove('block-drag-over'));
+        draggedBlockId = null;
+      });
+      section.addEventListener('dragover', e => {
+        if (!draggedBlockId || draggedBlockId === blockId) return;
+        e.preventDefault();
+        section.classList.add('block-drag-over');
+      });
+      section.addEventListener('dragleave', e => {
+        if (!section.contains(e.relatedTarget)) section.classList.remove('block-drag-over');
+      });
+      section.addEventListener('drop', async e => {
+        if (!draggedBlockId || draggedBlockId === blockId) return;
+        e.preventDefault();
+        e.stopPropagation();
+        section.classList.remove('block-drag-over');
+        const fromIdx = recetaBlocks.findIndex(b => b.id === draggedBlockId);
+        const toIdx   = recetaBlocks.findIndex(b => b.id === blockId);
+        if (fromIdx === -1 || toIdx === -1) return;
+        const [moved] = recetaBlocks.splice(fromIdx, 1);
+        recetaBlocks.splice(toIdx, 0, moved);
+        recetaBlocks.forEach((b, i) => { b.sortOrder = i; });
+        renderRecetasList();
+        try { for (const b of recetaBlocks) await updateRecetaBlock(b); }
+        catch (err) { alert('Error al guardar el orden: ' + err.message); await loadRecetaBlocks(); renderRecetasList(); }
       });
     });
   }
@@ -4894,6 +5286,13 @@ function generateEjecucionAnalysis(ej) {
       <span class="analysis-value">${total} total (${ev.frascos230 || 0}×230ml + ${ev.frascos180 || 0}×180ml)</span>
     </div>`;
   }
+  if (ev.costoProduccion != null) {
+    const incompleto = (ev.costoIncompleto || []).length > 0;
+    html += `<div class="analysis-row">
+      <span class="analysis-label">Costo de producción</span>
+      <span class="analysis-value" style="${incompleto ? 'color:#F97316' : ''}">${fmtCOP(ev.costoProduccion)}${incompleto ? ` (incompleto: sin compra de ${ev.costoIncompleto.join(', ')})` : ''}</span>
+    </div>`;
+  }
 
   html += '</div>';
   return html;
@@ -5045,7 +5444,7 @@ function renderIngredientesMaestrosList(savedMaestros) {
       </label>
       <div class="ing-check-qty-wrap" style="${isChecked ? '' : 'visibility:hidden'}">
         <input class="field-input ing-check-qty" type="number" min="0" step="any" value="${isChecked && saved.cantidadTotal ? saved.cantidadTotal : ''}" placeholder="Total" style="width:78px" />
-        <input class="field-input ing-check-unidad" type="text" value="${esc(isChecked ? (saved.unidad || '') : '')}" placeholder="unidad" style="width:64px" autocomplete="off" />
+        <span class="ing-check-unidad-display">${esc(ing.unidad || '—')}</span>
         <span class="ing-check-auto-badge" title="Calculado desde etapas">⟳ auto</span>
       </div>
     `;
@@ -5055,8 +5454,7 @@ function renderIngredientesMaestrosList(savedMaestros) {
     cb.addEventListener('change', () => {
       wrap.style.visibility = cb.checked ? '' : 'hidden';
       if (!cb.checked) {
-        row.querySelector('.ing-check-qty').value    = '';
-        row.querySelector('.ing-check-unidad').value = '';
+        row.querySelector('.ing-check-qty').value = '';
         row.querySelector('.ing-check-auto-badge').style.display = 'none';
       }
     });
@@ -5068,38 +5466,36 @@ function renderIngredientesMaestrosList(savedMaestros) {
 function collectIngredientesMaestros() {
   return Array.from(document.querySelectorAll('.ing-check-row'))
     .filter(row => row.querySelector('.ing-check-cb').checked)
-    .map(row => ({
-      nombre:        row.querySelector('.ing-check-cb').dataset.nombre,
-      cantidadTotal: parseFloat(row.querySelector('.ing-check-qty').value) || 0,
-      unidad:        row.querySelector('.ing-check-unidad').value.trim()
-    }));
+    .map(row => {
+      const nombre = row.querySelector('.ing-check-cb').dataset.nombre;
+      return {
+        nombre,
+        cantidadTotal: parseFloat(row.querySelector('.ing-check-qty').value) || 0,
+        unidad:        getIngredienteUnidad(nombre)
+      };
+    });
 }
 
 function syncIngMaestroTotals() {
   const totals = {};
-  const units  = {};
   document.querySelectorAll('#etapasList .etapa-item:not([data-fija]) .insumo-row').forEach(row => {
     const nombre = row.querySelector('.insumo-nombre')?.value.trim();
     if (!nombre) return;
-    const qty    = parseFloat(row.querySelector('.insumo-cantidad')?.value) || 0;
-    const unidad = row.querySelector('.insumo-unidad')?.value.trim() || '';
-    const key    = normalizeIngName(nombre);
-    totals[key]  = (totals[key] || 0) + qty;
-    if (!units[key] && unidad) units[key] = unidad;
+    const qty   = parseFloat(row.querySelector('.insumo-cantidad')?.value) || 0;
+    const key   = normalizeIngName(nombre);
+    totals[key] = (totals[key] || 0) + qty;
   });
 
   document.querySelectorAll('.ing-check-row').forEach(row => {
-    const cb     = row.querySelector('.ing-check-cb');
-    const key    = normalizeIngName(cb.dataset.nombre);
-    const wrap   = row.querySelector('.ing-check-qty-wrap');
-    const qtyIn  = row.querySelector('.ing-check-qty');
-    const unitIn = row.querySelector('.ing-check-unidad');
-    const badge  = row.querySelector('.ing-check-auto-badge');
+    const cb    = row.querySelector('.ing-check-cb');
+    const key   = normalizeIngName(cb.dataset.nombre);
+    const wrap  = row.querySelector('.ing-check-qty-wrap');
+    const qtyIn = row.querySelector('.ing-check-qty');
+    const badge = row.querySelector('.ing-check-auto-badge');
 
     if (totals[key] !== undefined && totals[key] > 0) {
       if (!cb.checked) { cb.checked = true; wrap.style.visibility = ''; }
       qtyIn.value = totals[key];
-      if (units[key]) unitIn.value = units[key];
       if (badge) badge.style.display = '';
     } else {
       if (badge) badge.style.display = 'none';
@@ -5328,17 +5724,22 @@ function buildInstruccionRow(text, tipo = 'paso', alarmMin) {
 function buildInsumoRow(ins, idx) {
   const row = document.createElement('div');
   row.className = 'insumo-row';
+  const unidad = getIngredienteUnidad(ins.nombre || '');
   row.innerHTML = `
     <input class="field-input insumo-nombre" type="text" value="${esc(ins.nombre || '')}" placeholder="Insumo" style="flex:2" autocomplete="off" />
     <input class="field-input insumo-cantidad" type="number" value="${ins.cantidad || ''}" placeholder="Cant." style="flex:1;min-width:70px" min="0" step="any" />
-    <input class="field-input insumo-unidad" type="text" value="${esc(ins.unidad || '')}" placeholder="Unidad (g, L…)" style="flex:1;min-width:70px" />
+    <span class="insumo-unidad-display" title="Unidad definida en el ingrediente">${esc(unidad || '—')}</span>
     <button class="subtask-remove" title="Quitar">✕</button>
   `;
+  const nombreInput   = row.querySelector('.insumo-nombre');
+  const unidadDisplay = row.querySelector('.insumo-unidad-display');
   row.querySelector('.subtask-remove').addEventListener('click', () => { row.remove(); syncIngMaestroTotals(); });
   row.querySelector('.insumo-cantidad').addEventListener('input', syncIngMaestroTotals);
-  row.querySelector('.insumo-unidad').addEventListener('input', syncIngMaestroTotals);
-  row.querySelector('.insumo-nombre').addEventListener('change', syncIngMaestroTotals);
-  attachIngredienteAutocomplete(row.querySelector('.insumo-nombre'));
+  nombreInput.addEventListener('change', () => {
+    unidadDisplay.textContent = getIngredienteUnidad(nombreInput.value.trim()) || '—';
+    syncIngMaestroTotals();
+  });
+  attachIngredienteAutocomplete(nombreInput);
   return row;
 }
 
@@ -5351,11 +5752,14 @@ function renumberEtapas() {
 
 function collectEtapas() {
   return Array.from(document.querySelectorAll('#etapasList .etapa-item')).map(item => {
-    const insumos = Array.from(item.querySelectorAll('.insumo-row')).map(row => ({
-      nombre:   row.querySelector('.insumo-nombre').value.trim(),
-      cantidad: parseFloat(row.querySelector('.insumo-cantidad').value) || 0,
-      unidad:   row.querySelector('.insumo-unidad').value.trim()
-    })).filter(ins => ins.nombre);
+    const insumos = Array.from(item.querySelectorAll('.insumo-row')).map(row => {
+      const nombre = row.querySelector('.insumo-nombre').value.trim();
+      return {
+        nombre,
+        cantidad: parseFloat(row.querySelector('.insumo-cantidad').value) || 0,
+        unidad:   getIngredienteUnidad(nombre)
+      };
+    }).filter(ins => ins.nombre);
     const instrucciones = Array.from(item.querySelectorAll('.instruccion-row'))
       .map(row => ({
         text: row.querySelector('.instruccion-text').value.trim(),
@@ -6005,6 +6409,13 @@ function finishExecution() {
     ? `Total ingredientes usados (suma de etapas): ${evaluacionTotalInsumosG} g`
     : 'No se registraron insumos con cantidad en las etapas.';
 
+  const costo   = computeCostoProduccion(stagesData);
+  const costoEl = document.getElementById('evalCostoProduccion');
+  costoEl.textContent = costo.incompleto.length
+    ? `Costo de producción: ${fmtCOP(costo.total)} (incompleto — sin compra registrada de: ${costo.incompleto.join(', ')})`
+    : `Costo de producción del lote: ${fmtCOP(costo.total)}`;
+  costoEl.classList.toggle('eval-costo-warn', costo.incompleto.length > 0);
+
   document.getElementById('evalFrascos230').value = '';
   document.getElementById('evalFrascos180').value = '';
   document.getElementById('evalExcedente').value = '';
@@ -6082,6 +6493,7 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
   btn.disabled = true; btn.textContent = 'Guardando…';
 
   try {
+    const costo = computeCostoProduccion(evaluacionPendiente.etapasData);
     evaluacionPendiente.loteId = loteId;
     evaluacionPendiente.evaluacion = {
       calificacion:       evalRating,
@@ -6106,7 +6518,9 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
         return (ml > 0 && evaluacionTotalInsumosG > 0)
           ? Math.round(ml / evaluacionTotalInsumosG * 10000) / 100
           : null;
-      })()
+      })(),
+      costoProduccion:    Math.round(costo.total),
+      costoIncompleto:    costo.incompleto
     };
 
     await appendEjecucion(evaluacionPendiente);
@@ -6270,6 +6684,15 @@ function ejecucionToText(ej) {
     lines.push(`Frascos: ${f230}×230ml + ${f180}×180ml + ${exc}ml excedente = ${ml} ml total`);
     lines.push(`Total insumos usados: ${ev.totalInsumosG ?? '?'} g`);
     if (ev.rendimiento != null) lines.push(`Rendimiento: ${ev.rendimiento}%`);
+  }
+
+  // ── Costo de producción ──
+  if (ev.costoProduccion != null) {
+    lines.push('', '── COSTO DE PRODUCCIÓN ──────────────────────────────────');
+    lines.push(`Costo total (precio de compra más reciente de cada insumo): ${fmtCOP(ev.costoProduccion)}`);
+    if ((ev.costoIncompleto || []).length) {
+      lines.push(`⚠️ Incompleto — sin compra registrada para: ${ev.costoIncompleto.join(', ')}`);
+    }
   }
 
   // ── Fase 1 ──

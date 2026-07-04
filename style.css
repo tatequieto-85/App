@@ -1086,6 +1086,7 @@ body {
 .mgmt-item:last-child { border-bottom: none; }
 .mgmt-item-dot  { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .mgmt-item-name { flex: 1; font-size: 13px; color: var(--text); }
+.mgmt-item-unidad { width: 90px; flex-shrink: 0; padding: 5px 8px !important; font-size: 12px !important; margin: 0 !important; }
 .mgmt-item-tag  { font-size: 10px; color: var(--text-sub); background: var(--border); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
 .mgmt-item-del {
   background: none; border: none; cursor: pointer; color: var(--text-sub);
@@ -1124,6 +1125,9 @@ body {
 
 /* ── Informes home card (blue) ────────────────────────────────────────────── */
 .app-card-icon--blue { background: #1565C0; }
+
+/* ── Compras home card (amber) ────────────────────────────────────────────── */
+.app-card-icon--amber { background: #B7791F; }
 
 /* ── Sub-tareas (viñetas) en modal tarea ─────────────────────────────────── */
 .field-label-hint {
@@ -1287,12 +1291,22 @@ body {
 .receta-card-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
 
 /* ── Procesos: Bloques de recetas ─────────────────────────────────────────── */
-.receta-block-section { margin-bottom: 22px; }
+.receta-block-section { margin-bottom: 22px; border-radius: var(--radius); transition: background .15s, outline .15s; }
 .receta-block-section:last-child { margin-bottom: 0; }
+.receta-block-section.dragging { opacity: .4; }
+.receta-block-section.block-drag-over { outline: 2px dashed var(--brand); outline-offset: 2px; }
 .receta-block-header {
   display: flex; align-items: center; gap: 8px;
   margin-bottom: 8px;
 }
+.receta-block-header[draggable="true"] { cursor: grab; }
+.receta-block-header[draggable="true"]:active { cursor: grabbing; }
+.receta-block-drag-handle { color: var(--text-sub); font-size: 13px; flex-shrink: 0; }
+.receta-block-collapse-btn {
+  background: none; border: none; cursor: pointer; color: var(--text-sub);
+  font-size: 10px; padding: 2px; flex-shrink: 0; line-height: 1;
+}
+.receta-block-collapse-btn:hover { color: var(--brand); }
 .receta-block-title {
   font-size: 11px; font-weight: 700; color: var(--text-sub);
   text-transform: uppercase; letter-spacing: .06em;
@@ -1400,6 +1414,12 @@ body {
   display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
 }
 .insumo-row .field-input { margin: 0 !important; padding: 7px 10px !important; font-size: 13px !important; }
+.insumo-unidad-display {
+  flex: 0 0 auto; min-width: 40px; text-align: center;
+  font-size: 12px; color: var(--text-sub); background: var(--bg);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}
 
 /* ── Ingredientes maestros checklist ────────────────────────────────────────── */
 #ingredientesMaestrosList { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
@@ -1420,6 +1440,7 @@ body {
   display: flex; align-items: center; gap: 6px; flex-shrink: 0;
 }
 .ing-check-qty-wrap .field-input { margin: 0 !important; padding: 5px 8px !important; font-size: 12px !important; }
+.ing-check-unidad-display { font-size: 12px; color: var(--text-sub); min-width: 30px; text-align: center; }
 .ing-check-auto-badge {
   display: none; font-size: 10px; color: var(--brand); background: rgba(17,24,39,.08);
   border-radius: 999px; padding: 2px 7px; white-space: nowrap; font-weight: 600;
@@ -1889,6 +1910,7 @@ body {
   background: var(--border); border-radius: 6px;
   padding: 6px 10px; margin-bottom: 10px;
 }
+.eval-insumos-total.eval-costo-warn { background: #F9731622; color: #C2510A; }
 
 /* ── Informes ─────────────────────────────────────────────────────────────── */
 .informes-stats-grid {
