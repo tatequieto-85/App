@@ -170,11 +170,6 @@ function navigateTo(view) {
   // Back button: hidden on home, visible in modules
   document.getElementById('btnBack').style.display = view === 'home' ? 'none' : '';
 
-  // Sidebar + bottom nav active state
-  document.querySelectorAll('.sidebar-item[data-nav], .bottom-nav-item[data-nav]').forEach(item => {
-    item.classList.toggle('active', item.dataset.nav === view);
-  });
-
   // Load data for the selected view
   if (view === 'tareas') {
     // Siempre iniciar en pestaña Kanban
@@ -267,19 +262,58 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ── Sistema anti-clics involuntarios (ignora taps fantasma tras un scroll) ────
+// En móvil, si el usuario desliza/hace scroll y el dedo se levanta sobre un
+// botón o tarjeta, el navegador dispara igual un "click" sintético. Aquí se
+// detecta ese movimiento y se cancela ese click (y el "tap" de doble-toque).
+
+const TOUCH_TAP_MOVE_THRESHOLD = 10; // px
+let touchTapStartX  = 0;
+let touchTapStartY  = 0;
+let touchTapMoved   = false;
+let suppressNextClick = false;
+
+document.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1) return;
+  touchTapStartX = e.touches[0].clientX;
+  touchTapStartY = e.touches[0].clientY;
+  touchTapMoved  = false;
+}, { passive: true, capture: true });
+
+document.addEventListener('touchmove', e => {
+  if (touchTapMoved || e.touches.length !== 1) return;
+  const dx = e.touches[0].clientX - touchTapStartX;
+  const dy = e.touches[0].clientY - touchTapStartY;
+  if (Math.hypot(dx, dy) > TOUCH_TAP_MOVE_THRESHOLD) touchTapMoved = true;
+}, { passive: true, capture: true });
+
+document.addEventListener('touchend', () => {
+  if (touchTapMoved) suppressNextClick = true;
+}, { capture: true });
+
+document.addEventListener('click', e => {
+  if (!suppressNextClick) return;
+  suppressNextClick = false;
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+}, { capture: true });
+
+function wasAccidentalTouch() {
+  return touchTapMoved;
+}
+
 // ── PWA install prompt ────────────────────────────────────────────────────────
 
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredInstallPrompt = e;
   document.getElementById('installBanner').style.display = '';
-  document.getElementById('sidebarInstall').style.display = '';
 });
 
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
   document.getElementById('installBanner').style.display = 'none';
-  document.getElementById('sidebarInstall').style.display = 'none';
 });
 
 async function triggerInstall() {
@@ -289,12 +323,10 @@ async function triggerInstall() {
   if (outcome === 'accepted') {
     deferredInstallPrompt = null;
     document.getElementById('installBanner').style.display = 'none';
-    document.getElementById('sidebarInstall').style.display = 'none';
   }
 }
 
 document.getElementById('btnInstall').addEventListener('click', triggerInstall);
-document.getElementById('sidebarInstall').addEventListener('click', triggerInstall);
 
 // ── WebAuthn / Biometric ──────────────────────────────────────────────────────
 
@@ -478,7 +510,6 @@ async function onAuthSuccess() {
   screenSignIn.style.display    = 'none';
   screenApp.style.display       = '';
   userMenu.style.display        = '';
-  document.getElementById('bottomNav').style.display = '';
 
   try {
     const u = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -1973,7 +2004,7 @@ function renderKanban() {
       });
 
       card.addEventListener('touchend', (e) => {
-        if (e.target.closest('button')) return;
+        if (e.target.closest('button') || wasAccidentalTouch()) return;
         const now = Date.now();
         const last = lastTapTime[task.id] || 0;
         lastTapTime[task.id] = now;
@@ -3686,6 +3717,7 @@ document.getElementById('obsFileInput').addEventListener('change', async functio
 // ── Event listeners: navigation ───────────────────────────────────────────────
 
 document.getElementById('btnBack').addEventListener('click', () => navigateTo('home'));
+document.getElementById('headerLogoBtn').addEventListener('click', () => navigateTo('home'));
 
 document.querySelectorAll('[data-nav]').forEach(el => {
   el.addEventListener('click', () => navigateTo(el.dataset.nav));
@@ -4256,7 +4288,7 @@ function renderRecetasList() {
       openRecetaDetail(card.dataset.id);
     });
     card.addEventListener('touchend', e => {
-      if (e.target.closest('button')) return;
+      if (e.target.closest('button') || wasAccidentalTouch()) return;
       const now = Date.now();
       const last = lastTapTime['rec_' + card.dataset.id] || 0;
       lastTapTime['rec_' + card.dataset.id] = now;
@@ -4451,6 +4483,7 @@ function renderEjecucionesList() {
     const ejId = card.dataset.ejId;
     card.addEventListener('dblclick', () => openEjecucionDetail(ejId));
     card.addEventListener('touchend', () => {
+      if (wasAccidentalTouch()) return;
       const now  = Date.now();
       const last = lastTapTime['ej_' + ejId] || 0;
       lastTapTime['ej_' + ejId] = now;

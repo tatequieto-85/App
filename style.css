@@ -43,8 +43,6 @@
   --radius:    6px;
   --radius-sm: 4px;
 
-  /* Sidebar */
-  --sidebar-w: 210px;
   --header-h:  52px;
 }
 
@@ -76,6 +74,13 @@ body {
   display: flex; align-items: center; justify-content: space-between;
 }
 .header-brand  { display: flex; align-items: center; gap: 10px; }
+.header-logo-btn {
+  display: flex; align-items: center; gap: 10px;
+  background: none; border: none; padding: 4px 6px; margin: -4px -6px;
+  cursor: pointer; text-align: left; font: inherit; color: inherit;
+  border-radius: var(--radius-sm); transition: background .15s;
+}
+.header-logo-btn:hover { background: var(--gray-100); }
 .header-logo      { font-size: 24px; line-height: 1; }
 .header-logo-img  { width: 34px; height: 34px; border-radius: var(--radius-sm); object-fit: contain; flex-shrink: 0; }
 .signin-logo-img  { width: 72px; height: 72px; border-radius: var(--radius); object-fit: contain; margin-bottom: 8px; }
@@ -173,59 +178,6 @@ body {
   display: flex;
   min-height: calc(100vh - var(--header-h));
 }
-
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
-.sidebar {
-  width: var(--sidebar-w);
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  display: none;
-  flex-direction: column;
-  flex-shrink: 0;
-  position: sticky;
-  top: var(--header-h);
-  height: calc(100vh - var(--header-h));
-  overflow-y: auto;
-}
-@media (min-width: 1024px) {
-  .sidebar { display: flex; }
-}
-
-.sidebar-nav { padding: 12px 0; flex: 1; }
-
-.sidebar-item {
-  display: flex; align-items: center; gap: 11px;
-  width: 100%; padding: 11px 18px;
-  border: none; background: none; text-align: left;
-  cursor: pointer; color: var(--text-sub);
-  font-size: 13.5px; font-weight: 500;
-  transition: background .15s, color .15s;
-  white-space: nowrap;
-}
-.sidebar-item:hover { background: var(--bg); color: var(--text); }
-.sidebar-item.active {
-  color: var(--brand);
-  background: rgba(113,75,103,.07);
-  font-weight: 600;
-  border-right: 3px solid var(--brand);
-}
-.sidebar-icon { display: flex; align-items: center; flex-shrink: 0; }
-
-.sidebar-footer {
-  padding: 12px 14px;
-  border-top: 1px solid var(--border);
-}
-.sidebar-install {
-  display: flex; align-items: center; gap: 8px;
-  width: 100%; padding: 9px 12px;
-  background: rgba(113,75,103,.07);
-  border: 1px solid rgba(113,75,103,.2);
-  border-radius: var(--radius-sm); cursor: pointer;
-  font-size: 12.5px; font-weight: 500;
-  color: var(--brand);
-  transition: background .15s;
-}
-.sidebar-install:hover { background: rgba(113,75,103,.13); }
 
 /* ── App content ─────────────────────────────────────────────────────────── */
 .app-content {
@@ -905,14 +857,14 @@ body {
 
 .gantt-grid {
   display: flex; border: 1.5px solid var(--border); border-radius: var(--radius);
-  background: var(--surface); overflow-y: auto; max-height: 68vh;
+  background: var(--surface);
 }
 .gantt-sidebar {
   flex-shrink: 0; width: 200px; border-right: 1.5px solid var(--border);
 }
 .gantt-sidebar-header {
   height: 36px; border-bottom: 1.5px solid var(--border);
-  background: var(--surface); position: sticky; top: 0; z-index: 3;
+  background: var(--surface); position: sticky; top: var(--header-h); z-index: 3;
 }
 .gantt-row-label {
   height: 40px; display: flex; align-items: center;
@@ -1099,39 +1051,6 @@ body {
 .color-picker {
   width: 36px; height: 36px; border: 1.5px solid var(--border);
   border-radius: 6px; padding: 2px; cursor: pointer; background: none; flex-shrink: 0;
-}
-
-/* ── Bottom navigation (mobile) ──────────────────────────────────────────── */
-.bottom-nav {
-  display: none;
-  position: fixed; bottom: 0; left: 0; right: 0;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  z-index: 90;
-  padding-bottom: env(safe-area-inset-bottom, 0);
-  box-shadow: none;
-}
-.bottom-nav-inner {
-  display: flex; align-items: stretch;
-  height: 56px;
-}
-.bottom-nav-item {
-  flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 3px;
-  background: none; border: none; cursor: pointer;
-  color: var(--text-sub); font-size: 10px; font-weight: 600;
-  transition: color .15s; padding: 4px 0;
-  -webkit-tap-highlight-color: transparent;
-}
-.bottom-nav-item svg { flex-shrink: 0; }
-.bottom-nav-item.active { color: var(--brand); }
-.bottom-nav-item.active svg { stroke: var(--brand); }
-
-@media (max-width: 1023px) {
-  .bottom-nav { display: block; }
-  .app-content { padding-bottom: 56px; }
-  .kanban-wrap { padding-bottom: 72px; }
-  .modal-overlay { padding-bottom: calc(20px + 56px); }
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
