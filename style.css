@@ -1312,6 +1312,20 @@ body {
 }
 .feria-confirm-btn:hover { background: var(--brand-hover); }
 .feria-confirm-btn:disabled { background: var(--gray-300); cursor: not-allowed; }
+.feria-hora-row { display: flex; align-items: center; gap: 8px; }
+.feria-hora-row .field-input { flex: 1; margin: 0 !important; }
+.feria-hora-sep { font-size: 12px; color: var(--text-sub); flex-shrink: 0; }
+
+/* ── Ferias: modal de conteo — secciones ─────────────────────────────────── */
+.feria-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.feria-section-title { font-size: 12px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+.feria-venta-add-row { display: flex; gap: 6px; margin-top: 8px; }
+.feria-venta-add-row select { flex: 2; margin: 0 !important; }
+.feria-venta-add-row input { flex: 1; margin: 0 !important; max-width: 80px; }
+
+/* ── Ferias: tabla de plan de stock ───────────────────────────────────────── */
+.feria-stock-receta { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.feria-stock-disponible { font-size: 10.5px; font-weight: 500; color: var(--text-sub); margin-top: 2px; }
 
 /* ── Ferias: bloques (confirmadas) ───────────────────────────────────────── */
 .feria-blocks-grid {

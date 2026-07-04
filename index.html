@@ -705,6 +705,12 @@
         <button type="button" class="field-input date-picker-trigger" id="feriaFechasTrigger"></button>
         <input id="feriaFechaInicio" type="date" style="display:none" />
         <input id="feriaFechaFin" type="date" style="display:none" />
+        <label class="field-label">Horario diario de la feria * <span class="field-label-hint">· aplica cada día</span></label>
+        <div class="feria-hora-row">
+          <input class="field-input" id="feriaHoraInicio" type="time" />
+          <span class="feria-hora-sep">a</span>
+          <input class="field-input" id="feriaHoraFin" type="time" />
+        </div>
         <label class="field-label">Precio de participación</label>
         <input class="field-input" id="feriaPrecio" type="number" min="0" step="any" placeholder="$" />
         <label class="field-label">Lugar</label>
@@ -729,19 +735,68 @@
 
   <!-- Modal: Conteo de personas en feria -->
   <div class="modal-overlay" id="feriaCounterOverlay">
-    <div class="modal" style="max-width:360px">
+    <div class="modal" style="max-width:560px">
       <div class="modal-header">
-        <h2 id="feriaCounterTitle">Conteo de personas</h2>
+        <h2 id="feriaCounterTitle">Feria en curso</h2>
         <button class="btn-icon" id="btnCloseFeriaCounter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
-      <div class="modal-body" style="text-align:center">
-        <p class="mgmt-note">Personas que probaron TateQuieto en esta feria</p>
-        <div class="feria-counter-value" id="feriaCounterValue">0</div>
-        <div class="feria-counter-actions">
-          <button class="btn-outline" id="btnFeriaCounterMinus">−1</button>
-          <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlus">+1</button>
+      <div class="modal-body modal-body-scroll">
+        <label class="field-label" style="margin-top:0">Día</label>
+        <select class="field-input" id="feriaCounterDaySelect"></select>
+
+        <div style="text-align:center;margin:18px 0 8px">
+          <p class="mgmt-note" style="margin-bottom:0">Personas que probaron TateQuieto</p>
+          <div class="feria-counter-value" id="feriaCounterValue">0</div>
+          <div class="feria-counter-actions">
+            <button class="btn-outline" id="btnFeriaCounterMinus">−1</button>
+            <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlus">+1</button>
+          </div>
+          <button class="btn-outline btn-sm" id="btnFeriaCounterReset" style="margin-top:10px">Reiniciar conteo</button>
         </div>
-        <button class="btn-outline btn-sm" id="btnFeriaCounterReset" style="margin-top:14px">Reiniciar conteo</button>
+
+        <div class="feria-section">
+          <h4 class="feria-section-title">Ventas del día</h4>
+          <div id="feriaVentasList" class="obs-list"></div>
+          <div class="feria-venta-add-row">
+            <select class="field-input" id="feriaVentaReceta"></select>
+            <input class="field-input" id="feriaVentaCantidad" type="number" min="1" step="1" placeholder="Cant." />
+            <button class="btn-outline btn-sm" id="btnAddFeriaVenta">Agregar</button>
+          </div>
+        </div>
+
+        <div class="feria-section">
+          <h4 class="feria-section-title">Observaciones del día</h4>
+          <div id="feriaObsDiariasList" class="obs-list"></div>
+          <div class="obs-input-wrap">
+            <textarea class="field-textarea obs-textarea" id="feriaObsDiariaInput" rows="2" placeholder="Escribe una observación de hoy…"></textarea>
+            <button type="button" class="btn-outline obs-btn" id="btnAddFeriaObsDiaria">Agregar</button>
+          </div>
+        </div>
+
+        <div class="feria-section">
+          <h4 class="feria-section-title">Conteo de productos</h4>
+          <div id="feriaConteoProductosWrap"></div>
+        </div>
+
+        <div id="feriaDownloadWrap" style="display:none;margin-top:16px">
+          <button class="btn-primary" id="btnDownloadFeria" style="width:100%">⬇ Descargar información completa de la feria</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Plan de stock al confirmar feria -->
+  <div class="modal-overlay" id="feriaStockOverlay">
+    <div class="modal" style="max-width:640px">
+      <div class="modal-header">
+        <h2>Plan de stock para la feria</h2>
+        <button class="btn-icon" id="btnCloseFeriaStock"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <p class="mgmt-note">Indica cuántas unidades de cada receta vas a llevar cada día. Se validan contra el stock producido en Procesos → Ejecuciones.</p>
+        <div id="feriaStockTableWrap"></div>
+        <button class="btn-primary" id="btnSaveFeriaStock" style="margin-top:14px">Confirmar participación</button>
+        <div class="feedback" id="feriaStockFeedback"></div>
       </div>
     </div>
   </div>
