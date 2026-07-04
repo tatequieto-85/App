@@ -24,6 +24,8 @@ let kanbanTasks        = [];
 let kanbanTasksSheetId = null;
 let kanbanEditId       = null;
 let taskAutosaveTimer  = null;
+let kanbanActiveFilters = {};
+let listaActiveFilters  = {};
 let draggedId          = null;
 let showTerminal       = false;
 
@@ -1911,9 +1913,10 @@ function getTrafficLight(dateStr) {
 function renderKanban() {
   const board      = document.getElementById('kanbanBoard');
   if (!board) return;
-  const areaFilter     = document.getElementById('kanbanAreaFilter')?.value     || '';
-  const priorityFilter = document.getElementById('kanbanPriorityFilter')?.value || '';
-  const dueFilter      = document.getElementById('kanbanDueFilter')?.value      || '';
+  updateFilterButtonLabel('kanbanFilterBtn', kanbanActiveFilters);
+  const areaFilter     = kanbanActiveFilters.area     || '';
+  const priorityFilter = kanbanActiveFilters.priority || '';
+  const dueFilter      = kanbanActiveFilters.due      || '';
 
   let tasks = kanbanTasks;
   if (areaFilter)     tasks = tasks.filter(t => t.area === areaFilter);
@@ -2096,10 +2099,11 @@ function renderKanban() {
 function renderKanbanList() {
   const container    = document.getElementById('tasksList');
   if (!container) return;
-  const areaFilter     = document.getElementById('listaAreaFilter')?.value     || '';
-  const statusFilter   = document.getElementById('listaStatusFilter')?.value   || '';
-  const priorityFilter = document.getElementById('listaPriorityFilter')?.value || '';
-  const dueFilter      = document.getElementById('listaDueFilter')?.value      || '';
+  updateFilterButtonLabel('listaFilterBtn', listaActiveFilters);
+  const areaFilter     = listaActiveFilters.area     || '';
+  const statusFilter   = listaActiveFilters.status   || '';
+  const priorityFilter = listaActiveFilters.priority || '';
+  const dueFilter      = listaActiveFilters.due      || '';
 
   let tasks = [...kanbanTasks];
   if (areaFilter)     tasks = tasks.filter(t => t.area     === areaFilter);
@@ -2787,14 +2791,6 @@ function startDependencyConnect(e, sourceTask, sourceBarEl, tasks) {
 // ── Selects population ────────────────────────────────────────────────────────
 
 function populateAreaSelects() {
-  ['kanbanAreaFilter', 'listaAreaFilter'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const cur = el.value;
-    el.innerHTML = `<option value="">Todas las áreas</option>` +
-      kanbanAreas.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
-    if (cur) el.value = cur;
-  });
   const taskAreaEl = document.getElementById('taskArea');
   if (taskAreaEl) {
     const cur = taskAreaEl.value;
@@ -2812,13 +2808,6 @@ function populateStatusSelects() {
     ).join('');
     if (cur) taskStatusEl.value = cur;
   }
-  const listaEl = document.getElementById('listaStatusFilter');
-  if (listaEl) {
-    const cur = listaEl.value;
-    listaEl.innerHTML = `<option value="">Todos los estados</option>` +
-      kanbanColumns.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
-    if (cur) listaEl.value = cur;
-  }
 }
 
 function populateProjectSelects() {
@@ -2829,6 +2818,187 @@ function populateProjectSelects() {
       ganttProjects.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
     if (cur) taskProjectEl.value = cur;
   }
+}
+
+// ── Filtros personalizados (Kanban / Lista) ───────────────────────────────────
+
+const FILTER_FIELDS = {
+  area: {
+    label: 'Área',
+    getOptions: () => kanbanAreas.map(a => ({ value: a, label: a }))
+  },
+  status: {
+    label: 'Estado',
+    getOptions: () => kanbanColumns.map(c => ({ value: c.name, label: c.name }))
+  },
+  priority: {
+    label: 'Prioridad',
+    getOptions: () => ([
+      { value: 'alta',  label: '🔴 Alta' },
+      { value: 'media', label: '🟡 Media' },
+      { value: 'baja',  label: '🟢 Baja' }
+    ])
+  },
+  due: {
+    label: 'Fecha límite',
+    getOptions: () => ([
+      { value: 'vencido',   label: '⚠️ Vencidos' },
+      { value: 'porVencer', label: '🟡 Por vencer' }
+    ])
+  }
+};
+
+function loadSavedFilters(scope) {
+  return safeParseJSON(localStorage.getItem(`ss_savedFilters_${scope}`), []);
+}
+function persistSavedFilters(scope, list) {
+  localStorage.setItem(`ss_savedFilters_${scope}`, JSON.stringify(list));
+}
+
+function updateFilterButtonLabel(btnId, activeFilters) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  const count = Object.values(activeFilters).filter(Boolean).length;
+  btn.textContent = count ? `Filtros (${count})` : 'Filtros';
+  btn.classList.toggle('filter-btn--active', count > 0);
+}
+
+function closeFilterPanel() {
+  document.querySelectorAll('.filter-panel').forEach(p => p.remove());
+  if (window._filterPanelCleanup) { window._filterPanelCleanup(); window._filterPanelCleanup = null; }
+}
+
+function openFilterPanel(anchorEl, { scope, fieldKeys, activeFilters, onApply }) {
+  closeFilterPanel();
+
+  const pop = document.createElement('div');
+  pop.className = 'filter-panel';
+  document.body.appendChild(pop);
+
+  function render() {
+    const usedKeys      = fieldKeys.filter(k => activeFilters[k]);
+    const availableKeys = fieldKeys.filter(k => !activeFilters[k]);
+
+    const rowsHTML = usedKeys.map(key => {
+      const def  = FILTER_FIELDS[key];
+      const opts = def.getOptions();
+      const optsHTML = opts.map(o =>
+        `<option value="${esc(o.value)}" ${o.value === activeFilters[key] ? 'selected' : ''}>${esc(o.label)}</option>`
+      ).join('');
+      return `
+        <div class="filter-row">
+          <span class="filter-row-label">${esc(def.label)}</span>
+          <select class="field-select filter-row-select" data-key="${key}">${optsHTML}</select>
+          <button type="button" class="filter-row-remove" data-key="${key}" title="Quitar">✕</button>
+        </div>`;
+    }).join('');
+
+    const addHTML = availableKeys.length ? `
+      <select class="field-select" id="filterAddSelect">
+        <option value="">+ Agregar filtro…</option>
+        ${availableKeys.map(k => `<option value="${k}">${esc(FILTER_FIELDS[k].label)}</option>`).join('')}
+      </select>` : '';
+
+    const saved = loadSavedFilters(scope);
+    const savedHTML = saved.length ? `
+      <div class="filter-panel-subtitle">Filtros guardados</div>
+      <div class="filter-saved-list">
+        ${saved.map((s, i) => `
+          <div class="filter-saved-chip" data-idx="${i}">
+            <span class="filter-saved-name">${esc(s.name)}</span>
+            <button type="button" class="filter-saved-del" data-idx="${i}" title="Eliminar">✕</button>
+          </div>`).join('')}
+      </div>` : '';
+
+    const saveRowHTML = usedKeys.length ? `
+      <div class="filter-save-row">
+        <input type="text" class="field-input" id="filterSaveName" placeholder="Nombre del filtro…" />
+        <button type="button" class="btn-outline btn-sm" id="filterSaveBtn">Guardar</button>
+      </div>` : '';
+
+    pop.innerHTML = `
+      <div class="filter-panel-header">
+        <span>Filtros</span>
+        ${usedKeys.length ? `<button type="button" class="filter-clear-btn" id="filterClearBtn">Limpiar</button>` : ''}
+      </div>
+      <div class="filter-rows">${rowsHTML || '<div class="filter-empty">Sin filtros activos.</div>'}</div>
+      ${addHTML}
+      ${savedHTML}
+      ${saveRowHTML}
+    `;
+
+    pop.querySelectorAll('.filter-row-select').forEach(sel => {
+      sel.addEventListener('change', () => {
+        activeFilters[sel.dataset.key] = sel.value;
+        onApply(); render();
+      });
+    });
+    pop.querySelectorAll('.filter-row-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        delete activeFilters[btn.dataset.key];
+        onApply(); render();
+      });
+    });
+    pop.querySelector('#filterAddSelect')?.addEventListener('change', function() {
+      const key = this.value;
+      if (!key) return;
+      const firstOpt = FILTER_FIELDS[key].getOptions()[0];
+      activeFilters[key] = firstOpt ? firstOpt.value : '';
+      onApply(); render();
+    });
+    pop.querySelector('#filterClearBtn')?.addEventListener('click', () => {
+      fieldKeys.forEach(k => delete activeFilters[k]);
+      onApply(); render();
+    });
+    pop.querySelector('#filterSaveBtn')?.addEventListener('click', () => {
+      const nameInput = pop.querySelector('#filterSaveName');
+      const name = nameInput.value.trim();
+      if (!name) { nameInput.focus(); return; }
+      const list = loadSavedFilters(scope);
+      list.push({ name, filters: { ...activeFilters } });
+      persistSavedFilters(scope, list);
+      render();
+    });
+    pop.querySelectorAll('.filter-saved-chip').forEach(chip => {
+      chip.addEventListener('click', e => {
+        if (e.target.closest('.filter-saved-del')) return;
+        const preset = loadSavedFilters(scope)[+chip.dataset.idx];
+        if (!preset) return;
+        fieldKeys.forEach(k => delete activeFilters[k]);
+        Object.assign(activeFilters, preset.filters);
+        onApply(); render();
+      });
+    });
+    pop.querySelectorAll('.filter-saved-del').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const list = loadSavedFilters(scope);
+        list.splice(+btn.dataset.idx, 1);
+        persistSavedFilters(scope, list);
+        render();
+      });
+    });
+  }
+
+  render();
+
+  const rect = anchorEl.getBoundingClientRect();
+  pop.style.top  = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 420)) + 'px';
+  pop.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 300)) + 'px';
+
+  function onDocClick(e) {
+    if (!pop.contains(e.target) && e.target !== anchorEl) closeFilterPanel();
+  }
+  function onKeydown(e) { if (e.key === 'Escape') closeFilterPanel(); }
+  setTimeout(() => {
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKeydown);
+  }, 0);
+
+  window._filterPanelCleanup = () => {
+    document.removeEventListener('mousedown', onDocClick);
+    document.removeEventListener('keydown', onKeydown);
+  };
 }
 
 function toggleTaskStartVisibility() {
@@ -3735,13 +3905,23 @@ document.querySelectorAll('.sub-tab-btn').forEach(btn => {
 
 document.getElementById('btnNewTask').addEventListener('click', () =>
   openTaskModal(null, null, currentSubTab === 'gantt' ? currentGanttProjectId : null));
-document.getElementById('kanbanAreaFilter').addEventListener('change', renderKanban);
-document.getElementById('kanbanPriorityFilter').addEventListener('change', renderKanban);
-document.getElementById('kanbanDueFilter').addEventListener('change', renderKanban);
-document.getElementById('listaAreaFilter').addEventListener('change', renderKanbanList);
-document.getElementById('listaStatusFilter').addEventListener('change', renderKanbanList);
-document.getElementById('listaPriorityFilter').addEventListener('change', renderKanbanList);
-document.getElementById('listaDueFilter').addEventListener('change', renderKanbanList);
+
+document.getElementById('kanbanFilterBtn').addEventListener('click', () => {
+  openFilterPanel(document.getElementById('kanbanFilterBtn'), {
+    scope: 'kanban',
+    fieldKeys: ['area', 'priority', 'due'],
+    activeFilters: kanbanActiveFilters,
+    onApply: renderKanban
+  });
+});
+document.getElementById('listaFilterBtn').addEventListener('click', () => {
+  openFilterPanel(document.getElementById('listaFilterBtn'), {
+    scope: 'lista',
+    fieldKeys: ['area', 'status', 'priority', 'due'],
+    activeFilters: listaActiveFilters,
+    onApply: renderKanbanList
+  });
+});
 
 document.querySelectorAll('#ganttZoomSwitch .gantt-zoom-btn').forEach(btn => {
   btn.addEventListener('click', () => {

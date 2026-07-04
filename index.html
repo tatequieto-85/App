@@ -224,20 +224,7 @@
               </div>
               <div class="sub-tab-actions">
                 <div id="kanbanToolbar">
-                  <select class="field-select" id="kanbanAreaFilter">
-                    <option value="">Todas las áreas</option>
-                  </select>
-                  <select class="field-select" id="kanbanPriorityFilter">
-                    <option value="">Toda prioridad</option>
-                    <option value="alta">🔴 Alta</option>
-                    <option value="media">🟡 Media</option>
-                    <option value="baja">🟢 Baja</option>
-                  </select>
-                  <select class="field-select" id="kanbanDueFilter">
-                    <option value="">Cualquier fecha</option>
-                    <option value="vencido">⚠️ Vencidos</option>
-                    <option value="porVencer">🟡 Por vencer</option>
-                  </select>
+                  <button type="button" class="btn-outline filter-btn" id="kanbanFilterBtn">Filtros</button>
                 </div>
                 <div id="ganttToolbar" style="display:none">
                   <div class="gantt-zoom-switch" id="ganttZoomSwitch">
@@ -283,23 +270,7 @@
                   <h2 class="section-title">Lista de tareas</h2>
                 </div>
                 <div class="list-filters">
-                  <select class="field-select" id="listaAreaFilter">
-                    <option value="">Todas las áreas</option>
-                  </select>
-                  <select class="field-select" id="listaStatusFilter">
-                    <option value="">Todos los estados</option>
-                  </select>
-                  <select class="field-select" id="listaPriorityFilter">
-                    <option value="">Toda prioridad</option>
-                    <option value="alta">🔴 Alta</option>
-                    <option value="media">🟡 Media</option>
-                    <option value="baja">🟢 Baja</option>
-                  </select>
-                  <select class="field-select" id="listaDueFilter">
-                    <option value="">Cualquier fecha</option>
-                    <option value="vencido">⚠️ Vencidos</option>
-                    <option value="porVencer">🟡 Por vencer</option>
-                  </select>
+                  <button type="button" class="btn-outline filter-btn" id="listaFilterBtn">Filtros</button>
                 </div>
                 <div id="tasksList"><div class="loading-state">Cargando tareas…</div></div>
               </section>
