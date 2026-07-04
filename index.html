@@ -484,8 +484,9 @@
         <label class="field-label">Sub-tareas <span class="field-label-hint">· cada viñeta puede tener su propia fecha límite</span></label>
         <div id="subtasksList" class="subtasks-list"></div>
         <button class="btn-subtask-add" id="btnAddSubtask">+ Agregar viñeta</button>
-        <label class="field-label">Fecha límite de la tarea *</label>
-        <input class="field-input" id="taskDue" type="date" />
+        <label class="field-label" id="taskDatesLabel">Fecha límite de la tarea *</label>
+        <button type="button" class="field-input date-picker-trigger" id="taskDatesTrigger"></button>
+        <input id="taskDue" type="date" style="display:none" />
         <label class="field-label">Estado</label>
         <select class="field-input" id="taskStatus"></select>
         <label class="field-label">Proyecto Gantt <span class="field-label-hint">· opcional, agrupa la tarea en una línea de tiempo</span></label>
@@ -493,8 +494,7 @@
           <option value="">Ninguno</option>
         </select>
         <div id="taskStartWrap" style="display:none">
-          <label class="field-label">Fecha de inicio *</label>
-          <input class="field-input" id="taskStart" type="date" />
+          <input id="taskStart" type="date" style="display:none" />
         </div>
         <div id="taskDependsWrap" style="display:none">
           <label class="field-label">Depende de <span class="field-label-hint">· la tarea no puede empezar antes de que estas terminen</span></label>
@@ -597,7 +597,11 @@
           <div id="observationsList" class="obs-list"></div>
           <div class="obs-input-wrap">
             <textarea class="field-textarea obs-textarea" id="obsInput" rows="2" placeholder="Escribe una observación…"></textarea>
-            <button class="btn-primary obs-btn" id="btnAddObs">Agregar</button>
+            <div class="obs-input-actions">
+              <button class="btn-outline btn-sm" id="btnAttachObs" type="button" title="Adjuntar archivo o foto">📎 Adjuntar</button>
+              <button class="btn-primary obs-btn" id="btnAddObs">Agregar</button>
+            </div>
+            <input type="file" id="obsFileInput" accept="image/*,video/*,application/pdf" multiple hidden />
           </div>
         </div>
       </div>

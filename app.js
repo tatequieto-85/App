@@ -23,6 +23,7 @@ let kanbanAreas        = [];
 let kanbanTasks        = [];
 let kanbanTasksSheetId = null;
 let kanbanEditId       = null;
+let taskAutosaveTimer  = null;
 let draggedId          = null;
 let showTerminal       = false;
 
@@ -44,6 +45,9 @@ let informesRange = 'semana'; // 'semana' | 'mes' | 'todo'
 let currentView   = 'home';
 let currentSubTab = 'kanban';
 let deferredInstallPrompt = null;
+
+// Undo (Ctrl+Z) state
+let undoStack = [];
 
 // Ingredientes state
 let ingredientes         = [];
@@ -239,6 +243,29 @@ async function switchSubTab(subtab) {
   else if (subtab === 'calendario') renderCalendar();
   else renderKanbanList();
 }
+
+// ── Undo (Ctrl+Z) ─────────────────────────────────────────────────────────────
+
+function pushUndo(undoFn) {
+  undoStack.push(undoFn);
+  if (undoStack.length > 20) undoStack.shift();
+}
+
+async function undoLastAction() {
+  const fn = undoStack.pop();
+  if (!fn) return;
+  try { await fn(); } catch (e) { console.error('Error al deshacer:', e); }
+}
+
+document.addEventListener('keydown', e => {
+  const tag        = (e.target.tagName || '').toLowerCase();
+  const isEditable = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+    if (isEditable) return; // dejar el undo nativo de texto en campos editables
+    e.preventDefault();
+    undoLastAction();
+  }
+});
 
 // ── PWA install prompt ────────────────────────────────────────────────────────
 
@@ -1400,6 +1427,63 @@ function clearTaskDraft() {
   localStorage.removeItem('ss_draftTask');
 }
 
+// ── Autoguardado silencioso del modal de tarea ────────────────────────────────
+
+function startTaskAutosave() {
+  stopTaskAutosave();
+  taskAutosaveTimer = setInterval(performTaskAutosave, 25000);
+}
+
+function stopTaskAutosave() {
+  if (taskAutosaveTimer) { clearInterval(taskAutosaveTimer); taskAutosaveTimer = null; }
+}
+
+async function performTaskAutosave() {
+  if (!document.getElementById('taskOverlay')?.classList.contains('open')) { stopTaskAutosave(); return; }
+  const title = document.getElementById('taskTitle')?.value.trim();
+  if (!title) return; // nada útil que guardar todavía
+
+  const area      = document.getElementById('taskArea').value;
+  const desc      = document.getElementById('taskDesc').value.trim();
+  const due       = document.getElementById('taskDue').value;
+  const status    = document.getElementById('taskStatus').value;
+  const priority  = document.getElementById('taskPriority').value;
+  const projectId = document.getElementById('taskProject').value;
+  const startDate = document.getElementById('taskStart').value;
+  const subtasks  = collectSubtasks();
+
+  try {
+    if (kanbanEditId) {
+      const task = kanbanTasks.find(t => t.id === kanbanEditId);
+      if (!task) return;
+      const next = {
+        area, title, desc, dueDate: due, status, subtasks, priority,
+        projectId, startDate: projectId ? startDate : ''
+      };
+      const prevComparable = JSON.stringify({
+        area: task.area, title: task.title, desc: task.desc, dueDate: task.dueDate,
+        status: task.status, subtasks: task.subtasks, priority: task.priority,
+        projectId: task.projectId, startDate: task.startDate
+      });
+      if (JSON.stringify(next) === prevComparable) return; // sin cambios
+      Object.assign(task, next);
+      await updateKanbanTask(task);
+    } else {
+      if (!due) return; // esperar a que haya fecha límite antes de crear la fila
+      const now = new Date().toISOString();
+      const newId = crypto.randomUUID();
+      await appendKanbanTask({
+        id: newId, area, title, desc, dueDate: due, status, createdAt: now, updatedAt: now,
+        subtasks, observations: [], priority, projectId, startDate: projectId ? startDate : '',
+        dependsOn: [], timeSessions: []
+      });
+      await loadKanbanTasks();
+      kanbanEditId = newId;
+      clearTaskDraft();
+    }
+  } catch (e) { /* fallo silencioso: se reintenta en el próximo ciclo */ }
+}
+
 function fmtDueShort(dateStr) {
   if (!dateStr) return '';
   const d     = new Date(dateStr + 'T00:00:00');
@@ -1602,6 +1686,20 @@ async function deleteKanbanTaskRow(rowIndex) {
       }
     }]})
   });
+}
+
+async function deleteTaskWithUndo(taskId, rowIndex) {
+  const task = kanbanTasks.find(t => t.id === taskId);
+  const snapshot = task ? JSON.parse(JSON.stringify(task)) : null;
+  await deleteKanbanTaskRow(rowIndex);
+  await loadKanbanTasks();
+  if (snapshot) {
+    pushUndo(async () => {
+      await appendKanbanTask(snapshot);
+      await loadKanbanTasks();
+      renderCurrentSubTab();
+    });
+  }
 }
 
 // ── Gantt Projects CRUD ─────────────────────────────────────────────────────────
@@ -1890,7 +1988,6 @@ function renderKanban() {
       });
       card.addEventListener('dragend', () => {
         card.classList.remove('dragging');
-        document.querySelectorAll('.kanban-col.card-drag-over').forEach(el => el.classList.remove('card-drag-over'));
         draggedId = null;
       });
 
@@ -1900,25 +1997,30 @@ function renderKanban() {
     colEl.addEventListener('dragover', e => {
       if (draggedColName || !draggedId) return; // column drag takes priority
       e.preventDefault();
-      colEl.classList.add('card-drag-over');
-    });
-    colEl.addEventListener('dragleave', e => {
-      if (!colEl.contains(e.relatedTarget)) colEl.classList.remove('card-drag-over');
     });
     colEl.addEventListener('drop', async e => {
       if (!draggedId) return;
       e.preventDefault();
-      colEl.classList.remove('card-drag-over');
       const newStatus = col.name;
       const task = kanbanTasks.find(t => t.id === draggedId);
       if (!task || task.status === newStatus) return;
       if (TERMINAL_STATES.includes(newStatus)) {
         if (!confirm(`¿Finalizar la tarea como "${newStatus}"?`)) return;
       }
+      const prevStatus = task.status;
       task.status = newStatus;
       if (TERMINAL_STATES.includes(newStatus)) stopTaskTimer(task);
       renderKanban();
-      try { await updateKanbanTask(task); }
+      try {
+        await updateKanbanTask(task);
+        pushUndo(async () => {
+          const t = kanbanTasks.find(x => x.id === task.id);
+          if (!t) return;
+          t.status = prevStatus;
+          await updateKanbanTask(t);
+          renderCurrentSubTab();
+        });
+      }
       catch (err) { alert('Error al guardar: ' + err.message); await loadKanbanTasks(); renderKanban(); }
     });
 
@@ -1942,8 +2044,7 @@ function renderKanban() {
       if (!confirm('¿Eliminar esta tarea?')) return;
       btn.disabled = true;
       try {
-        await deleteKanbanTaskRow(+btn.dataset.row);
-        await loadKanbanTasks();
+        await deleteTaskWithUndo(btn.dataset.del, +btn.dataset.row);
         renderKanban();
       } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
     });
@@ -2027,8 +2128,7 @@ function renderKanbanList() {
       if (!confirm('¿Eliminar esta tarea?')) return;
       btn.disabled = true;
       try {
-        await deleteKanbanTaskRow(+btn.dataset.row);
-        await loadKanbanTasks();
+        await deleteTaskWithUndo(btn.dataset.del, +btn.dataset.row);
         renderKanbanList();
       } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
     });
@@ -2483,12 +2583,20 @@ function wireGanttBarInteractions(tasks, unitWidth) {
       e.stopPropagation();
       if (task.status === 'Realizado') return;
       if (!confirm(`¿Finalizar la tarea como "Realizado"?`)) return;
+      const prevStatus = task.status;
       task.status = 'Realizado';
       stopTaskTimer(task);
       try {
         await updateKanbanTask(task);
         renderGanttChart();
         if (currentSubTab === 'kanban') renderKanban();
+        pushUndo(async () => {
+          const t = kanbanTasks.find(x => x.id === task.id);
+          if (!t) return;
+          t.status = prevStatus;
+          await updateKanbanTask(t);
+          renderCurrentSubTab();
+        });
       } catch (err) { alert('Error al guardar: ' + err.message); await loadKanbanTasks(); renderGanttChart(); }
     });
   });
@@ -2533,12 +2641,25 @@ function startGanttDrag(e, task, mode, barEl, unitWidth) {
     if (mode === 'start') { newStart = addDays(origStart, deltaDays); if (newStart > origEnd) newStart = origEnd; }
     if (mode === 'end')   { newEnd = addDays(origEnd, deltaDays); if (newEnd < origStart) newEnd = origStart; }
 
+    const projectTasksBefore = kanbanTasks
+      .filter(t => t.projectId === task.projectId)
+      .map(t => ({ id: t.id, startDate: t.startDate, dueDate: t.dueDate }));
+
     task.startDate = toISODate(newStart);
     task.dueDate    = toISODate(newEnd);
     try {
       await updateKanbanTask(task);
       await applyCascade(task);
       renderGanttChart();
+      pushUndo(async () => {
+        for (const snap of projectTasksBefore) {
+          const t = kanbanTasks.find(x => x.id === snap.id);
+          if (!t || (t.startDate === snap.startDate && t.dueDate === snap.dueDate)) continue;
+          t.startDate = snap.startDate; t.dueDate = snap.dueDate;
+          await updateKanbanTask(t);
+        }
+        renderCurrentSubTab();
+      });
     } catch (err) {
       alert('Error al guardar: ' + err.message);
       await loadKanbanTasks();
@@ -2676,6 +2797,146 @@ function populateProjectSelects() {
 function toggleTaskStartVisibility() {
   const hasProject = !!document.getElementById('taskProject').value;
   document.getElementById('taskStartWrap').style.display = hasProject ? '' : 'none';
+  updateTaskDatesTrigger();
+}
+
+function fmtDateShortEs(iso) {
+  if (!iso) return '';
+  return parseISODate(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Bogota' });
+}
+
+function updateTaskDatesTrigger() {
+  const trigger = document.getElementById('taskDatesTrigger');
+  const label   = document.getElementById('taskDatesLabel');
+  if (!trigger || !label) return;
+  const hasProject = !!document.getElementById('taskProject').value;
+  const due   = document.getElementById('taskDue').value;
+  const start = document.getElementById('taskStart').value;
+  if (hasProject) {
+    label.textContent   = 'Fechas de la tarea (inicio y fin) *';
+    trigger.textContent = (start && due) ? `${fmtDateShortEs(start)} → ${fmtDateShortEs(due)}` : 'Elegir fechas…';
+  } else {
+    label.textContent   = 'Fecha límite de la tarea *';
+    trigger.textContent = due ? fmtDateShortEs(due) : 'Elegir fecha…';
+  }
+}
+
+document.getElementById('taskDatesTrigger').addEventListener('click', () => {
+  const dueInput = document.getElementById('taskDue');
+  if (dueInput.disabled) return;
+  const hasProject  = !!document.getElementById('taskProject').value;
+  const startInput  = document.getElementById('taskStart');
+  const today       = toISODate(new Date());
+  openCalendarPopover(document.getElementById('taskDatesTrigger'), {
+    mode:  hasProject ? 'range' : 'single',
+    start: startInput.value || today,
+    end:   dueInput.value || today,
+    onApply: (start, end) => {
+      if (hasProject) startInput.value = start;
+      dueInput.value = end;
+      updateTaskDatesTrigger();
+      if (!kanbanEditId) saveTaskDraft();
+    }
+  });
+});
+
+// ── Calendario de selección de fechas (popover) ───────────────────────────────
+
+function closeCalendarPopover() {
+  document.querySelectorAll('.cal-popover').forEach(p => p.remove());
+  if (window._calPopoverCleanup) { window._calPopoverCleanup(); window._calPopoverCleanup = null; }
+}
+
+function openCalendarPopover(anchorEl, { mode, start, end, onApply }) {
+  closeCalendarPopover();
+
+  const pop = document.createElement('div');
+  pop.className = 'cal-popover';
+  document.body.appendChild(pop);
+
+  let selStart = start, selEnd = end;
+  let rangeAnchor = null;
+  let viewMonth = parseISODate(selEnd || selStart || toISODate(new Date()));
+  viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+
+  function render() {
+    const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
+    const monthLabel = viewMonth.toLocaleDateString('es-CO', { month: 'long', year: 'numeric', timeZone: 'America/Bogota' });
+    const firstOfMonth = new Date(y, m, 1);
+    const startOffset  = (firstOfMonth.getDay() + 6) % 7; // lunes = 0
+    const gridStart    = new Date(y, m, 1 - startOffset);
+    const todayISO     = toISODate(new Date());
+
+    let daysHTML = '';
+    for (let i = 0; i < 42; i++) {
+      const d = addDays(gridStart, i);
+      const iso = toISODate(d);
+      const inMonth  = d.getMonth() === m;
+      const isSel    = mode === 'single' ? iso === selEnd : (iso === selStart || iso === selEnd);
+      const inRange  = mode === 'range' && selStart && selEnd && iso > selStart && iso < selEnd;
+      daysHTML += `<button type="button" class="cal-day${inMonth ? '' : ' cal-day--out'}${iso === todayISO ? ' cal-day--today' : ''}${isSel ? ' cal-day--selected' : ''}${inRange ? ' cal-day--in-range' : ''}" data-date="${iso}">${d.getDate()}</button>`;
+    }
+
+    const hint = mode === 'range' ? (rangeAnchor ? 'Elige la fecha final' : 'Elige la fecha de inicio') : '';
+
+    pop.innerHTML = `
+      <div class="cal-popover-header">
+        <button type="button" class="cal-nav-btn" data-nav="-1">‹</button>
+        <span class="cal-popover-title">${monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)}</span>
+        <button type="button" class="cal-nav-btn" data-nav="1">›</button>
+      </div>
+      <div class="cal-weekdays"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
+      <div class="cal-days">${daysHTML}</div>
+      ${hint ? `<div class="cal-popover-footer">${hint}</div>` : ''}
+    `;
+
+    pop.querySelectorAll('[data-nav]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + Number(btn.dataset.nav), 1);
+        render();
+      });
+    });
+    pop.querySelectorAll('.cal-day').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const iso = btn.dataset.date;
+        if (mode === 'single') {
+          closeCalendarPopover();
+          onApply(iso, iso);
+          return;
+        }
+        if (!rangeAnchor) {
+          rangeAnchor = iso;
+          selStart = selEnd = iso;
+          render();
+        } else {
+          const finalStart = iso < rangeAnchor ? iso : rangeAnchor;
+          const finalEnd   = iso < rangeAnchor ? rangeAnchor : iso;
+          closeCalendarPopover();
+          onApply(finalStart, finalEnd);
+        }
+      });
+    });
+  }
+
+  render();
+
+  const rect = anchorEl.getBoundingClientRect();
+  pop.style.top  = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 340)) + 'px';
+  pop.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 280)) + 'px';
+
+  function onDocClick(e) {
+    if (!pop.contains(e.target) && e.target !== anchorEl) closeCalendarPopover();
+  }
+  function onKeydown(e) { if (e.key === 'Escape') closeCalendarPopover(); }
+  setTimeout(() => {
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKeydown);
+  }, 0);
+
+  window._calPopoverCleanup = () => {
+    document.removeEventListener('mousedown', onDocClick);
+    document.removeEventListener('keydown', onKeydown);
+  };
 }
 
 function renderDependsChecklist(projectId, excludeTaskId, checkedIds) {
@@ -2739,11 +3000,11 @@ async function openTaskModal(defaultStatus, editId, defaultProjectId) {
       document.getElementById('taskArea').value   = draft.area   || kanbanAreas[0] || '';
       document.getElementById('taskTitle').value  = draft.title  || '';
       document.getElementById('taskDesc').value   = draft.desc   || '';
-      document.getElementById('taskDue').value    = draft.due    || '';
+      document.getElementById('taskDue').value    = draft.due    || toISODate(new Date());
       document.getElementById('taskStatus').value = draft.status || defaultStatus || kanbanColumns.find(c => !c.terminal)?.name || '';
       document.getElementById('taskPriority').value = draft.priority || '';
       document.getElementById('taskProject').value  = draft.project || defaultProjectId || '';
-      document.getElementById('taskStart').value     = draft.start   || '';
+      document.getElementById('taskStart').value     = draft.start   || toISODate(new Date());
       renderDependsChecklist(draft.project || defaultProjectId || '', null, []);
       renderSubtasksList(draft.subtasks || []);
       const fb = document.getElementById('taskFeedback');
@@ -2754,12 +3015,12 @@ async function openTaskModal(defaultStatus, editId, defaultProjectId) {
       document.getElementById('taskArea').value   = kanbanAreas[0] || '';
       document.getElementById('taskTitle').value  = '';
       document.getElementById('taskDesc').value   = '';
-      document.getElementById('taskDue').value    = '';
+      document.getElementById('taskDue').value    = toISODate(new Date());
       const firstNonTerm = kanbanColumns.find(c => !c.terminal);
       document.getElementById('taskStatus').value = defaultStatus || firstNonTerm?.name || '';
       document.getElementById('taskPriority').value = 'alta';
       document.getElementById('taskProject').value  = defaultProjectId || '';
-      document.getElementById('taskStart').value     = '';
+      document.getElementById('taskStart').value     = toISODate(new Date());
       renderDependsChecklist(defaultProjectId || '', null, []);
       renderSubtasksList([]);
       document.getElementById('taskFeedback').textContent = '';
@@ -2772,6 +3033,7 @@ async function openTaskModal(defaultStatus, editId, defaultProjectId) {
   document.getElementById('taskFeedback').textContent = '';
   overlay.classList.add('open');
   setTimeout(() => document.getElementById('taskTitle').focus(), 100);
+  startTaskAutosave();
 }
 
 document.getElementById('taskProject').addEventListener('change', function() {
@@ -2789,6 +3051,7 @@ function isTaskFormDirty() {
 
 function closeTaskModal() {
   confirmCloseIfDirty('taskOverlay', isTaskFormDirty);
+  if (!document.getElementById('taskOverlay').classList.contains('open')) stopTaskAutosave();
 }
 
 document.getElementById('btnCloseTask').addEventListener('click', closeTaskModal);
@@ -2823,15 +3086,24 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
 
   try {
     let savedId = kanbanEditId;
+    let undoSaveFn = null;
     if (kanbanEditId) {
       const task = kanbanTasks.find(t => t.id === kanbanEditId);
       if (task) {
+        const prevSnapshot = JSON.parse(JSON.stringify(task));
         task.area = area; task.title = title; task.desc = desc;
         task.dueDate = due; task.status = status; task.subtasks = subtasks;
         task.priority = priority; task.projectId = projectId; task.startDate = projectId ? startDate : '';
         task.dependsOn = dependsOn;
         if (TERMINAL_STATES.includes(status)) stopTaskTimer(task);
         await updateKanbanTask(task);
+        undoSaveFn = async () => {
+          const t = kanbanTasks.find(x => x.id === prevSnapshot.id);
+          if (!t) return;
+          Object.assign(t, prevSnapshot);
+          await updateKanbanTask(t);
+          renderCurrentSubTab();
+        };
       }
     } else {
       const now = new Date().toISOString();
@@ -2843,9 +3115,17 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
         projectId, startDate: projectId ? startDate : '',
         dependsOn, timeSessions: []
       });
+      undoSaveFn = async () => {
+        const t = kanbanTasks.find(x => x.id === savedId);
+        if (!t) return;
+        await deleteKanbanTaskRow(t.rowIndex);
+        await loadKanbanTasks();
+        renderCurrentSubTab();
+      };
     }
     clearTaskDraft();
     await loadKanbanTasks();
+    if (undoSaveFn) pushUndo(undoSaveFn);
 
     const savedTask = kanbanTasks.find(t => t.id === savedId);
     if (savedTask && savedTask.projectId) {
@@ -2862,6 +3142,7 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
     }
 
     document.getElementById('taskOverlay').classList.remove('open');
+    stopTaskAutosave();
 
     renderCurrentSubTab();
   } catch (e) {
@@ -3092,14 +3373,18 @@ function recalcTaskDueFromSubtasks() {
   if (!dueInput) return;
   const dates = Array.from(document.querySelectorAll('#subtasksList .subtask-date-input'))
     .map(el => el.value).filter(Boolean);
+  const trigger = document.getElementById('taskDatesTrigger');
   if (dates.length) {
     dueInput.value = dates.reduce((max, d) => d > max ? d : max);
     dueInput.disabled = true;
     dueInput.title = 'Se calcula automáticamente: la fecha más lejana entre las sub-tareas.';
+    if (trigger) { trigger.disabled = true; trigger.title = dueInput.title; }
   } else {
     dueInput.disabled = false;
     dueInput.title = '';
+    if (trigger) { trigger.disabled = false; trigger.title = ''; }
   }
+  updateTaskDatesTrigger();
 }
 
 document.getElementById('btnAddSubtask').addEventListener('click', () => {
@@ -3120,17 +3405,16 @@ function openTaskDetail(taskId) {
   const color = col ? col.color : '#999';
   const due   = fmtDue(task.dueDate);
 
-  const subtasksHTML = (task.subtasks || []).length
-    ? `<div class="detail-subtasks">
-        ${(task.subtasks).map(s => {
-          const sd = s.dueDate ? `<span class="subtask-bullet-date">${fmtDueShort(s.dueDate)}</span>` : '';
-          return `<div class="detail-subtask-item${s.done ? ' done' : ''}">
-            <span class="detail-subtask-bullet">•</span>
-            <span>${esc(s.text)}</span>${sd}
-          </div>`;
-        }).join('')}
-      </div>`
-    : '';
+  const subtasksHTML = (task.subtasks || []).map(s => {
+    const range = s.startDate && s.dueDate && s.startDate !== s.dueDate
+      ? `${fmtDueShort(s.startDate)} → ${fmtDueShort(s.dueDate)}`
+      : (s.dueDate ? fmtDueShort(s.dueDate) : '');
+    const sd = range ? `<span class="subtask-bullet-date">${range}</span>` : '';
+    return `<div class="detail-subtask-item${s.done ? ' done' : ''}">
+      <span class="detail-subtask-bullet">•</span>
+      <span>${esc(s.text)}</span>${sd}
+    </div>`;
+  }).join('');
 
   const statusOptions = kanbanColumns.map(c =>
     `<option value="${esc(c.name)}" ${c.name === task.status ? 'selected' : ''}>${esc(c.name)}</option>`
@@ -3156,7 +3440,18 @@ function openTaskDetail(taskId) {
     </div>
     ${task.priority ? `<div class="detail-row"><span class="detail-label">Prioridad</span><span class="kanban-card-priority kanban-priority-${esc(task.priority)}">${PRIORITY_LABELS[task.priority] || ''}</span></div>` : ''}
     ${task.desc ? `<div class="detail-row detail-row--col"><span class="detail-label">Descripción</span><span class="detail-value">${esc(task.desc)}</span></div>` : ''}
-    ${subtasksHTML ? `<div class="detail-row detail-row--col"><span class="detail-label">Sub-tareas</span>${subtasksHTML}</div>` : ''}
+    <div class="detail-row detail-row--col">
+      <span class="detail-label">Sub-tareas</span>
+      <div class="detail-subtasks">${subtasksHTML || '<div class="detail-subtask-empty">Sin sub-tareas aún.</div>'}</div>
+      <div class="detail-subtask-add">
+        <input type="text" id="detailSubtaskText" class="field-input" placeholder="Nueva sub-tarea…" />
+        <div class="detail-subtask-add-dates">
+          <input type="date" id="detailSubtaskStart" class="field-input" title="Fecha de inicio" />
+          <input type="date" id="detailSubtaskEnd" class="field-input" title="Fecha de fin" />
+        </div>
+        <button class="btn-outline btn-sm" id="btnDetailAddSubtask" type="button">+ Agregar sub-tarea</button>
+      </div>
+    </div>
     <div class="detail-row detail-row--meta"><span class="detail-label">Creada</span><span class="detail-value">${fmtDate(task.createdAt)}</span></div>
     <div class="detail-row detail-row--meta"><span class="detail-label">Actualizada</span><span class="detail-value">${fmtDate(task.updatedAt)}</span></div>
   `;
@@ -3180,6 +3475,14 @@ function openTaskDetail(taskId) {
         await updateKanbanTask(t);
         openTaskDetail(taskDetailId);
         renderCurrentSubTab();
+        pushUndo(async () => {
+          const t2 = kanbanTasks.find(x => x.id === t.id);
+          if (!t2) return;
+          t2.status = prev;
+          await updateKanbanTask(t2);
+          if (taskDetailId === t2.id) openTaskDetail(taskDetailId);
+          renderCurrentSubTab();
+        });
       } catch (e) {
         t.status   = prev;
         this.value = prev;
@@ -3223,6 +3526,39 @@ function openTaskDetail(taskId) {
   }
   if (isTimerRunning(task)) startTaskTimerClock(task); else stopTaskTimerClock();
 
+  const today = toISODate(new Date());
+  document.getElementById('detailSubtaskStart').value = today;
+  document.getElementById('detailSubtaskEnd').value   = today;
+  document.getElementById('btnDetailAddSubtask').addEventListener('click', async () => {
+    const text  = document.getElementById('detailSubtaskText').value.trim();
+    const start = document.getElementById('detailSubtaskStart').value;
+    const end   = document.getElementById('detailSubtaskEnd').value;
+    if (!text) return;
+    const t = kanbanTasks.find(x => x.id === taskDetailId);
+    if (!t) return;
+    const addBtn = document.getElementById('btnDetailAddSubtask');
+    addBtn.disabled = true;
+    try {
+      t.subtasks = t.subtasks || [];
+      t.subtasks.push({ text, startDate: start, dueDate: end, done: false });
+      await updateKanbanTask(t);
+      openTaskDetail(taskDetailId);
+      renderCurrentSubTab();
+      pushUndo(async () => {
+        const t2 = kanbanTasks.find(x => x.id === t.id);
+        if (!t2 || !(t2.subtasks || []).length) return;
+        t2.subtasks.pop();
+        await updateKanbanTask(t2);
+        if (taskDetailId === t2.id) openTaskDetail(taskDetailId);
+        renderCurrentSubTab();
+      });
+    } catch (e) {
+      alert('Error al guardar: ' + e.message);
+    } finally {
+      addBtn.disabled = false;
+    }
+  });
+
   renderObservations(task);
 
   document.getElementById('obsInput').value = '';
@@ -3236,12 +3572,22 @@ function renderObservations(task) {
     list.innerHTML = '<div class="obs-empty">Aún sin observaciones</div>';
     return;
   }
-  list.innerHTML = obs.map(o => `
-    <div class="obs-item">
-      <div class="obs-text">${esc(o.text)}</div>
-      <div class="obs-date">${fmtDate(o.createdAt)}</div>
-    </div>
-  `).join('');
+  list.innerHTML = obs.map(o => {
+    const attachmentsHTML = (o.attachments || []).map(a => {
+      const isImage = (a.mimeType || '').startsWith('image/');
+      const viewUrl = `https://drive.google.com/file/d/${a.fileId}/view`;
+      return isImage
+        ? `<a class="obs-attachment obs-attachment--img" href="${viewUrl}" target="_blank" rel="noopener"><img src="${thumbUrl(a.fileId)}" alt="${esc(a.name)}" /></a>`
+        : `<a class="obs-attachment obs-attachment--file" href="${viewUrl}" target="_blank" rel="noopener">📄 ${esc(a.name)}</a>`;
+    }).join('');
+    return `
+      <div class="obs-item">
+        ${o.text ? `<div class="obs-text">${esc(o.text)}</div>` : ''}
+        ${attachmentsHTML ? `<div class="obs-attachments">${attachmentsHTML}</div>` : ''}
+        <div class="obs-date">${fmtDate(o.createdAt)}</div>
+      </div>
+    `;
+  }).join('');
   list.scrollTop = list.scrollHeight;
 }
 
@@ -3276,10 +3622,64 @@ document.getElementById('btnAddObs').addEventListener('click', async () => {
     await updateKanbanTask(task);
     document.getElementById('obsInput').value = '';
     renderObservations(task);
+    pushUndo(async () => {
+      const t = kanbanTasks.find(x => x.id === task.id);
+      if (!t || !(t.observations || []).length) return;
+      t.observations.pop();
+      await updateKanbanTask(t);
+      if (taskDetailId === t.id) renderObservations(t);
+    });
   } catch (e) {
     alert('Error al guardar: ' + e.message);
   } finally {
     btn.disabled = false;
+  }
+});
+
+document.getElementById('btnAttachObs').addEventListener('click', () => {
+  document.getElementById('obsFileInput').click();
+});
+
+document.getElementById('obsFileInput').addEventListener('change', async function() {
+  const files = Array.from(this.files || []);
+  this.value = '';
+  if (!files.length) return;
+  const task = kanbanTasks.find(t => t.id === taskDetailId);
+  if (!task) return;
+
+  const attachBtn = document.getElementById('btnAttachObs');
+  attachBtn.disabled = true;
+  const list = document.getElementById('observationsList');
+  if (list.querySelector('.obs-empty')) list.innerHTML = '';
+  const placeholder = document.createElement('div');
+  placeholder.className = 'obs-item obs-item--uploading';
+  placeholder.textContent = `Subiendo ${files.length} archivo(s)…`;
+  list.appendChild(placeholder);
+  list.scrollTop = list.scrollHeight;
+
+  try {
+    const attachments = [];
+    for (const file of files) {
+      const data = await uploadToDrive(file);
+      attachments.push({ fileId: data.id, name: file.name, mimeType: file.type });
+    }
+    task.observations = task.observations || [];
+    task.observations.push({ text: '', createdAt: new Date().toISOString(), attachments });
+    await updateKanbanTask(task);
+    renderObservations(task);
+    pushUndo(async () => {
+      const t = kanbanTasks.find(x => x.id === task.id);
+      if (!t || !(t.observations || []).length) return;
+      const removed = t.observations.pop();
+      await updateKanbanTask(t);
+      for (const a of (removed.attachments || [])) await deleteDriveFile(a.fileId);
+      if (taskDetailId === t.id) renderObservations(t);
+    });
+  } catch (e) {
+    placeholder.remove();
+    alert('Error al subir archivo: ' + e.message);
+  } finally {
+    attachBtn.disabled = false;
   }
 });
 
