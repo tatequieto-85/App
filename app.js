@@ -1828,6 +1828,7 @@ function getDueStatus(dateStr) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const diff  = Math.round((d - today) / 86400000);
   if (diff < 0) return 'vencido';
+  if (diff === 0) return 'hoy';
   if (diff <= 3) return 'porVencer';
   return 'normal';
 }
@@ -2843,6 +2844,7 @@ const FILTER_FIELDS = {
     label: 'Fecha límite',
     getOptions: () => ([
       { value: 'vencido',   label: '⚠️ Vencidos' },
+      { value: 'hoy',       label: '🔴 Hoy' },
       { value: 'porVencer', label: '🟡 Por vencer' }
     ])
   }
