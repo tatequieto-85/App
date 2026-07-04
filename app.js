@@ -736,6 +736,12 @@ document.getElementById('btnSaveFase2').addEventListener('click', async () => {
   if (!ej) return;
   const btn = document.getElementById('btnSaveFase2');
   const fb  = document.getElementById('fase2Feedback');
+
+  const unratedFase2 = ['D3', 'D6'].filter(d => !fase2Scores[d]);
+  if (unratedFase2.length) {
+    return setFb(fb, `Falta calificar: ${unratedFase2.map(d => EVAL_DIM_LABELS[d]).join(', ')}.`, 'err');
+  }
+
   btn.disabled = true; btn.textContent = 'Guardando…';
   try {
     const fase2Data = {
@@ -5884,6 +5890,10 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
   if (f230 < 0 || f180 < 0 || exc < 0) return setFb(fb, 'Los frascos y el excedente no pueden ser negativos.', 'err');
 
   const phase1Dims = ['D1', 'D2', 'D4', 'D5'];
+  const unratedPhase1 = phase1Dims.filter(d => !evalScores[d]);
+  if (unratedPhase1.length) {
+    return setFb(fb, `Falta calificar: ${unratedPhase1.map(d => EVAL_DIM_LABELS[d]).join(', ')}.`, 'err');
+  }
   const scoreTotal = phase1Dims.reduce((sum, d) => sum + evalScores[d], 0);
 
   const btn = document.getElementById('btnSaveEvaluacion');
