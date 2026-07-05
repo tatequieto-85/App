@@ -4528,6 +4528,9 @@ document.getElementById('compraHistorialOverlay').addEventListener('click', e =>
 
 // ── Ferias: Sheets init + CRUD ──────────────────────────────────────────────────
 
+// Nota: las columnas A–L mantienen el orden original de este módulo
+// (antes de agregar horario/stock/ventas) para no desalinear filas ya
+// guardadas. Los campos nuevos siempre se agregan al final (M–R).
 async function initFeriasSheet() {
   const info = await sheetsReq('');
   const tabs = info.sheets || [];
@@ -4535,6 +4538,16 @@ async function initFeriasSheet() {
 
   if (hasF) {
     feriasSheetId = hasF.properties.sheetId;
+    const headerData = await sheetsReq('/values/Ferias!A1:R1').catch(() => ({}));
+    const headerRow  = (headerData.values || [])[0] || [];
+    if (headerRow.length < 18) {
+      await sheetsReq('/values/Ferias!M1:R1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [[
+          'HoraInicio','HoraFin','PlanStock','Ventas','ObservacionesDiarias','ConteoProductos'
+        ]] })
+      });
+    }
   } else {
     const res = await sheetsReq(':batchUpdate', {
       method: 'POST',
@@ -4545,9 +4558,9 @@ async function initFeriasSheet() {
     await sheetsReq('/values/Ferias!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
       body: JSON.stringify({ values: [[
-        'ID','Empresa','FechaInicio','FechaFin','HoraInicio','HoraFin','Precio','FechaImportante','Lugar',
-        'Observaciones','Alineacion','Estado','ConteoPersonas','PlanStock','Ventas',
-        'ObservacionesDiarias','ConteoProductos','CreadoEn'
+        'ID','Empresa','FechaInicio','FechaFin','Precio','FechaImportante','Lugar',
+        'Observaciones','Alineacion','Estado','ConteoPersonas','CreadoEn',
+        'HoraInicio','HoraFin','PlanStock','Ventas','ObservacionesDiarias','ConteoProductos'
       ]] })
     });
   }
@@ -4562,31 +4575,31 @@ async function loadFerias() {
     empresa:              r[1]  || '',
     fechaInicio:          r[2]  || '',
     fechaFin:             r[3]  || '',
-    horaInicio:           r[4]  || '',
-    horaFin:              r[5]  || '',
-    precio:               parseFloat(r[6]) || 0,
-    fechaImportante:      r[7]  || '',
-    lugar:                r[8]  || '',
-    observaciones:        r[9]  || '',
-    alineacion:           parseInt(r[10]) || 0,
-    estado:               r[11] || 'disponible',
-    conteoPersonas:       parseInt(r[12]) || 0,
-    planStock:            safeParseJSON(r[13], {}),
-    ventas:               safeParseJSON(r[14], []),
-    observacionesDiarias: safeParseJSON(r[15], []),
-    conteoProductos:      safeParseJSON(r[16], {}),
-    creadoEn:             r[17] || '',
+    precio:               parseFloat(r[4]) || 0,
+    fechaImportante:      r[5]  || '',
+    lugar:                r[6]  || '',
+    observaciones:        r[7]  || '',
+    alineacion:           parseInt(r[8]) || 0,
+    estado:               r[9]  || 'disponible',
+    conteoPersonas:       parseInt(r[10]) || 0,
+    creadoEn:             r[11] || '',
+    horaInicio:           r[12] || '',
+    horaFin:              r[13] || '',
+    planStock:            safeParseJSON(r[14], {}),
+    ventas:               safeParseJSON(r[15], []),
+    observacionesDiarias: safeParseJSON(r[16], []),
+    conteoProductos:      safeParseJSON(r[17], {}),
     rowIndex:             i + 2
   }));
 }
 
 function feriaRowValues(f) {
   return [
-    f.id, f.empresa, f.fechaInicio, f.fechaFin, f.horaInicio || '', f.horaFin || '', f.precio,
-    f.fechaImportante, f.lugar, f.observaciones || '', f.alineacion || 0, f.estado || 'disponible',
-    f.conteoPersonas || 0, JSON.stringify(f.planStock || {}), JSON.stringify(f.ventas || []),
-    JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {}),
-    f.creadoEn || new Date().toISOString()
+    f.id, f.empresa, f.fechaInicio, f.fechaFin, f.precio, f.fechaImportante, f.lugar,
+    f.observaciones || '', f.alineacion || 0, f.estado || 'disponible', f.conteoPersonas || 0,
+    f.creadoEn || new Date().toISOString(),
+    f.horaInicio || '', f.horaFin || '', JSON.stringify(f.planStock || {}), JSON.stringify(f.ventas || []),
+    JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {})
   ];
 }
 
@@ -4666,8 +4679,9 @@ document.querySelectorAll('[data-feriastab]').forEach(btn => {
 });
 
 function feriaCardHTML(f) {
-  const fechas = (f.fechaInicio && f.fechaFin) ? `${fmtDateShortEs(f.fechaInicio)} → ${fmtDateShortEs(f.fechaFin)}` : '—';
-  const stars  = '★'.repeat(f.alineacion || 0) + '☆'.repeat(5 - (f.alineacion || 0));
+  const fechas    = (f.fechaInicio && f.fechaFin) ? `${fmtDateShortEs(f.fechaInicio)} → ${fmtDateShortEs(f.fechaFin)}` : '—';
+  const alineacion = Math.max(0, Math.min(5, f.alineacion || 0));
+  const stars      = '★'.repeat(alineacion) + '☆'.repeat(5 - alineacion);
   return `
     <div class="feria-card" data-id="${esc(f.id)}">
       <div class="feria-card-body">
@@ -4775,7 +4789,7 @@ function renderFeriasConfirmadas() {
 }
 
 function setFeriaStars(val) {
-  feriaAlineacion = val;
+  feriaAlineacion = Math.max(0, Math.min(5, val || 0));
   document.querySelectorAll('#feriaStarsWrap .star-btn').forEach(btn => {
     btn.classList.toggle('active', +btn.dataset.val <= val);
   });
