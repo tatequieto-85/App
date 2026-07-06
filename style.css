@@ -440,7 +440,7 @@ body {
 .filter-empty { font-size: 12px; color: var(--text-sub); padding: 4px 0; }
 .filter-row { display: flex; align-items: center; gap: 6px; }
 .filter-row-label { font-size: 11.5px; font-weight: 600; color: var(--text-sub); min-width: 62px; flex-shrink: 0; }
-.filter-row-select { flex: 1; padding: 5px 8px; font-size: 12.5px; }
+.filter-row-select { flex: 1; min-width: 0; padding: 5px 8px; font-size: 12.5px; }
 .filter-row-remove {
   background: none; border: none; cursor: pointer; color: var(--text-sub);
   font-size: 12px; padding: 2px 4px; flex-shrink: 0;
@@ -760,7 +760,13 @@ body {
   font-size: 22px; font-weight: 800; letter-spacing: .06em;
   font-variant-numeric: tabular-nums; opacity: .9;
 }
-.modal-body { padding: 20px; }
+.modal-body { padding: 20px; overflow-x: hidden; }
+
+/* Ningún campo dentro de un formulario debe forzar scroll horizontal:
+   los <input>/<select> en fila flex se encogen en vez de desbordar. */
+.modal input, .modal select, .modal-overlay input, .modal-overlay select {
+  min-width: 0;
+}
 
 .info-box {
   background: rgba(113,75,103,.06); border-left: 3px solid var(--brand);
@@ -1095,7 +1101,7 @@ body {
 /* ── Board/Task modals ───────────────────────────────────────────────────── */
 .modal-board { max-width: 500px; }
 .modal-task  { max-width: 460px; }
-.modal-body-scroll { max-height: calc(100vh - 160px); overflow-y: scroll; }
+.modal-body-scroll { max-height: calc(100vh - 160px); overflow-y: scroll; overflow-x: hidden; }
 
 .mgmt-section-title {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase;
@@ -1116,7 +1122,10 @@ body {
 }
 .mgmt-item:last-child { border-bottom: none; }
 .mgmt-item-dot  { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.mgmt-item-name { flex: 1; font-size: 13px; color: var(--text); }
+.mgmt-item-name {
+  flex: 1; min-width: 0; font-size: 13px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .mgmt-item-unidad { width: 90px; flex-shrink: 0; padding: 5px 8px !important; font-size: 12px !important; margin: 0 !important; }
 .mgmt-item-tag  { font-size: 10px; color: var(--text-sub); background: var(--border); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
 .mgmt-item-del {
@@ -1206,11 +1215,11 @@ body {
 .subtasks-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 
 .subtask-item {
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
 }
 .subtask-bullet-icon { font-size: 16px; color: var(--brand); flex-shrink: 0; line-height: 1; }
-.subtask-text-input  { flex: 2; margin: 0 !important; padding: 7px 10px !important; font-size: 13px !important; }
-.subtask-date-input  { flex: 0 0 135px; margin: 0 !important; padding: 7px 8px !important; font-size: 12px !important; }
+.subtask-text-input  { flex: 2 1 140px; margin: 0 !important; padding: 7px 10px !important; font-size: 13px !important; }
+.subtask-date-input  { flex: 1 1 135px; max-width: 135px; margin: 0 !important; padding: 7px 8px !important; font-size: 12px !important; }
 .subtask-remove {
   background: none; border: none; cursor: pointer;
   color: var(--text-sub); font-size: 13px;
@@ -1330,8 +1339,8 @@ body {
   margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
 }
 .detail-subtask-add .field-input { font-size: 12.5px; padding: 7px 10px; }
-.detail-subtask-add-dates { display: flex; gap: 6px; }
-.detail-subtask-add-dates .field-input { flex: 1; }
+.detail-subtask-add-dates { display: flex; gap: 6px; flex-wrap: wrap; }
+.detail-subtask-add-dates .field-input { flex: 1 1 130px; min-width: 0; }
 
 @media (max-width: 640px) {
   .task-detail-body { flex-direction: column; }
@@ -1377,16 +1386,16 @@ body {
 }
 .feria-confirm-btn:hover { background: var(--brand-hover); }
 .feria-confirm-btn:disabled { background: var(--gray-300); cursor: not-allowed; }
-.feria-hora-row { display: flex; align-items: center; gap: 8px; }
-.feria-hora-row .field-input { flex: 1; margin: 0 !important; }
+.feria-hora-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.feria-hora-row .field-input { flex: 1 1 110px; min-width: 0; margin: 0 !important; }
 .feria-hora-sep { font-size: 12px; color: var(--text-sub); flex-shrink: 0; }
 
 /* ── Ferias: modal de conteo — secciones ─────────────────────────────────── */
 .feria-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 .feria-section-title { font-size: 12px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
-.feria-venta-add-row { display: flex; gap: 6px; margin-top: 8px; }
-.feria-venta-add-row select { flex: 2; margin: 0 !important; }
-.feria-venta-add-row input { flex: 1; margin: 0 !important; max-width: 80px; }
+.feria-venta-add-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.feria-venta-add-row select { flex: 2 1 140px; min-width: 0; margin: 0 !important; }
+.feria-venta-add-row input { flex: 1 1 70px; min-width: 0; margin: 0 !important; max-width: 80px; }
 
 /* ── Ferias: tabla de plan de stock ───────────────────────────────────────── */
 .feria-stock-receta { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
@@ -1708,7 +1717,8 @@ body {
 
 /* ── Instrucciones por fila (edición de etapa) ───────────────────────────── */
 .instrucciones-list { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
-.instruccion-row    { display: flex; align-items: center; gap: 6px; }
+.instruccion-row    { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.instruccion-row .instruccion-text { flex: 1 1 140px; min-width: 0; }
 
 /* ── Ejecución: instrucciones como lista numerada ────────────────────────── */
 .exec-instruccion-row {

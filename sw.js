@@ -1,4 +1,4 @@
-const CACHE = 'ss-v25';
+const CACHE = 'ss-v26';
 const ASSETS = ['./', './index.html', './style.css', './app.js', './config.js', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 // El recordatorio diario de WhatsApp (9am/4pm) lo envía notificacion-apps-script.gs
