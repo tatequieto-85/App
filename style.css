@@ -262,6 +262,7 @@ body {
 .install-banner-left div p {
   font-size: 11.5px; color: var(--text-sub); margin-top: 2px;
 }
+.install-banner-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .btn-install {
   background: var(--brand); color: #fff; border: none;
   border-radius: var(--radius-sm); padding: 8px 16px;
@@ -270,6 +271,11 @@ body {
   transition: background .2s;
 }
 .btn-install:hover { background: var(--brand-hover); }
+
+/* El botón de descarga es para celular — se oculta en pantallas de escritorio */
+@media (min-width: 768px) {
+  .install-banner { display: none !important; }
+}
 
 /* ── Sub-tab navigation (Tareas) ─────────────────────────────────────────── */
 .sub-tab-nav {

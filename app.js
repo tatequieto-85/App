@@ -344,12 +344,16 @@ function wasAccidentalTouch() {
   return touchTapMoved;
 }
 
-// ── PWA install prompt ────────────────────────────────────────────────────────
+// ── PWA install prompt (aparece una sola vez por dispositivo) ────────────────
+
+const INSTALL_BANNER_SHOWN_KEY = 'ss_installBannerShown';
 
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredInstallPrompt = e;
+  if (localStorage.getItem(INSTALL_BANNER_SHOWN_KEY)) return;
   document.getElementById('installBanner').style.display = '';
+  localStorage.setItem(INSTALL_BANNER_SHOWN_KEY, '1');
 });
 
 window.addEventListener('appinstalled', () => {
@@ -368,6 +372,28 @@ async function triggerInstall() {
 }
 
 document.getElementById('btnInstall').addEventListener('click', triggerInstall);
+document.getElementById('btnDismissInstall').addEventListener('click', () => {
+  document.getElementById('installBanner').style.display = 'none';
+});
+
+// ── Desactivar zoom una vez la app está instalada (modo standalone) ──────────
+
+function isStandalonePWA() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+if (isStandalonePWA()) {
+  const viewportMeta = document.querySelector('meta[name="viewport"]');
+  if (viewportMeta) {
+    viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+  }
+  document.documentElement.style.touchAction = 'pan-x pan-y';
+  document.addEventListener('gesturestart', e => e.preventDefault());
+  document.addEventListener('gesturechange', e => e.preventDefault());
+  document.addEventListener('touchmove', e => {
+    if (e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+}
 
 // ── WebAuthn / Biometric ──────────────────────────────────────────────────────
 
