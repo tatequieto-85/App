@@ -372,20 +372,45 @@ body {
   width: 100%; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
   padding: 10px 14px; font-size: 14px; color: var(--text);
   background: var(--bg); outline: none;
-  transition: border-color .2s, background .2s; font-family: inherit;
+  transition: border-color .2s, background .2s, box-shadow .2s; font-family: inherit;
+  min-height: 44px; box-sizing: border-box;
 }
 .field-input:focus, .field-textarea:focus {
   border-color: var(--brand); background: #fff;
 }
 .field-textarea { resize: vertical; min-height: 100px; }
 
+.field-input--invalid, .field-textarea--invalid {
+  border-color: #C0392B !important;
+}
+.field-input--invalid:focus, .field-textarea--invalid:focus {
+  box-shadow: 0 0 0 3px rgba(192,57,43,.12);
+}
+.field-error {
+  display: block; font-size: 12px; font-weight: 600; color: #C0392B;
+  margin: 5px 0 0; line-height: 1.4; min-height: 0;
+}
+.field-error:empty { margin: 0; }
+
 .field-select {
   border: 1.5px solid var(--border); border-radius: var(--radius-sm);
   padding: 7px 12px; font-size: 13.5px; color: var(--text);
   background: #fff; outline: none; cursor: pointer;
   transition: border-color .2s; font-family: inherit;
+  min-height: 44px; box-sizing: border-box;
 }
 .field-select:focus { border-color: var(--brand); }
+
+/* Grupos de campos relacionados: 1 columna en mobile, 2 en tablet/desktop */
+.field-row {
+  display: flex; flex-direction: column; gap: 0;
+}
+@media (min-width: 640px) {
+  .field-row {
+    flex-direction: row; gap: 14px;
+  }
+  .field-row > * { flex: 1; min-width: 0; }
+}
 
 .date-picker-trigger {
   text-align: left; cursor: pointer; color: var(--text);
@@ -1119,6 +1144,20 @@ body {
   .sub-tab-nav-inner { flex-wrap: wrap; }
   .sub-tab-actions { padding: 6px 0 10px; }
   .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { display: none; }
+
+  /* ── Formularios mobile-first: evita el zoom automático de iOS (min. 16px)
+     y garantiza áreas táctiles ≥44px, sin importar los tamaños compactos
+     usados en filas de escritorio (insumos, sub-tareas, etc.) ─────────────── */
+  .modal input, .modal select, .modal textarea,
+  .modal-overlay input, .modal-overlay select, .modal-overlay textarea {
+    font-size: 16px !important;
+  }
+  .field-input, .field-textarea, .field-select,
+  .date-picker-trigger {
+    min-height: 46px;
+  }
+  .modal-body { padding: 18px 16px; }
+  .modal-header { padding: 14px 16px; }
 }
 
 @media (min-width: 1024px) {
@@ -1654,6 +1693,10 @@ body {
   border-top: none;
   background: var(--surface);
 }
+@media (max-width: 600px) {
+  .comp-header, .comp-row { gap: 4px; padding: 8px 6px; }
+  .comp-row { font-size: 11.5px; }
+}
 .comp-row:last-child { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
 .comp-nombre  { font-weight: 600; color: var(--text); }
 .comp-plan    { color: var(--text-sub); }
@@ -1972,6 +2015,9 @@ body {
 /* ── Eval lot metadata grid ──────────────────────────────────────────────── */
 .eval-lot-meta-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;
+}
+@media (max-width: 600px) {
+  .eval-lot-meta-grid { grid-template-columns: 1fr; }
 }
 
 /* ── Eval rendimiento (I-09) ─────────────────────────────────────────────── */

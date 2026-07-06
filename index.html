@@ -207,10 +207,10 @@
                   <div class="progress-text" id="progressText">Subiendo a Drive...</div>
                 </div>
               </div>
-              <label class="field-label">Título de la historia *</label>
+              <label class="field-label" for="fTitle">Título de la historia *</label>
               <input class="field-input" id="fTitle" type="text" placeholder="Ej: Historia lanzamiento Maíz Habanero" />
               <div class="field-label-emoji-row">
-                <label class="field-label" style="margin:0">Acciones a realizar en Instagram</label>
+                <label class="field-label" for="fActions" style="margin:0">Acciones a realizar en Instagram</label>
                 <button class="btn-emoji-toggle" id="btnToggleEmoji" type="button" title="Insertar emoji de Instagram">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Emojis
                 </button>
@@ -218,7 +218,7 @@
               <div class="emoji-panel" id="emojiPanel"></div>
               <textarea class="field-textarea" id="fActions" rows="4"
                 placeholder="Ej:&#10;• Agregar encuesta '¿Llegaste al Habanero?'&#10;• Poner link de Mercado Libre en el sticker de link&#10;• Agregar sticker de cuenta regresiva al lanzamiento"></textarea>
-              <label class="field-label">Fecha y hora de publicación *</label>
+              <label class="field-label" for="fSchedule">Fecha y hora de publicación *</label>
               <input class="field-input" id="fSchedule" type="datetime-local" />
               <button class="btn-primary" id="btnAddStory">Programar historia</button>
               <div class="feedback" id="formFeedback"></div>
@@ -513,10 +513,10 @@
           <code>I allow callmebot to send me messages</code><br/>
           En segundos recibirás tu API key por WhatsApp.
         </div>
-        <label class="field-label">Número de WhatsApp (sin + ni espacios)</label>
-        <input class="field-input" id="settingsPhone" type="tel" placeholder="3122132279" />
-        <label class="field-label">API Key de CallMeBot</label>
-        <input class="field-input" id="settingsApikey" type="text" placeholder="123456" />
+        <label class="field-label" for="settingsPhone">Número de WhatsApp (sin + ni espacios)</label>
+        <input class="field-input" id="settingsPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="3122132279" />
+        <label class="field-label" for="settingsApikey">API Key de CallMeBot</label>
+        <input class="field-input" id="settingsApikey" type="text" autocomplete="off" placeholder="123456" />
         <button class="btn-primary" id="btnSaveSettings">Guardar en Google Sheets</button>
         <button class="btn-outline" id="btnTestWhatsApp" style="width:100%;margin-top:8px">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>Probar envío WhatsApp ahora
@@ -534,21 +534,23 @@
         <button class="btn-icon" id="btnCloseTask"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body modal-body-scroll">
-        <label class="field-label">Área *</label>
+        <label class="field-label" for="taskArea">Área *</label>
         <select class="field-input" id="taskArea"></select>
-        <label class="field-label">Título *</label>
+        <label class="field-label" for="taskTitle">Título *</label>
         <input class="field-input" id="taskTitle" type="text" placeholder="Ej: Publicar reels de octubre" />
-        <label class="field-label">Descripción</label>
+        <small class="field-error" id="taskTitleErr"></small>
+        <label class="field-label" for="taskDesc">Descripción</label>
         <textarea class="field-textarea" id="taskDesc" rows="2" placeholder="Descripción general (opcional)…" style="min-height:50px"></textarea>
         <label class="field-label">Sub-tareas <span class="field-label-hint">· cada viñeta puede tener su propia fecha límite</span></label>
         <div id="subtasksList" class="subtasks-list"></div>
         <button class="btn-subtask-add" id="btnAddSubtask">+ Agregar viñeta</button>
-        <label class="field-label" id="taskDatesLabel">Fecha límite de la tarea *</label>
+        <label class="field-label" id="taskDatesLabel" for="taskDatesTrigger">Fecha límite de la tarea *</label>
         <button type="button" class="field-input date-picker-trigger" id="taskDatesTrigger"></button>
+        <small class="field-error" id="taskDueErr"></small>
         <input id="taskDue" type="date" style="display:none" />
-        <label class="field-label">Estado</label>
+        <label class="field-label" for="taskStatus">Estado</label>
         <select class="field-input" id="taskStatus"></select>
-        <label class="field-label">Proyecto Gantt <span class="field-label-hint">· opcional, agrupa la tarea en una línea de tiempo</span></label>
+        <label class="field-label" for="taskProject">Proyecto Gantt <span class="field-label-hint">· opcional, agrupa la tarea en una línea de tiempo</span></label>
         <select class="field-input" id="taskProject">
           <option value="">Ninguno</option>
         </select>
@@ -559,7 +561,7 @@
           <label class="field-label">Depende de <span class="field-label-hint">· la tarea no puede empezar antes de que estas terminen</span></label>
           <div id="taskDependsList" class="task-depends-list"></div>
         </div>
-        <label class="field-label">Prioridad *</label>
+        <label class="field-label" for="taskPriority">Prioridad *</label>
         <select class="field-input" id="taskPriority">
           <option value="alta">🔴 Alta</option>
           <option value="media">🟡 Media</option>
@@ -675,9 +677,9 @@
         <button class="btn-icon" id="btnCloseReceta"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body modal-body-scroll">
-        <label class="field-label">Nombre de la receta *</label>
+        <label class="field-label" for="recetaNombre">Nombre de la receta *</label>
         <input class="field-input" id="recetaNombre" type="text" placeholder="Ej: Salsa Habanero Original" />
-        <label class="field-label">Descripción</label>
+        <label class="field-label" for="recetaDesc">Descripción</label>
         <textarea class="field-textarea" id="recetaDesc" rows="2" placeholder="Descripción general de la receta…" style="min-height:50px"></textarea>
         <p class="mgmt-section-title" style="margin-top:20px">Ingredientes de la receta</p>
         <p class="mgmt-note">Marca los ingredientes que usarás. Las cantidades totales se calculan automáticamente al asignar cantidades por etapa.</p>
@@ -725,13 +727,16 @@
         <button class="btn-icon" id="btnCloseCompra"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body modal-body-scroll">
-        <label class="field-label">Ingrediente *</label>
+        <label class="field-label" for="compraIngrediente">Ingrediente *</label>
         <input class="field-input" id="compraIngrediente" type="text" placeholder="Nombre del ingrediente…" autocomplete="off" />
-        <label class="field-label">Cantidad comprada * <span class="field-label-hint" id="compraUnidadHint"></span></label>
-        <input class="field-input" id="compraCantidad" type="number" min="0" step="any" placeholder="Cantidad" />
-        <label class="field-label">Precio total pagado *</label>
-        <input class="field-input" id="compraPrecioTotal" type="number" min="0" step="any" placeholder="$" />
-        <label class="field-label">Fecha de compra *</label>
+        <small class="field-error" id="compraIngredienteErr"></small>
+        <label class="field-label" for="compraCantidad">Cantidad comprada * <span class="field-label-hint" id="compraUnidadHint"></span></label>
+        <input class="field-input" id="compraCantidad" type="number" min="0" step="any" inputmode="decimal" placeholder="Cantidad" />
+        <small class="field-error" id="compraCantidadErr"></small>
+        <label class="field-label" for="compraPrecioTotal">Precio total pagado *</label>
+        <input class="field-input" id="compraPrecioTotal" type="number" min="0" step="any" inputmode="decimal" placeholder="$" />
+        <small class="field-error" id="compraPrecioTotalErr"></small>
+        <label class="field-label" for="compraFechaTrigger">Fecha de compra *</label>
         <button type="button" class="field-input date-picker-trigger" id="compraFechaTrigger"></button>
         <input id="compraFecha" type="date" style="display:none" />
         <button class="btn-primary" id="btnSaveCompra">Guardar compra</button>
@@ -761,23 +766,26 @@
         <button class="btn-icon" id="btnCloseFeria"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body modal-body-scroll">
-        <label class="field-label">Empresa organizadora *</label>
-        <input class="field-input" id="feriaEmpresa" type="text" placeholder="Nombre de la empresa…" />
-        <label class="field-label">Fechas de la feria *</label>
+        <label class="field-label" for="feriaEmpresa">Empresa organizadora *</label>
+        <input class="field-input" id="feriaEmpresa" type="text" placeholder="Nombre de la empresa…" autocomplete="organization" />
+        <small class="field-error" id="feriaEmpresaErr"></small>
+        <label class="field-label" for="feriaFechasTrigger">Fechas de la feria *</label>
         <button type="button" class="field-input date-picker-trigger" id="feriaFechasTrigger"></button>
+        <small class="field-error" id="feriaFechasErr"></small>
         <input id="feriaFechaInicio" type="date" style="display:none" />
         <input id="feriaFechaFin" type="date" style="display:none" />
-        <label class="field-label">Horario diario de la feria * <span class="field-label-hint">· aplica cada día</span></label>
-        <div class="feria-hora-row">
-          <input class="field-input" id="feriaHoraInicio" type="time" />
+        <label class="field-label" id="feriaHorarioLabel">Horario diario de la feria * <span class="field-label-hint">· aplica cada día</span></label>
+        <div class="feria-hora-row" role="group" aria-labelledby="feriaHorarioLabel">
+          <input class="field-input" id="feriaHoraInicio" type="time" aria-label="Hora de inicio" />
           <span class="feria-hora-sep">a</span>
-          <input class="field-input" id="feriaHoraFin" type="time" />
+          <input class="field-input" id="feriaHoraFin" type="time" aria-label="Hora de fin" />
         </div>
-        <label class="field-label">Precio de participación</label>
-        <input class="field-input" id="feriaPrecio" type="number" min="0" step="any" placeholder="$" />
-        <label class="field-label">Lugar</label>
-        <input class="field-input" id="feriaLugar" type="text" placeholder="Ej: Centro de Convenciones…" />
-        <label class="field-label">Fecha importante cercana <span class="field-label-hint">· ej: Día del padre, feriado largo…</span></label>
+        <small class="field-error" id="feriaHoraErr"></small>
+        <label class="field-label" for="feriaPrecio">Precio de participación</label>
+        <input class="field-input" id="feriaPrecio" type="number" min="0" step="any" inputmode="decimal" placeholder="$" />
+        <label class="field-label" for="feriaLugar">Lugar</label>
+        <input class="field-input" id="feriaLugar" type="text" placeholder="Ej: Centro de Convenciones…" autocomplete="street-address" />
+        <label class="field-label" for="feriaFechaImportante">Fecha importante cercana <span class="field-label-hint">· ej: Día del padre, feriado largo…</span></label>
         <input class="field-input" id="feriaFechaImportante" type="text" placeholder="Ej: Día del padre" />
         <label class="field-label">Alineación con TateQuieto</label>
         <div class="rating-stars" id="feriaStarsWrap">
@@ -787,7 +795,7 @@
           <button class="star-btn" data-val="4"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 7.1-1.01z"/></svg></button>
           <button class="star-btn" data-val="5"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 7.1-1.01z"/></svg></button>
         </div>
-        <label class="field-label">Observaciones</label>
+        <label class="field-label" for="feriaObservaciones">Observaciones</label>
         <textarea class="field-textarea" id="feriaObservaciones" rows="3" placeholder="Notas sobre esta feria…"></textarea>
         <button class="btn-primary" id="btnSaveFeria">Guardar feria</button>
         <div class="feedback" id="feriaFeedback"></div>
@@ -803,7 +811,7 @@
         <button class="btn-icon" id="btnCloseFeriaCounter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body modal-body-scroll">
-        <label class="field-label" style="margin-top:0">Día</label>
+        <label class="field-label" for="feriaCounterDaySelect" style="margin-top:0">Día</label>
         <select class="field-input" id="feriaCounterDaySelect"></select>
 
         <div style="text-align:center;margin:18px 0 8px">
@@ -872,16 +880,16 @@
       </div>
       <div class="modal-body modal-body-scroll">
         <p class="mgmt-note">Úsalo para corregir el inventario ante daños, pérdidas, donaciones u otras salidas/entradas que no pasan por lotes ni ferias.</p>
-        <label class="field-label">Receta *</label>
+        <label class="field-label" for="stockAjusteReceta">Receta *</label>
         <select class="field-input" id="stockAjusteReceta"></select>
-        <label class="field-label">Tipo de movimiento *</label>
+        <label class="field-label" for="stockAjusteTipo">Tipo de movimiento *</label>
         <select class="field-input" id="stockAjusteTipo">
           <option value="salida">Salida (resta del disponible)</option>
           <option value="entrada">Entrada (suma al disponible)</option>
         </select>
-        <label class="field-label">Cantidad *</label>
-        <input class="field-input" id="stockAjusteCantidad" type="number" min="1" step="1" placeholder="Unidades" />
-        <label class="field-label">Motivo *</label>
+        <label class="field-label" for="stockAjusteCantidad">Cantidad *</label>
+        <input class="field-input" id="stockAjusteCantidad" type="number" min="1" step="1" inputmode="numeric" placeholder="Unidades" />
+        <label class="field-label" for="stockAjusteMotivo">Motivo *</label>
         <input class="field-input" id="stockAjusteMotivo" type="text" placeholder="Ej: unidad dañada, donación, corrección de conteo…" />
         <button class="btn-primary" id="btnSaveStockAjuste">Guardar ajuste</button>
         <div class="feedback" id="stockAjusteFeedback"></div>
@@ -897,19 +905,19 @@
         <button class="btn-icon" id="btnCloseStockTestigo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body modal-body-scroll">
-        <label class="field-label">Lote *</label>
+        <label class="field-label" for="stockTestigoLote">Lote *</label>
         <select class="field-input" id="stockTestigoLote"></select>
-        <label class="field-label">Cantidad *</label>
-        <input class="field-input" id="stockTestigoCantidad" type="number" min="1" step="1" placeholder="Unidades" />
-        <label class="field-label">Fecha de apartado *</label>
+        <label class="field-label" for="stockTestigoCantidad">Cantidad *</label>
+        <input class="field-input" id="stockTestigoCantidad" type="number" min="1" step="1" inputmode="numeric" placeholder="Unidades" />
+        <label class="field-label" for="stockTestigoFechaApartadoTrigger">Fecha de apartado *</label>
         <button type="button" class="field-input date-picker-trigger" id="stockTestigoFechaApartadoTrigger"></button>
         <input id="stockTestigoFechaApartado" type="date" style="display:none" />
-        <label class="field-label">Fecha de revisión *</label>
+        <label class="field-label" for="stockTestigoFechaRevisionTrigger">Fecha de revisión *</label>
         <button type="button" class="field-input date-picker-trigger" id="stockTestigoFechaRevisionTrigger"></button>
         <input id="stockTestigoFechaRevision" type="date" style="display:none" />
-        <label class="field-label">Ubicación de almacenamiento</label>
+        <label class="field-label" for="stockTestigoUbicacion">Ubicación de almacenamiento</label>
         <input class="field-input" id="stockTestigoUbicacion" type="text" placeholder="Ej: Bodega, estante 2…" />
-        <label class="field-label">Observaciones</label>
+        <label class="field-label" for="stockTestigoObservaciones">Observaciones</label>
         <textarea class="field-textarea" id="stockTestigoObservaciones" rows="2" placeholder="Notas…"></textarea>
         <button class="btn-primary" id="btnSaveStockTestigo">Guardar</button>
         <div class="feedback" id="stockTestigoFeedback"></div>
@@ -996,16 +1004,16 @@
       <div class="modal-body modal-body-scroll">
         <div class="info-box" id="evalResumen"></div>
 
-        <label class="field-label">Número de lote <span class="field-label-hint">· auto-generado, editable</span></label>
+        <label class="field-label" for="evalLoteId">Número de lote <span class="field-label-hint">· auto-generado, editable</span></label>
         <input class="field-input" id="evalLoteId" type="text" />
 
-        <div class="eval-lot-meta-grid" style="grid-template-columns:1fr 1fr">
+        <div class="eval-lot-meta-grid">
           <div>
-            <label class="field-label">Fecha de elaboración</label>
+            <label class="field-label" for="evalFechaElaboracion">Fecha de elaboración</label>
             <input class="field-input" id="evalFechaElaboracion" type="date" />
           </div>
           <div>
-            <label class="field-label">Vencimiento estimado</label>
+            <label class="field-label" for="evalFechaVencimiento">Vencimiento estimado</label>
             <input class="field-input" id="evalFechaVencimiento" type="date" />
           </div>
         </div>

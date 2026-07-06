@@ -1475,6 +1475,29 @@ function setFb(el, msg, type) {
   if (type === 'ok') setTimeout(() => { el.textContent = ''; el.className = 'feedback'; }, 4500);
 }
 
+// ── Validación de campo en tiempo real (mensaje junto al campo, no solo al enviar) ──
+function setFieldError(fieldId, msg, visibleFieldId) {
+  const input = document.getElementById(visibleFieldId || fieldId);
+  const err = document.getElementById(fieldId + 'Err');
+  if (input) input.classList.toggle('field-input--invalid', !!msg);
+  if (err) err.textContent = msg || '';
+}
+function clearFieldErrors(...fieldIds) {
+  fieldIds.forEach(id => setFieldError(id, ''));
+}
+function liveValidate(fieldId, validatorFn) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  const run = () => setFieldError(fieldId, validatorFn(input.value) || '');
+  input.addEventListener('blur', run);
+  input.addEventListener('input', () => { if (input.classList.contains('field-input--invalid')) run(); });
+}
+liveValidate('taskTitle', v => v.trim() ? '' : 'El título es obligatorio.');
+liveValidate('feriaEmpresa', v => v.trim() ? '' : 'La empresa organizadora es obligatoria.');
+liveValidate('compraIngrediente', v => v.trim() ? '' : 'Indica el ingrediente.');
+liveValidate('compraCantidad', v => (parseFloat(v) > 0) ? '' : 'Debe ser mayor a 0.');
+liveValidate('compraPrecioTotal', v => (parseFloat(v) > 0) ? '' : 'Debe ser mayor a 0.');
+
 function confirmCloseIfDirty(overlayId, isDirtyFn) {
   if (isDirtyFn() && !confirm('¿Salir sin guardar? Se perderán los cambios.')) return;
   document.getElementById(overlayId).classList.remove('open');
@@ -3250,6 +3273,8 @@ function collectDependsOn() {
 
 async function openTaskModal(defaultStatus, editId, defaultProjectId) {
   kanbanEditId = editId || null;
+  setFieldError('taskTitle', '');
+  setFieldError('taskDue', '', 'taskDatesTrigger');
   const overlay = document.getElementById('taskOverlay');
   populateAreaSelects();
   populateStatusSelects();
@@ -3349,8 +3374,9 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
   const subtasks = collectSubtasks();
   const fb       = document.getElementById('taskFeedback');
 
-  if (!title)    return setFb(fb, 'El título es obligatorio.', 'err');
-  if (!due)      return setFb(fb, 'La fecha límite es obligatoria.', 'err');
+  clearFieldErrors('taskTitle', 'taskDue');
+  if (!title)    { setFieldError('taskTitle', 'El título es obligatorio.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
+  if (!due)      { setFieldError('taskDue', 'La fecha límite es obligatoria.', 'taskDatesTrigger'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
   if (!priority) return setFb(fb, 'La prioridad es obligatoria.', 'err');
   if (projectId) {
     if (!area)      return setFb(fb, 'El área es obligatoria en tareas de un proyecto Gantt.', 'err');
@@ -4446,6 +4472,7 @@ function updateCompraFechaTrigger() {
 
 function openCompraModal(nombrePrefill) {
   document.getElementById('compraFeedback').textContent = '';
+  clearFieldErrors('compraIngrediente', 'compraCantidad', 'compraPrecioTotal');
   const ingInput = document.getElementById('compraIngrediente');
   ingInput.value    = nombrePrefill || '';
   ingInput.disabled = !!nombrePrefill;
@@ -4492,11 +4519,12 @@ document.getElementById('btnSaveCompra').addEventListener('click', async () => {
   const fecha        = document.getElementById('compraFecha').value;
   const fb           = document.getElementById('compraFeedback');
 
-  if (!nombre) return setFb(fb, 'Indica el ingrediente.', 'err');
+  clearFieldErrors('compraIngrediente', 'compraCantidad', 'compraPrecioTotal');
+  if (!nombre) { setFieldError('compraIngrediente', 'Indica el ingrediente.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
   const dup = findIngredienteDuplicate(nombre);
-  if (!dup) return setFb(fb, `"${nombre}" no está en la lista de ingredientes. Elígelo de las sugerencias o usa "+ Agregar" mientras escribes.`, 'err');
-  if (!cantidad || cantidad <= 0) return setFb(fb, 'La cantidad debe ser mayor a 0.', 'err');
-  if (!precioTotal || precioTotal <= 0) return setFb(fb, 'El precio total debe ser mayor a 0.', 'err');
+  if (!dup) { setFieldError('compraIngrediente', 'No está en la lista. Elígelo de las sugerencias o usa "+ Agregar".'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
+  if (!cantidad || cantidad <= 0) { setFieldError('compraCantidad', 'Debe ser mayor a 0.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
+  if (!precioTotal || precioTotal <= 0) { setFieldError('compraPrecioTotal', 'Debe ser mayor a 0.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
   if (!fecha) return setFb(fb, 'Indica la fecha de compra.', 'err');
 
   const btn = document.getElementById('btnSaveCompra');
@@ -4882,6 +4910,9 @@ document.getElementById('feriaFechasTrigger').addEventListener('click', () => {
 function openFeriaModal(editId) {
   feriaEditId = editId || null;
   document.getElementById('feriaFeedback').textContent = '';
+  clearFieldErrors('feriaEmpresa');
+  setFieldError('feriaFechas', '', 'feriaFechasTrigger');
+  setFieldError('feriaHora', '');
   const today = toISODate(new Date());
   if (editId) {
     const f = ferias.find(x => x.id === editId);
@@ -4936,11 +4967,12 @@ document.getElementById('btnSaveFeria').addEventListener('click', async () => {
   const observaciones   = document.getElementById('feriaObservaciones').value.trim();
   const fb              = document.getElementById('feriaFeedback');
 
-  if (!empresa) return setFb(fb, 'La empresa organizadora es obligatoria.', 'err');
-  if (!fechaInicio || !fechaFin) return setFb(fb, 'Las fechas de la feria son obligatorias.', 'err');
-  if (fechaInicio > fechaFin) return setFb(fb, 'La fecha de inicio no puede ser posterior a la de fin.', 'err');
-  if (!horaInicio || !horaFin) return setFb(fb, 'El horario diario de la feria es obligatorio.', 'err');
-  if (horaInicio >= horaFin) return setFb(fb, 'La hora de inicio debe ser anterior a la hora de fin.', 'err');
+  clearFieldErrors('feriaEmpresa', 'feriaFechas', 'feriaHora');
+  if (!empresa) { setFieldError('feriaEmpresa', 'La empresa organizadora es obligatoria.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
+  if (!fechaInicio || !fechaFin) { setFieldError('feriaFechas', 'Las fechas de la feria son obligatorias.', 'feriaFechasTrigger'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
+  if (fechaInicio > fechaFin) { setFieldError('feriaFechas', 'La fecha de inicio no puede ser posterior a la de fin.', 'feriaFechasTrigger'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
+  if (!horaInicio || !horaFin) { setFieldError('feriaHora', 'El horario diario de la feria es obligatorio.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
+  if (horaInicio >= horaFin) { setFieldError('feriaHora', 'La hora de inicio debe ser anterior a la hora de fin.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
 
   const btn = document.getElementById('btnSaveFeria');
   btn.disabled = true; btn.textContent = 'Guardando…';
