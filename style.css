@@ -1132,6 +1132,26 @@ body {
 /* ── Ferias home card (rose) ───────────────────────────────────────────────── */
 .app-card-icon--rose { background: #DB2777; }
 
+/* ── Stock home card (slate) ──────────────────────────────────────────────── */
+.app-card-icon--slate { background: #475569; }
+
+/* ── Stock: resumen de inventario ─────────────────────────────────────────── */
+.stock-disponible-cell { font-weight: 700; color: var(--brand); }
+.stock-disponible-neg  { color: #C0392B; }
+
+/* ── Stock: producto testigo ──────────────────────────────────────────────── */
+.stock-testigo-card {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px 16px;
+  border: 1.5px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 10px; background: var(--surface);
+}
+.stock-testigo-card:last-child { margin-bottom: 0; }
+.stock-testigo-main  { flex: 1; min-width: 220px; }
+.stock-testigo-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.stock-testigo-meta  { font-size: 11.5px; color: var(--text-sub); margin-top: 4px; }
+.stock-testigo-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+
 /* ── Sub-tareas (viñetas) en modal tarea ─────────────────────────────────── */
 .field-label-hint {
   font-size: 10px; font-weight: 400; text-transform: none; letter-spacing: 0;

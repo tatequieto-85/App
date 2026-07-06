@@ -159,6 +159,13 @@
               <span class="app-card-label">Ferias</span>
               <span class="app-card-sub">Participación · Conteo</span>
             </button>
+            <button class="app-card" data-nav="stock">
+              <div class="app-card-icon app-card-icon--slate">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8L12 3 3 8l9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+              </div>
+              <span class="app-card-label">Stock</span>
+              <span class="app-card-sub">Inventario · Trazabilidad</span>
+            </button>
             <button class="app-card" data-nav="informes">
               <div class="app-card-icon app-card-icon--blue">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -392,6 +399,58 @@
                   <span class="hint-chip">Doble clic en un bloque para registrar el conteo</span>
                 </div>
                 <div id="feriasConfirmadasList"><div class="loading-state">Cargando ferias…</div></div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <!-- STOCK VIEW -->
+        <div id="viewStock" class="view" style="display:none">
+          <div class="sub-tab-nav">
+            <div class="sub-tab-nav-inner">
+              <div class="sub-tabs">
+                <button class="sub-tab-btn active" data-stocktab="resumen">Resumen</button>
+                <button class="sub-tab-btn" data-stocktab="trazabilidad">Trazabilidad</button>
+                <button class="sub-tab-btn" data-stocktab="testigo">Producto Testigo</button>
+              </div>
+              <div class="sub-tab-actions">
+                <button class="btn-outline btn-sm" id="btnNewStockAjuste" style="margin-right:6px">+ Ajuste manual</button>
+                <button class="btn-add-task" id="btnNewStockTestigo" style="display:none">+ Apartar testigo</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="subTabStockResumen">
+            <div class="main">
+              <section class="card">
+                <div class="section-header">
+                  <h2 class="section-title">Resumen de inventario</h2>
+                  <span class="hint-chip">Siempre calculado desde lotes, ventas y testigos</span>
+                </div>
+                <div id="stockResumenList"><div class="loading-state">Cargando…</div></div>
+              </section>
+            </div>
+          </div>
+
+          <div id="subTabStockTrazabilidad" style="display:none">
+            <div class="main">
+              <section class="card">
+                <div class="section-header">
+                  <h2 class="section-title">Trazabilidad por lote</h2>
+                </div>
+                <div id="stockTrazabilidadList"><div class="loading-state">Cargando…</div></div>
+              </section>
+            </div>
+          </div>
+
+          <div id="subTabStockTestigo" style="display:none">
+            <div class="main">
+              <section class="card">
+                <div class="section-header">
+                  <h2 class="section-title">Producto testigo</h2>
+                  <span class="hint-chip">Muestras de control por lote</span>
+                </div>
+                <div id="stockTestigoList"><div class="loading-state">Cargando…</div></div>
               </section>
             </div>
           </div>
@@ -797,6 +856,60 @@
         <div id="feriaStockTableWrap"></div>
         <button class="btn-primary" id="btnSaveFeriaStock" style="margin-top:14px">Confirmar participación</button>
         <div class="feedback" id="feriaStockFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Ajuste manual de stock -->
+  <div class="modal-overlay" id="stockAjusteOverlay">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <h2>Ajuste manual de stock</h2>
+        <button class="btn-icon" id="btnCloseStockAjuste"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <p class="mgmt-note">Úsalo para corregir el inventario ante daños, pérdidas, donaciones u otras salidas/entradas que no pasan por lotes ni ferias.</p>
+        <label class="field-label">Receta *</label>
+        <select class="field-input" id="stockAjusteReceta"></select>
+        <label class="field-label">Tipo de movimiento *</label>
+        <select class="field-input" id="stockAjusteTipo">
+          <option value="salida">Salida (resta del disponible)</option>
+          <option value="entrada">Entrada (suma al disponible)</option>
+        </select>
+        <label class="field-label">Cantidad *</label>
+        <input class="field-input" id="stockAjusteCantidad" type="number" min="1" step="1" placeholder="Unidades" />
+        <label class="field-label">Motivo *</label>
+        <input class="field-input" id="stockAjusteMotivo" type="text" placeholder="Ej: unidad dañada, donación, corrección de conteo…" />
+        <button class="btn-primary" id="btnSaveStockAjuste">Guardar ajuste</button>
+        <div class="feedback" id="stockAjusteFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Apartar producto testigo -->
+  <div class="modal-overlay" id="stockTestigoOverlay">
+    <div class="modal" style="max-width:460px">
+      <div class="modal-header">
+        <h2 id="stockTestigoModalTitle">Apartar producto testigo</h2>
+        <button class="btn-icon" id="btnCloseStockTestigo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <label class="field-label">Lote *</label>
+        <select class="field-input" id="stockTestigoLote"></select>
+        <label class="field-label">Cantidad *</label>
+        <input class="field-input" id="stockTestigoCantidad" type="number" min="1" step="1" placeholder="Unidades" />
+        <label class="field-label">Fecha de apartado *</label>
+        <button type="button" class="field-input date-picker-trigger" id="stockTestigoFechaApartadoTrigger"></button>
+        <input id="stockTestigoFechaApartado" type="date" style="display:none" />
+        <label class="field-label">Fecha de revisión *</label>
+        <button type="button" class="field-input date-picker-trigger" id="stockTestigoFechaRevisionTrigger"></button>
+        <input id="stockTestigoFechaRevision" type="date" style="display:none" />
+        <label class="field-label">Ubicación de almacenamiento</label>
+        <input class="field-input" id="stockTestigoUbicacion" type="text" placeholder="Ej: Bodega, estante 2…" />
+        <label class="field-label">Observaciones</label>
+        <textarea class="field-textarea" id="stockTestigoObservaciones" rows="2" placeholder="Notas…"></textarea>
+        <button class="btn-primary" id="btnSaveStockTestigo">Guardar</button>
+        <div class="feedback" id="stockTestigoFeedback"></div>
       </div>
     </div>
   </div>
