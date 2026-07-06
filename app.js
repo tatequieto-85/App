@@ -617,6 +617,13 @@ function setUserMenuInfo(name, email) {
   document.getElementById('userMenuEmail').textContent = email || '';
 }
 
+// Muestra la versión desplegada (toma el nombre de caché de sw.js, la misma
+// referencia que ya usamos para verificar despliegues de GitHub Pages).
+fetch('sw.js').then(r => r.text()).then(text => {
+  const match = text.match(/const CACHE = '([^']+)'/);
+  if (match) document.getElementById('userMenuVersion').textContent = 'Versión ' + match[1];
+}).catch(() => {});
+
 document.getElementById('userMenuTrigger').addEventListener('click', e => {
   e.stopPropagation();
   const dropdown = document.getElementById('userMenuDropdown');
