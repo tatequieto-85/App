@@ -4656,18 +4656,37 @@ function getStockProducido(recetaId) {
     }, 0);
 }
 
-function getStockComprometido(recetaId, excludeFeriaId) {
+function getStockComprometidoLote(ejecucionId, excludeFeriaId) {
   return ferias
     .filter(f => f.estado === 'confirmada' && f.id !== excludeFeriaId)
     .reduce((sum, f) => {
       let total = 0;
-      Object.values(f.planStock || {}).forEach(porReceta => { total += (porReceta[recetaId] || 0); });
+      Object.values(f.planStock || {}).forEach(porLote => { total += (porLote[ejecucionId] || 0); });
       return sum + total;
     }, 0);
 }
 
-function getStockDisponible(recetaId, excludeFeriaId) {
-  return getStockProducido(recetaId) - getStockComprometido(recetaId, excludeFeriaId);
+function getStockVendidoLote(ejecucionId) {
+  return ferias.reduce((sum, f) =>
+    sum + (f.ventas || []).filter(v => v.ejecucionId === ejecucionId).reduce((s, v) => s + v.cantidad, 0)
+  , 0);
+}
+
+function getStockDisponibleLote(ejecucionId, excludeFeriaId) {
+  const ej = ejecuciones.find(e => e.id === ejecucionId);
+  if (!ej) return 0;
+  const ev = ej.evaluacion || {};
+  const producido = (ev.frascos230 || 0) + (ev.frascos180 || 0);
+  const testigo = stockTestigos
+    .filter(t => t.ejecucionId === ejecucionId)
+    .reduce((sum, t) => sum + (t.cantidad || 0), 0);
+  return producido - testigo - getStockComprometidoLote(ejecucionId, excludeFeriaId);
+}
+
+function getStockComprometido(recetaId, excludeFeriaId) {
+  return ejecuciones
+    .filter(ej => ej.recetaId === recetaId)
+    .reduce((sum, ej) => sum + getStockComprometidoLote(ej.id, excludeFeriaId), 0);
 }
 
 function getFeriaDateList(f) {
@@ -4950,29 +4969,30 @@ function openFeriaStockModal(feriaId) {
   if (!f) return;
   feriaStockPendingId = feriaId;
   document.getElementById('feriaStockFeedback').textContent = '';
-  const dias = getFeriaDateList(f);
-  const wrap = document.getElementById('feriaStockTableWrap');
+  const dias  = getFeriaDateList(f);
+  const wrap  = document.getElementById('feriaStockTableWrap');
+  const lotes = ejecuciones.filter(ej => (ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180));
 
-  if (!recetas.length) {
-    wrap.innerHTML = '<div class="empty-state">No hay recetas registradas en Procesos.</div>';
+  if (!lotes.length) {
+    wrap.innerHTML = '<div class="empty-state">No hay lotes con producción registrada en Procesos → Ejecuciones.</div>';
   } else {
     const headerCells = dias.map(d => `<th>${esc(fmtDateShortEs(d))}</th>`).join('');
-    const rowsHTML = recetas.map(r => {
-      const disponible = getStockDisponible(r.id, feriaId);
+    const rowsHTML = lotes.map(ej => {
+      const disponible = getStockDisponibleLote(ej.id, feriaId);
       const cells = dias.map(d => {
-        const val = (f.planStock[d] && f.planStock[d][r.id]) || '';
-        return `<td><input type="number" min="0" step="1" class="field-input feria-stock-input" data-receta="${esc(r.id)}" data-fecha="${d}" value="${val}" style="width:64px" /></td>`;
+        const val = (f.planStock[d] && f.planStock[d][ej.id]) || '';
+        return `<td><input type="number" min="0" step="1" class="field-input feria-stock-input" data-lote="${esc(ej.id)}" data-fecha="${d}" value="${val}" style="width:64px" /></td>`;
       }).join('');
       return `
         <tr>
-          <td class="feria-stock-receta">${esc(r.nombre)}<div class="feria-stock-disponible">Disponible: ${disponible}</div></td>
+          <td class="feria-stock-receta">${esc(ej.nombreReceta)} — Lote ${esc(ej.loteId || ej.id.slice(0, 8))}<div class="feria-stock-disponible">Disponible: ${disponible}</div></td>
           ${cells}
         </tr>`;
     }).join('');
     wrap.innerHTML = `
       <div style="overflow-x:auto">
         <table class="tasks-table feria-stock-table">
-          <thead><tr><th>Receta</th>${headerCells}</tr></thead>
+          <thead><tr><th>Lote</th>${headerCells}</tr></thead>
           <tbody>${rowsHTML}</tbody>
         </table>
       </div>`;
@@ -4998,21 +5018,21 @@ document.getElementById('btnSaveFeriaStock').addEventListener('click', async () 
   const newPlan = {};
   const totals  = {};
   document.querySelectorAll('.feria-stock-input').forEach(inp => {
-    const recetaId = inp.dataset.receta;
-    const fecha    = inp.dataset.fecha;
-    const qty      = parseInt(inp.value) || 0;
+    const ejecucionId = inp.dataset.lote;
+    const fecha       = inp.dataset.fecha;
+    const qty         = parseInt(inp.value) || 0;
     if (qty <= 0) return;
     newPlan[fecha] = newPlan[fecha] || {};
-    newPlan[fecha][recetaId] = qty;
-    totals[recetaId] = (totals[recetaId] || 0) + qty;
+    newPlan[fecha][ejecucionId] = qty;
+    totals[ejecucionId] = (totals[ejecucionId] || 0) + qty;
   });
 
   const excesos = [];
-  Object.entries(totals).forEach(([recetaId, total]) => {
-    const disponible = getStockDisponible(recetaId, f.id);
+  Object.entries(totals).forEach(([ejecucionId, total]) => {
+    const disponible = getStockDisponibleLote(ejecucionId, f.id);
     if (total > disponible) {
-      const receta = recetas.find(r => r.id === recetaId);
-      excesos.push(`${receta?.nombre || recetaId} (pediste ${total}, disponible ${disponible})`);
+      const ej = ejecuciones.find(e => e.id === ejecucionId);
+      excesos.push(`${ej?.nombreReceta || ejecucionId} — Lote ${ej?.loteId || ejecucionId} (pediste ${total}, disponible ${disponible})`);
     }
   });
   if (excesos.length) return setFb(fb, `No hay stock suficiente: ${excesos.join('; ')}.`, 'err');
@@ -5060,7 +5080,7 @@ function renderFeriaCounterDay() {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
   const fecha = document.getElementById('feriaCounterDaySelect').value;
-  renderFeriaVentaRecetaOptions(f, fecha);
+  renderFeriaVentaLoteOptions(f, fecha);
   renderFeriaVentasList(f, fecha);
   renderFeriaObsDiariasList(f, fecha);
   renderFeriaConteoProductos(f, fecha);
@@ -5100,8 +5120,8 @@ document.getElementById('btnFeriaCounterReset').addEventListener('click', () => 
   scheduleFeriaCounterSave();
 });
 
-function renderFeriaVentaRecetaOptions(f, fecha) {
-  const sel     = document.getElementById('feriaVentaReceta');
+function renderFeriaVentaLoteOptions(f, fecha) {
+  const sel     = document.getElementById('feriaVentaLote');
   const planHoy = f.planStock[fecha] || {};
   const ids     = Object.keys(planHoy).filter(id => planHoy[id] > 0);
   if (!ids.length) {
@@ -5111,8 +5131,9 @@ function renderFeriaVentaRecetaOptions(f, fecha) {
   }
   sel.disabled = false;
   sel.innerHTML = ids.map(id => {
-    const r = recetas.find(x => x.id === id);
-    return `<option value="${esc(id)}">${esc(r?.nombre || id)} (llevados: ${planHoy[id]})</option>`;
+    const ej = ejecuciones.find(x => x.id === id);
+    const label = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
+    return `<option value="${esc(id)}">${esc(label)} (llevados: ${planHoy[id]})</option>`;
   }).join('');
 }
 
@@ -5128,7 +5149,7 @@ function renderFeriaVentasList(f, fecha) {
     const globalIdx = f.ventas.indexOf(v);
     return `
       <div class="obs-item">
-        <div class="obs-text">${esc(v.recetaNombre)} × ${v.cantidad}</div>
+        <div class="obs-text">${esc(v.recetaNombre)}${v.loteId ? ` — Lote ${esc(v.loteId)}` : ''} × ${v.cantidad}</div>
         <div class="obs-date">${fmtDate(v.createdAt)} <button class="mgmt-item-del" data-del-venta="${globalIdx}" style="float:right">✕</button></div>
       </div>`;
   }).join('');
@@ -5145,13 +5166,16 @@ function renderFeriaVentasList(f, fecha) {
 document.getElementById('btnAddFeriaVenta').addEventListener('click', async () => {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
-  const fecha     = document.getElementById('feriaCounterDaySelect').value;
-  const recetaId  = document.getElementById('feriaVentaReceta').value;
-  const cantidad  = parseInt(document.getElementById('feriaVentaCantidad').value) || 0;
-  if (!recetaId || cantidad <= 0) return;
-  const receta = recetas.find(r => r.id === recetaId);
+  const fecha       = document.getElementById('feriaCounterDaySelect').value;
+  const ejecucionId = document.getElementById('feriaVentaLote').value;
+  const cantidad    = parseInt(document.getElementById('feriaVentaCantidad').value) || 0;
+  if (!ejecucionId || cantidad <= 0) return;
+  const ej = ejecuciones.find(x => x.id === ejecucionId);
   f.ventas = f.ventas || [];
-  f.ventas.push({ fecha, recetaId, recetaNombre: receta?.nombre || '', cantidad, createdAt: new Date().toISOString() });
+  f.ventas.push({
+    fecha, ejecucionId, loteId: ej?.loteId || '', recetaId: ej?.recetaId || '',
+    recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString()
+  });
   document.getElementById('feriaVentaCantidad').value = '';
   renderFeriaCounterDay();
   try { await updateFeria(f); } catch (e) { console.warn('Error guardando venta:', e.message); }
@@ -5203,22 +5227,23 @@ function renderFeriaConteoProductos(f, fecha) {
 
   const existing = (f.conteoProductos || {})[fecha];
   const rowsHTML = ids.map(id => {
-    const receta     = recetas.find(r => r.id === id);
+    const ej         = ejecuciones.find(e => e.id === id);
+    const label      = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
     const llevados   = planHoy[id];
-    const vendidos   = (f.ventas || []).filter(v => v.fecha === fecha && v.recetaId === id).reduce((s, v) => s + v.cantidad, 0);
+    const vendidos   = (f.ventas || []).filter(v => v.fecha === fecha && v.ejecucionId === id).reduce((s, v) => s + v.cantidad, 0);
     const sobrantesVal = existing?.detalle?.[id]?.sobrantes ?? '';
     return `
       <tr>
-        <td>${esc(receta?.nombre || id)}</td>
+        <td>${esc(label)}</td>
         <td>${llevados}</td>
         <td>${vendidos}</td>
-        <td><input type="number" min="0" step="1" class="field-input feria-sobrante-input" data-receta="${esc(id)}" value="${sobrantesVal}" style="width:64px" /></td>
+        <td><input type="number" min="0" step="1" class="field-input feria-sobrante-input" data-lote="${esc(id)}" value="${sobrantesVal}" style="width:64px" /></td>
       </tr>`;
   }).join('');
 
   wrap.innerHTML = `
     <table class="tasks-table">
-      <thead><tr><th>Receta</th><th>Llevados</th><th>Vendidos</th><th>Sobrantes</th></tr></thead>
+      <thead><tr><th>Lote</th><th>Llevados</th><th>Vendidos</th><th>Sobrantes</th></tr></thead>
       <tbody>${rowsHTML}</tbody>
     </table>
     <button class="btn-outline btn-sm" id="btnSaveConteoProductos" style="margin-top:8px">Guardar conteo de productos</button>
@@ -5231,8 +5256,8 @@ function renderFeriaConteoProductos(f, fecha) {
     const detalle = {};
     ids.forEach(id => {
       const llevados = planHoy[id];
-      const vendidos = (f.ventas || []).filter(v => v.fecha === fecha && v.recetaId === id).reduce((s, v) => s + v.cantidad, 0);
-      const input     = wrap.querySelector(`.feria-sobrante-input[data-receta="${CSS.escape(id)}"]`);
+      const vendidos = (f.ventas || []).filter(v => v.fecha === fecha && v.ejecucionId === id).reduce((s, v) => s + v.cantidad, 0);
+      const input     = wrap.querySelector(`.feria-sobrante-input[data-lote="${CSS.escape(id)}"]`);
       const sobrantes  = parseInt(input.value) || 0;
       detalle[id] = { llevados, vendidos, sobrantes, descuadre: llevados - vendidos - sobrantes };
     });
@@ -5252,8 +5277,9 @@ function renderConteoProductosResult(f, fecha) {
   const problemas = Object.entries(conteo.detalle)
     .filter(([, d]) => d.descuadre !== 0)
     .map(([id, d]) => {
-      const receta = recetas.find(r => r.id === id);
-      return `${receta?.nombre || id}: descuadre de ${d.descuadre} unidad${Math.abs(d.descuadre) !== 1 ? 'es' : ''}`;
+      const ej = ejecuciones.find(e => e.id === id);
+      const label = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
+      return `${label}: descuadre de ${d.descuadre} unidad${Math.abs(d.descuadre) !== 1 ? 'es' : ''}`;
     });
   resultEl.innerHTML = problemas.length
     ? `<div class="eval-insumos-total eval-costo-warn">⚠️ ${problemas.join('; ')}</div>`
@@ -5279,21 +5305,26 @@ function feriaToText(f) {
     const ids  = Object.keys(plan);
     if (ids.length) {
       lines.push('Stock llevado:');
-      ids.forEach(id => lines.push(`  - ${recetas.find(r => r.id === id)?.nombre || id}: ${plan[id]} unidades`));
+      ids.forEach(id => {
+        const ej = ejecuciones.find(e => e.id === id);
+        const label = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
+        lines.push(`  - ${label}: ${plan[id]} unidades`);
+      });
     } else {
       lines.push('Sin stock planeado.');
     }
     const ventasDia = (f.ventas || []).filter(v => v.fecha === fecha);
     if (ventasDia.length) {
       lines.push('Ventas:');
-      ventasDia.forEach(v => lines.push(`  - ${v.recetaNombre}: ${v.cantidad}`));
+      ventasDia.forEach(v => lines.push(`  - ${v.recetaNombre}${v.loteId ? ` — Lote ${v.loteId}` : ''}: ${v.cantidad}`));
     }
     const conteo = (f.conteoProductos || {})[fecha];
     if (conteo) {
       lines.push('Conteo de productos:');
       Object.entries(conteo.detalle).forEach(([id, d]) => {
-        const nombre = recetas.find(r => r.id === id)?.nombre || id;
-        lines.push(`  - ${nombre}: llevados ${d.llevados}, vendidos ${d.vendidos}, sobrantes ${d.sobrantes}${d.descuadre !== 0 ? ` ⚠️ descuadre ${d.descuadre}` : ''}`);
+        const ej = ejecuciones.find(e => e.id === id);
+        const label = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
+        lines.push(`  - ${label}: llevados ${d.llevados}, vendidos ${d.vendidos}, sobrantes ${d.sobrantes}${d.descuadre !== 0 ? ` ⚠️ descuadre ${d.descuadre}` : ''}`);
       });
     }
     const obsDia = (f.observacionesDiarias || []).filter(o => o.fecha === fecha);
@@ -5511,12 +5542,17 @@ function getStockResumen(recetaId) {
 function getLoteResumen(ejecucionId) {
   const ej = ejecuciones.find(e => e.id === ejecucionId);
   if (!ej) return null;
-  const ev        = ej.evaluacion || {};
-  const producido = (ev.frascos230 || 0) + (ev.frascos180 || 0);
-  const testigo   = stockTestigos
+  const ev          = ej.evaluacion || {};
+  const producido   = (ev.frascos230 || 0) + (ev.frascos180 || 0);
+  const testigo     = stockTestigos
     .filter(t => t.ejecucionId === ejecucionId)
     .reduce((sum, t) => sum + (t.cantidad || 0), 0);
-  return { producido, testigo, disponible: producido - testigo };
+  const comprometido = getStockComprometidoLote(ejecucionId, null);
+  const vendido       = getStockVendidoLote(ejecucionId);
+  return {
+    producido, testigo, comprometido, vendido,
+    disponible: producido - testigo - comprometido
+  };
 }
 
 // ── Stock: UI ─────────────────────────────────────────────────────────────────
@@ -5583,17 +5619,18 @@ function renderStockTrazabilidad() {
         <td>${esc(ej.nombreReceta)}</td>
         <td>${fmtDate(ej.fechaFin)}</td>
         <td>${r.producido}</td>
+        <td>${r.comprometido}</td>
+        <td>${r.vendido}</td>
         <td>${r.testigo}</td>
-        <td>${r.disponible}</td>
+        <td class="stock-disponible-cell${r.disponible < 0 ? ' stock-disponible-neg' : ''}">${r.disponible}</td>
         <td>${vencimiento ? esc(vencimiento) : '—'}</td>
       </tr>`;
   }).join('');
   container.innerHTML = `
     <table class="tasks-table">
-      <thead><tr><th>Lote</th><th>Receta</th><th>Fecha</th><th>Producido</th><th>Testigo</th><th>Disponible del lote</th><th>Vencimiento</th></tr></thead>
+      <thead><tr><th>Lote</th><th>Receta</th><th>Fecha</th><th>Producido</th><th>En ferias</th><th>Vendido</th><th>Testigo</th><th>Disponible</th><th>Vencimiento</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p class="mgmt-note" style="margin-top:10px">Las ventas en ferias se registran por receta, no por lote específico — "disponible del lote" solo descuenta el producto testigo ya apartado de ese lote.</p>
   `;
 }
 
