@@ -892,7 +892,14 @@
         <label class="field-label" for="stockAjusteCantidad">Cantidad *</label>
         <input class="field-input" id="stockAjusteCantidad" type="number" min="1" step="1" inputmode="numeric" placeholder="Unidades" />
         <label class="field-label" for="stockAjusteMotivo">Motivo *</label>
-        <input class="field-input" id="stockAjusteMotivo" type="text" placeholder="Ej: unidad dañada, donación, corrección de conteo…" />
+        <select class="field-input" id="stockAjusteMotivo">
+          <option value="Frasco promocional">Frasco promocional</option>
+          <option value="Unidad dañada">Unidad dañada</option>
+          <option value="Donación">Donación</option>
+          <option value="Corrección de conteo">Corrección de conteo</option>
+          <option value="otro">Otro…</option>
+        </select>
+        <input class="field-input" id="stockAjusteMotivoOtro" type="text" placeholder="Especifica el motivo" style="display:none;margin-top:8px" />
         <button class="btn-primary" id="btnSaveStockAjuste">Guardar ajuste</button>
         <div class="feedback" id="stockAjusteFeedback"></div>
       </div>

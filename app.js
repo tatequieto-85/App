@@ -5771,7 +5771,9 @@ function openStockAjusteModal() {
     recetas.map(r => `<option value="${esc(r.id)}">${esc(r.nombre)}</option>`).join('');
   document.getElementById('stockAjusteTipo').value = 'salida';
   document.getElementById('stockAjusteCantidad').value = '';
-  document.getElementById('stockAjusteMotivo').value = '';
+  document.getElementById('stockAjusteMotivo').value = 'Frasco promocional';
+  document.getElementById('stockAjusteMotivoOtro').value = '';
+  document.getElementById('stockAjusteMotivoOtro').style.display = 'none';
   document.getElementById('stockAjusteOverlay').classList.add('open');
 }
 document.getElementById('btnNewStockAjuste').addEventListener('click', openStockAjusteModal);
@@ -5781,12 +5783,18 @@ document.getElementById('btnCloseStockAjuste').addEventListener('click', () => {
 document.getElementById('stockAjusteOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('stockAjusteOverlay')) document.getElementById('stockAjusteOverlay').classList.remove('open');
 });
+document.getElementById('stockAjusteMotivo').addEventListener('change', e => {
+  document.getElementById('stockAjusteMotivoOtro').style.display = e.target.value === 'otro' ? '' : 'none';
+});
 
 document.getElementById('btnSaveStockAjuste').addEventListener('click', async () => {
-  const recetaId = document.getElementById('stockAjusteReceta').value;
-  const tipo     = document.getElementById('stockAjusteTipo').value;
-  const cantidad = parseInt(document.getElementById('stockAjusteCantidad').value) || 0;
-  const motivo   = document.getElementById('stockAjusteMotivo').value.trim();
+  const recetaId    = document.getElementById('stockAjusteReceta').value;
+  const tipo        = document.getElementById('stockAjusteTipo').value;
+  const cantidad    = parseInt(document.getElementById('stockAjusteCantidad').value) || 0;
+  const motivoSel   = document.getElementById('stockAjusteMotivo').value;
+  const motivo      = motivoSel === 'otro'
+    ? document.getElementById('stockAjusteMotivoOtro').value.trim()
+    : motivoSel;
   const fb       = document.getElementById('stockAjusteFeedback');
   if (!recetaId) return setFb(fb, 'Selecciona una receta.', 'err');
   if (cantidad <= 0) return setFb(fb, 'La cantidad debe ser mayor a 0.', 'err');
