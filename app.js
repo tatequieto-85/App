@@ -562,9 +562,9 @@ btnSignOut.addEventListener('click', () => {
   });
 });
 
-async function ensureToken() {
-  if (accessToken && Date.now() < tokenExpiry - 60000) return;
-  if (loadSavedToken()) return;
+async function ensureToken(force) {
+  if (!force && accessToken && Date.now() < tokenExpiry - 60000) return;
+  if (!force && loadSavedToken()) return;
   await new Promise((resolve, reject) => {
     const saved = tokenClient.callback;
     tokenClient.callback = (resp) => {
@@ -879,8 +879,8 @@ document.getElementById('btnSaveSineresis').addEventListener('click', async () =
 
 const SHEETS_BASE = () => `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}`;
 
-async function sheetsReq(path, opts = {}) {
-  await ensureToken();
+async function sheetsReq(path, opts = {}, retried) {
+  await ensureToken(retried);
   const url     = path.startsWith('http') ? path : `${SHEETS_BASE()}${path}`;
   const isGet   = !opts.method || opts.method === 'GET';
   const headers = {
@@ -889,6 +889,9 @@ async function sheetsReq(path, opts = {}) {
     ...(opts.headers || {})
   };
   const resp = await fetch(url, { ...opts, headers });
+  if (resp.status === 401 && !retried) {
+    return sheetsReq(path, opts, true);
+  }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.error?.message || `Sheets error ${resp.status}`);
