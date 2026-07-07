@@ -18,9 +18,6 @@
   <header class="header">
     <div class="header-inner">
       <div class="header-brand">
-        <button class="btn-back" id="btnBack" style="display:none" aria-label="Volver">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-        </button>
         <button type="button" class="header-logo-btn" id="headerLogoBtn" title="Ir al inicio">
           <img class="header-logo-img" id="headerLogoImg"
             src="https://lh3.googleusercontent.com/d/1E6_2QBEdpCi726SRUp-WfvmcmycsN_bZ"
@@ -174,6 +171,13 @@
               </div>
               <span class="app-card-label">Informes</span>
               <span class="app-card-sub">Horas · Rendimiento</span>
+            </button>
+            <button class="app-card" data-nav="qr">
+              <div class="app-card-icon app-card-icon--purple">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="14" y1="14" x2="14" y2="21"/><line x1="21" y1="14" x2="21" y2="21"/><line x1="17.5" y1="14" x2="17.5" y2="17.5"/><line x1="14" y1="17.5" x2="21" y2="17.5"/></svg>
+              </div>
+              <span class="app-card-label">QR</span>
+              <span class="app-card-sub">Generar · Guardar links</span>
             </button>
           </div>
           <!-- PWA install banner -->
@@ -485,6 +489,28 @@
                   <span class="informes-stat-hint">Ya invertidas en tareas aún no concluidas</span>
                 </div>
               </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- QR VIEW -->
+        <div id="viewQR" class="view" style="display:none">
+          <div class="main">
+            <section class="card">
+              <h2 class="section-title">Generar código QR</h2>
+              <label class="field-label" for="qrNombre">Nombre *</label>
+              <input class="field-input" id="qrNombre" type="text" placeholder="Ej: Menú digital, Catálogo, Promo Instagram" />
+              <label class="field-label" for="qrLink">Link *</label>
+              <input class="field-input" id="qrLink" type="text" placeholder="https://..." />
+              <button class="btn-primary" id="btnGenerarQR">Generar y guardar QR</button>
+              <div class="feedback" id="qrFormFeedback"></div>
+              <div class="qr-preview" id="qrPreview" style="display:none"></div>
+            </section>
+            <section class="card">
+              <div class="section-header">
+                <h2 class="section-title">Códigos QR guardados</h2>
+              </div>
+              <div id="qrList"><div class="loading-state">Cargando…</div></div>
             </section>
           </div>
         </div>
@@ -1225,6 +1251,7 @@
 
   <script src="config.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="vendor-qrcode.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>
