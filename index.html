@@ -65,6 +65,10 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
               Configuración WhatsApp
             </button>
+            <button class="user-menu-item" id="btnSwitchDb">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              Cambiar base de datos
+            </button>
             <button class="user-menu-item user-menu-item--danger" id="btnSignOut">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               Cerrar sesión
@@ -106,6 +110,19 @@
         Continuar con Google
       </button>
       <p class="signin-note">Usa tu cuenta de Google Drive y Sheets para guardar las historias.</p>
+    </div>
+  </div>
+
+  <!-- Selector de base de datos -->
+  <div id="screenDbPicker" style="display:none">
+    <div class="main">
+      <section class="card">
+        <div class="section-header">
+          <h2 class="section-title">Bases de datos</h2>
+          <button class="btn-add-task" id="btnNewBase">+ Crear</button>
+        </div>
+        <div id="dbPickerList"><div class="loading-state">Cargando…</div></div>
+      </section>
     </div>
   </div>
 
@@ -782,6 +799,35 @@
       </div>
       <div class="modal-body modal-body-scroll">
         <div id="compraHistorialList" class="mgmt-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Crear/Editar base de datos -->
+  <div class="modal-overlay" id="baseOverlay">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <h2 id="baseModalTitle">Nueva base de datos</h2>
+        <button class="btn-icon" id="btnCloseBase"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <label class="field-label" for="baseNombre">Nombre *</label>
+        <input class="field-input" id="baseNombre" type="text" placeholder="Ej: irtec-automatismos-srl" autocomplete="off" />
+        <small class="field-error" id="baseNombreErr"></small>
+        <label class="field-label">Módulos a usar *</label>
+        <div class="base-modules-grid" id="baseModulesGrid">
+          <label class="base-module-check"><input type="checkbox" value="contenido" checked /> Contenido</label>
+          <label class="base-module-check"><input type="checkbox" value="tareas" checked /> Tareas</label>
+          <label class="base-module-check"><input type="checkbox" value="procesos" checked /> Procesos</label>
+          <label class="base-module-check"><input type="checkbox" value="compras" checked /> Compras</label>
+          <label class="base-module-check"><input type="checkbox" value="ferias" checked /> Ferias</label>
+          <label class="base-module-check"><input type="checkbox" value="stock" checked /> Stock</label>
+          <label class="base-module-check"><input type="checkbox" value="informes" checked /> Informes</label>
+          <label class="base-module-check"><input type="checkbox" value="qr" checked /> QR</label>
+        </div>
+        <small class="field-error" id="baseModulosErr"></small>
+        <button class="btn-primary" id="btnSaveBase">Crear base de datos</button>
+        <div class="feedback" id="baseFeedback"></div>
       </div>
     </div>
   </div>
