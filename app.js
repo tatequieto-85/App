@@ -1032,12 +1032,9 @@ async function createNewDatabase({ nombre, modulos }) {
   const sheetId = created.spreadsheetId;
   if (!sheetId) throw new Error('Google Sheets no devolvió un ID de hoja al crearla.');
 
-  activeSheetId = sheetId;
-  await provisionAllTabs();
-
   await appendBase({ nombre, sheetId, modulos });
   const base = bases.find(b => b.sheetId === sheetId);
-  await connectToDatabase(base);
+  await connectToDatabase(base); // ya arma las pestañas y activa la base — no lo dupliques aquí
 }
 
 function applyModuleVisibility() {
