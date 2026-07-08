@@ -5244,6 +5244,7 @@ function feriaBlockHTML(f) {
       <div class="feria-block-meta">📍 ${esc(f.lugar || '—')}</div>
       <div class="feria-block-counter">👥 ${f.conteoPersonas || 0}</div>
       <div class="feria-block-actions">
+        <button class="task-action-btn" data-plan-stock-feria="${esc(f.id)}" title="Plan de stock por día">📦</button>
         <button class="task-action-btn" data-edit-feria="${esc(f.id)}" title="Editar">${ICON_EDIT}</button>
         <button class="task-action-btn" data-volver-feria="${esc(f.id)}" title="Volver a disponibles">↩</button>
         <button class="task-action-btn" data-del-feria="${esc(f.id)}" data-row="${f.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
@@ -5295,6 +5296,9 @@ function renderFeriasConfirmadas() {
   }
   container.innerHTML = `<div class="feria-blocks-grid">${list.map(feriaBlockHTML).join('')}</div>`;
   wireFeriaCardActions(container);
+  container.querySelectorAll('[data-plan-stock-feria]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); openFeriaStockModal(btn.dataset.planStockFeria); });
+  });
   container.querySelectorAll('.feria-block').forEach(block => {
     block.addEventListener('dblclick', e => {
       if (e.target.closest('button')) return;
@@ -5476,6 +5480,7 @@ function openFeriaStockModal(feriaId) {
   if (!f) return;
   feriaStockPendingId = feriaId;
   document.getElementById('feriaStockFeedback').textContent = '';
+  document.getElementById('btnSaveFeriaStock').textContent = f.estado === 'confirmada' ? 'Guardar plan' : 'Confirmar participación';
   const dias  = getFeriaDateList(f);
   const wrap  = document.getElementById('feriaStockTableWrap');
   const lotes = ejecuciones.filter(ej => (ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180));
@@ -5544,7 +5549,8 @@ document.getElementById('btnSaveFeriaStock').addEventListener('click', async () 
   });
   if (excesos.length) return setFb(fb, `No hay stock suficiente: ${excesos.join('; ')}.`, 'err');
 
-  const btn = document.getElementById('btnSaveFeriaStock');
+  const btn      = document.getElementById('btnSaveFeriaStock');
+  const original = btn.textContent;
   btn.disabled = true; btn.textContent = 'Guardando…';
   try {
     f.planStock = newPlan;
@@ -5557,7 +5563,7 @@ document.getElementById('btnSaveFeriaStock').addEventListener('click', async () 
   } catch (e) {
     setFb(fb, 'Error: ' + e.message, 'err');
   } finally {
-    btn.disabled = false; btn.textContent = 'Confirmar participación';
+    btn.disabled = false; btn.textContent = original;
   }
 });
 
