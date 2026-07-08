@@ -1030,6 +1030,7 @@ async function createNewDatabase({ nombre, modulos }) {
     body: JSON.stringify({ properties: { title: nombre } })
   });
   const sheetId = created.spreadsheetId;
+  if (!sheetId) throw new Error('Google Sheets no devolvió un ID de hoja al crearla.');
 
   activeSheetId = sheetId;
   await provisionAllTabs();
@@ -1073,9 +1074,10 @@ function renderDbPickerList() {
         <div class="db-picker-modulos">${b.modulos.map(m => `<span class="db-module-tag">${esc(MODULE_LABELS[m] || m)}</span>`).join('')}</div>
       </div>
       <div class="db-picker-actions">
+        <a class="btn-icon" href="https://docs.google.com/spreadsheets/d/${encodeURIComponent(b.sheetId)}/edit" target="_blank" rel="noopener" title="Abrir en Google Sheets">${ICON_FOLDER}</a>
         <button class="btn-icon" data-base-edit="${b.id}" title="Editar">${ICON_EDIT}</button>
         <button class="btn-icon" data-base-delete="${b.id}" title="Eliminar">${ICON_TRASH}</button>
-        <button class="btn-primary btn-sm" data-base-connect="${b.id}">Conectar</button>
+        <button class="db-picker-connect" data-base-connect="${b.id}">Conectar</button>
       </div>
     </div>
   `).join('');
