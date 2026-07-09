@@ -7866,11 +7866,11 @@ function buildExecInsumosSection(receta, etapa) {
       </div>
     `).join('');
     return `
-      <div class="exec-insumos-section">
-        <h4 class="exec-insumos-title">¿Cuánto usaste en esta etapa?</h4>
+      <details class="exec-insumos-section">
+        <summary class="exec-insumos-title"><span class="exec-insumos-chevron">▸</span> ¿Cuánto usaste en esta etapa?</summary>
         <p class="exec-insumos-note">Ingresa la cantidad real de cada ingrediente usado en esta etapa. Déjalo en 0 si no lo usaste aquí.</p>
         <div class="exec-insumos-list">${rows}</div>
-      </div>`;
+      </details>`;
   }
   if (etapa.insumos && etapa.insumos.length) {
     const rows = etapa.insumos.map((ins, i) => `
@@ -7884,11 +7884,11 @@ function buildExecInsumosSection(receta, etapa) {
       </div>
     `).join('');
     return `
-      <div class="exec-insumos-section">
-        <h4 class="exec-insumos-title">Confirmar insumos usados</h4>
+      <details class="exec-insumos-section">
+        <summary class="exec-insumos-title"><span class="exec-insumos-chevron">▸</span> Confirmar insumos usados</summary>
         <p class="exec-insumos-note">Verifica o ajusta las cantidades reales antes de continuar.</p>
         <div class="exec-insumos-list">${rows}</div>
-      </div>`;
+      </details>`;
   }
   return '';
 }
