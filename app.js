@@ -7793,6 +7793,7 @@ function saveExecutionProgress() {
       currentStageIndex: executionState.currentStageIndex,
       stagesData:        executionState.stagesData,
       stageObsDraft:     executionState.stageObsDraft || {},
+      insumosVolcados:   executionState.insumosVolcados || false,
       savedAt:           new Date().toISOString()
     }));
   } catch {}
@@ -7817,7 +7818,8 @@ function startExecution(recetaId) {
         stageStartTime:    Date.now(),
         timerInterval:     null,
         stagesData:        saved.stagesData,
-        stageObsDraft:     saved.stageObsDraft || {}
+        stageObsDraft:     saved.stageObsDraft || {},
+        insumosVolcados:   saved.insumosVolcados || false
       };
       document.getElementById('ejecutarTitle').textContent = `Receta: ${receta.nombre}`;
       document.getElementById('ejecutarOverlay').classList.add('open');
@@ -7833,7 +7835,8 @@ function startExecution(recetaId) {
     stageStartTime: Date.now(),
     timerInterval: null,
     stagesData: [],
-    stageObsDraft: {}
+    stageObsDraft: {},
+    insumosVolcados: false
   };
 
   document.getElementById('ejecutarTitle').textContent = `Receta: ${receta.nombre}`;
@@ -7989,6 +7992,9 @@ function renderExecutionStep() {
       <div class="exec-timer" id="execTimer">00:00</div>
     </div>
 
+    ${(!executionState.insumosVolcados && ((receta.ingredientesMaestros || []).length || (etapa.insumos || []).length)) ? `
+      <button type="button" class="btn-outline" id="btnVolcarInsumos" style="margin-bottom:14px">Volcar insumos planeados</button>
+    ` : ''}
     ${buildExecInsumosSection(receta, etapa)}
 
     <div class="exec-obs-section">
@@ -8034,6 +8040,27 @@ function renderExecutionStep() {
   document.getElementById('btnNextStage').addEventListener('click', () => advanceStage());
   const backBtn = document.getElementById('btnBackStage');
   if (backBtn) backBtn.addEventListener('click', () => goBackStage());
+
+  const volcarBtn = document.getElementById('btnVolcarInsumos');
+  if (volcarBtn) {
+    volcarBtn.addEventListener('click', () => {
+      const maestros = receta.ingredientesMaestros || [];
+      if (maestros.length) {
+        document.querySelectorAll('.exec-insumo-real[data-ing-idx]').forEach(inp => {
+          const ing = maestros[+inp.dataset.ingIdx];
+          if (ing) inp.value = ing.cantidadTotal;
+        });
+      } else {
+        document.querySelectorAll('.exec-insumo-real[data-idx]').forEach(inp => {
+          const ins = (etapa.insumos || [])[+inp.dataset.idx];
+          if (ins) inp.value = ins.cantidad;
+        });
+      }
+      executionState.insumosVolcados = true;
+      saveExecutionProgress();
+      volcarBtn.remove();
+    });
+  }
 }
 
 // ── Procesos: Alarmas por instrucción (inicio manual, opcional, con sonido) ──
