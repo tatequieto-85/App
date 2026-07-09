@@ -8014,6 +8014,8 @@ function renderExecutionStep() {
       </button>
     </div>
   `;
+  body.scrollTop = 0;
+  window.scrollTo(0, 0);
 
   renderExecStageObsList();
   document.getElementById('btnAddExecStageObs').addEventListener('click', () => {
