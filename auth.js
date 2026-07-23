@@ -4,14 +4,23 @@
 
 import { activeSheetId } from './db-state.js';
 
-const CRED_KEY   = 'ss_credId';
-const USER_KEY   = 'ss_userInfo';
-const TOKEN_KEY  = 'ss_token';
-const EXPIRY_KEY = 'ss_tokenExpiry';
+const CRED_KEY    = 'ss_credId';
+const USER_KEY    = 'ss_userInfo';
+const TOKEN_KEY   = 'ss_token';
+const EXPIRY_KEY  = 'ss_tokenExpiry';
+const REFRESH_KEY = 'ss_refreshToken';
 
 export let accessToken = null;
 export let tokenExpiry = null;
-let tokenClient = null;
+let tokenClient = null; // flujo implícito (fallback si no hay TOKEN_PROXY_URL configurado)
+let codeClient  = null; // flujo authorization-code + refresh_token (sesiones largas)
+
+// Con TOKEN_PROXY_URL configurado, la renovación de sesión pasa por el Apps
+// Script del usuario (que guarda el Client Secret) en vez de depender de la
+// cookie de sesión de Google en el navegador — eso es lo que falla en PWAs
+// instaladas en iPhone (Safari aísla esas cookies) y obligaba a reingresar
+// cada ~1 hora, que es la vida máxima de un access_token normal de Google.
+const useRefreshFlow = () => !!(CONFIG.TOKEN_PROXY_URL && CONFIG.TOKEN_PROXY_URL.trim());
 
 // ── WebAuthn / Biometric ──────────────────────────────────────────────────────
 
@@ -64,6 +73,45 @@ function saveToken(token, expiresIn) {
   localStorage.setItem(EXPIRY_KEY, tokenExpiry.toString());
 }
 
+function saveRefreshToken(rt) {
+  if (rt) localStorage.setItem(REFRESH_KEY, rt);
+}
+
+function getRefreshToken() {
+  return localStorage.getItem(REFRESH_KEY);
+}
+
+// Pide un access_token nuevo al proxy de Apps Script usando el refresh_token
+// guardado. Es una llamada HTTPS directa (sin iframe ni cookies de Google),
+// así que funciona igual en una PWA instalada en iPhone que en el navegador.
+async function tryRefreshViaProxy() {
+  const rt = getRefreshToken();
+  if (!rt) return false;
+  try {
+    const resp = await fetch(`${CONFIG.TOKEN_PROXY_URL}?action=refresh&refresh_token=${encodeURIComponent(rt)}`)
+      .then(r => r.json());
+    if (resp.error || !resp.access_token) return false;
+    saveToken(resp.access_token, resp.expires_in || 3600);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function exchangeCodeForTokens(code) {
+  try {
+    const resp = await fetch(`${CONFIG.TOKEN_PROXY_URL}?action=exchange&code=${encodeURIComponent(code)}`)
+      .then(r => r.json());
+    if (resp.error || !resp.access_token) { console.error('Token exchange error:', resp.error); return false; }
+    saveToken(resp.access_token, resp.expires_in || 3600);
+    saveRefreshToken(resp.refresh_token);
+    return true;
+  } catch (e) {
+    console.error('Token exchange failed:', e.message);
+    return false;
+  }
+}
+
 export function loadSavedToken() {
   const token  = localStorage.getItem(TOKEN_KEY);
   const expiry = parseInt(localStorage.getItem(EXPIRY_KEY) || '0');
@@ -76,6 +124,7 @@ export function loadSavedToken() {
 }
 
 export async function trySilentGoogleAuth() {
+  if (useRefreshFlow()) return tryRefreshViaProxy();
   if (!tokenClient) return false;
   return new Promise(resolve => {
     const timeout = setTimeout(() => resolve(false), 8000);
@@ -96,15 +145,30 @@ export async function trySilentGoogleAuth() {
 // onSuccess: callback tras token válido (guardado, silencioso o interactivo).
 // onNeedSignIn: callback cuando no hay sesión utilizable — main.js decide qué pantalla mostrar.
 export async function initAuth(onSuccess, onNeedSignIn) {
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: CONFIG.CLIENT_ID,
-    scope: CONFIG.SCOPES,
-    callback: async (resp) => {
-      if (resp.error) return console.error('Auth error:', resp.error);
-      saveToken(resp.access_token, resp.expires_in);
-      await onSuccess();
-    }
-  });
+  if (useRefreshFlow()) {
+    codeClient = google.accounts.oauth2.initCodeClient({
+      client_id: CONFIG.CLIENT_ID,
+      scope: CONFIG.SCOPES,
+      ux_mode: 'popup',
+      access_type: 'offline',
+      prompt: 'consent', // fuerza que Google entregue refresh_token también en re-logins
+      callback: async (resp) => {
+        if (resp.error || !resp.code) return console.error('Auth error:', resp.error);
+        const ok = await exchangeCodeForTokens(resp.code);
+        if (ok) await onSuccess();
+      }
+    });
+  } else {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CONFIG.CLIENT_ID,
+      scope: CONFIG.SCOPES,
+      callback: async (resp) => {
+        if (resp.error) return console.error('Auth error:', resp.error);
+        saveToken(resp.access_token, resp.expires_in);
+        await onSuccess();
+      }
+    });
+  }
 
   if (loadSavedToken()) { await onSuccess(); return; }
   const silentOk = await trySilentGoogleAuth();
@@ -113,7 +177,8 @@ export async function initAuth(onSuccess, onNeedSignIn) {
 }
 
 export function requestSignIn() {
-  tokenClient.requestAccessToken({ prompt: '' });
+  if (codeClient) codeClient.requestCode();
+  else tokenClient.requestAccessToken({ prompt: '' });
 }
 
 export function signOut(onDone) {
@@ -123,6 +188,7 @@ export function signOut(onDone) {
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(EXPIRY_KEY);
+    localStorage.removeItem(REFRESH_KEY);
     if (onDone) onDone();
   });
 }
@@ -130,6 +196,11 @@ export function signOut(onDone) {
 export async function ensureToken(force) {
   if (!force && accessToken && Date.now() < tokenExpiry - 60000) return;
   if (!force && loadSavedToken()) return;
+  if (useRefreshFlow()) {
+    const ok = await tryRefreshViaProxy();
+    if (ok) return;
+    throw new Error('No se pudo renovar la sesión');
+  }
   await new Promise((resolve, reject) => {
     const saved = tokenClient.callback;
     tokenClient.callback = (resp) => {

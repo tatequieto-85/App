@@ -140,6 +140,69 @@ function sendWhatsAppReminder(hour) {
 function sendMorningReminder()   { sendWhatsAppReminder(9);  }
 function sendAfternoonReminder() { sendWhatsAppReminder(16); }
 
+// ── Proxy de tokens OAuth (sesiones largas sin repetir el login) ────────────
+// Intercambia el "code" de Google por tokens y renueva el access_token con
+// el refresh_token, sin exponer nunca el Client Secret al navegador.
+//
+// INSTALACIÓN (una sola vez):
+// 1. Google Cloud Console → APIs y servicios → Credenciales → abre el
+//    OAuth Client ID de la app → copia "Client secret".
+// 2. En este proyecto de Apps Script: ⚙️ Configuración del proyecto →
+//    Propiedades del script → Agregar propiedad → nombre CLIENT_SECRET,
+//    valor el secreto que copiaste.
+// 3. Implementar → Nueva implementación → tipo "Aplicación web" →
+//    Ejecutar como: Yo → Quién tiene acceso: Cualquier usuario → Implementar.
+// 4. Copia la URL que te da y pégala en config.js como TOKEN_PROXY_URL.
+
+const OAUTH_CLIENT_ID = '633677226751-t83hr59m0itju3j44s7l357r5l4tgsm7.apps.googleusercontent.com';
+
+function doGet(e) {
+  const action = e.parameter.action;
+  const secret = PropertiesService.getScriptProperties().getProperty('CLIENT_SECRET');
+  if (!secret) return jsonOut({ error: 'CLIENT_SECRET no configurado en Propiedades del script' });
+
+  try {
+    if (action === 'exchange') return jsonOut(exchangeCode(e.parameter.code, secret));
+    if (action === 'refresh')  return jsonOut(refreshAccessToken(e.parameter.refresh_token, secret));
+    return jsonOut({ error: 'acción desconocida' });
+  } catch (err) {
+    return jsonOut({ error: err.message });
+  }
+}
+
+function exchangeCode(code, secret) {
+  const resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+    method: 'post',
+    payload: {
+      code: code,
+      client_id: OAUTH_CLIENT_ID,
+      client_secret: secret,
+      redirect_uri: 'postmessage', // requerido por el flujo popup de Google Identity Services
+      grant_type: 'authorization_code'
+    },
+    muteHttpExceptions: true
+  });
+  return JSON.parse(resp.getContentText());
+}
+
+function refreshAccessToken(refreshToken, secret) {
+  const resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+    method: 'post',
+    payload: {
+      refresh_token: refreshToken,
+      client_id: OAUTH_CLIENT_ID,
+      client_secret: secret,
+      grant_type: 'refresh_token'
+    },
+    muteHttpExceptions: true
+  });
+  return JSON.parse(resp.getContentText());
+}
+
+function jsonOut(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
 // ── Configurar los triggers automáticos ───────────────────────────────────────
 // Ejecuta esta función UNA SOLA VEZ desde el menú Ejecutar → configurarTriggers
 

@@ -11,6 +11,12 @@ const CONFIG = {
   SHEET_ID: '1kAEaWY1B7bpKbLRbW0sZFITTLYpK_amvTfXPde4AbNE',
 
   // No cambiar esto
-  SCOPES: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file'
+  SCOPES: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
+
+  // Paso 3 (opcional, evita que te pida entrar cada ~1 hora): URL del Web App
+  // de Apps Script que renueva el token sin depender de cookies del navegador.
+  // Déjalo vacío ('') si todavía no lo configuraste — la app sigue funcionando
+  // igual que antes, solo sin este beneficio.
+  TOKEN_PROXY_URL: ''
 
 };
