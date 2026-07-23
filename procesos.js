@@ -7,7 +7,7 @@ import {
 import { wasAccidentalTouch } from './input-guard.js';
 import { loadConfig } from './contenido.js';
 import { computeCostoProduccion } from './compras.js';
-import { getIngredienteUnidad, attachIngredienteAutocomplete } from './ingredientes.js';
+import { ingredientes, normalizeIngName, getIngredienteUnidad, attachIngredienteAutocomplete } from './ingredientes.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 export let recetas       = [];
