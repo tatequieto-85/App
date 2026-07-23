@@ -458,7 +458,6 @@ function recetaCardHTML(r) {
     <div class="receta-card" data-id="${esc(r.id)}" draggable="true" title="Doble clic para ver detalle">
       <div class="receta-card-body">
         <div class="receta-card-title">${esc(r.nombre)}</div>
-        ${r.descripcion ? `<div class="receta-card-desc">${esc(r.descripcion)}</div>` : ''}
         <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''} &nbsp;·&nbsp; doble clic = ver pasos</div>
       </div>
       <div class="receta-card-actions">
@@ -843,7 +842,6 @@ function openRecetaDetail(recetaId) {
   }).join('');
 
   document.getElementById('recetaDetailBody').innerHTML = `
-    ${rec.descripcion ? `<div class="info-box">${esc(rec.descripcion)}</div>` : ''}
     ${ingredientesHTML}
     <div class="receta-detail-etapas">${etapasHTML || '<div class="empty-state">Esta receta no tiene etapas.</div>'}</div>
   `;
@@ -863,10 +861,6 @@ function downloadRecetaTxt(recetaId) {
   const lines = [];
   lines.push(rec.nombre.toUpperCase());
   lines.push('='.repeat(rec.nombre.length));
-  if (rec.descripcion) {
-    lines.push('');
-    lines.push(rec.descripcion);
-  }
 
   const maestros = rec.ingredientesMaestros || [];
   if (maestros.length) {
@@ -1185,7 +1179,6 @@ function openRecetaModal(editId) {
     if (!rec) return;
     document.getElementById('recetaModalTitle').textContent = 'Editar receta';
     document.getElementById('recetaNombre').value = rec.nombre;
-    document.getElementById('recetaDesc').value   = rec.descripcion || '';
     const etapas       = rec.etapas || [];
     const fixedStages   = etapas.filter(e => e.fija);
     const middleEtapas  = etapas.filter(e => !e.fija);
@@ -1196,7 +1189,6 @@ function openRecetaModal(editId) {
   } else {
     document.getElementById('recetaModalTitle').textContent = 'Nueva receta';
     document.getElementById('recetaNombre').value = '';
-    document.getElementById('recetaDesc').value   = '';
     recetaFixedFirst = { ...LIMPIEZA_ETAPA, id: crypto.randomUUID() };
     recetaFixedLast  = { ...LIMPIEZA_ETAPA, id: crypto.randomUUID() };
     renderEtapasList([]);
@@ -1415,10 +1407,9 @@ document.getElementById('btnAddEtapa').addEventListener('click', () => {
 
 function isRecetaFormDirty() {
   const nombre = document.getElementById('recetaNombre')?.value.trim();
-  const desc   = document.getElementById('recetaDesc')?.value.trim();
   const hasEtapas       = document.querySelectorAll('#etapasList .etapa-item').length > 0;
   const hasIngredientes = document.querySelectorAll('.ing-check-cb:checked').length > 0;
-  return !!(nombre || desc || hasEtapas || hasIngredientes);
+  return !!(nombre || hasEtapas || hasIngredientes);
 }
 
 function closeRecetaModal() {
@@ -1432,7 +1423,6 @@ document.getElementById('recetaOverlay').addEventListener('click', e => {
 
 document.getElementById('btnSaveReceta').addEventListener('click', async () => {
   const nombre       = document.getElementById('recetaNombre').value.trim();
-  const desc         = document.getElementById('recetaDesc').value.trim();
   const middleEtapas = collectEtapas();
   const etapas       = collectEtapasFull();
   const fb           = document.getElementById('recetaFeedback');
@@ -1452,13 +1442,13 @@ document.getElementById('btnSaveReceta').addEventListener('click', async () => {
     if (editRecetaId) {
       const rec = recetas.find(r => r.id === editRecetaId);
       if (rec) {
-        rec.nombre = nombre; rec.descripcion = desc; rec.etapas = etapas;
+        rec.nombre = nombre; rec.etapas = etapas;
         rec.ingredientesMaestros = ingredientesMaestros;
         await updateReceta(rec);
       }
     } else {
       await appendReceta({
-        id: crypto.randomUUID(), nombre, descripcion: desc, etapas,
+        id: crypto.randomUUID(), nombre, descripcion: '', etapas,
         ingredientesMaestros,
         creadoEn: new Date().toISOString()
       });

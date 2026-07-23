@@ -1356,7 +1356,6 @@ body {
 .receta-card.dragging { opacity: .4; }
 .receta-card-body  { flex: 1; min-width: 0; }
 .receta-card-title { font-size: 15px; font-weight: 700; color: var(--text); }
-.receta-card-desc  { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
 .receta-card-meta  { font-size: 11px; color: var(--text-sub); margin-top: 4px; }
 
 /* ── Ferias: tarjetas (disponibles) ──────────────────────────────────────── */
@@ -1924,6 +1923,12 @@ body {
 
 /* ── Recipe modal – sticky save footer ──────────────────────────────────── */
 .modal-receta .modal-body { padding-bottom: 0; }
+.modal-receta { max-width: 900px; }
+.modal-receta-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+.modal-receta-col { min-width: 0; }
+@media (max-width: 760px) {
+  .modal-receta-columns { grid-template-columns: 1fr; gap: 0; }
+}
 .receta-save-footer {
   position: sticky; bottom: 0;
   background: var(--surface);
