@@ -7,7 +7,7 @@ import {
 import { wasAccidentalTouch } from './input-guard.js';
 import { loadConfig } from './contenido.js';
 import { computeCostoProduccion } from './compras.js';
-import { ingredientes, normalizeIngName, getIngredienteUnidad, attachIngredienteAutocomplete } from './ingredientes.js';
+import { ingredientes, normalizeIngName, getIngredienteUnidad } from './ingredientes.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 export let recetas       = [];
@@ -835,7 +835,6 @@ function openRecetaDetail(recetaId) {
         <div class="receta-detail-etapa-header">
           <span class="etapa-num">ETAPA ${i + 1}</span>
           <span class="receta-detail-etapa-nombre">${esc(et.nombre)}</span>
-          ${et.tiempoEstimado ? `<span class="receta-detail-etapa-tiempo">⏱ ${et.tiempoEstimado} min</span>` : ''}
         </div>
         ${instrHTML}
         ${insumosHTML ? `<div class="receta-detail-insumos"><div class="receta-detail-insumos-title">Insumos:</div>${insumosHTML}</div>` : ''}
@@ -878,7 +877,7 @@ function downloadRecetaTxt(recetaId) {
 
   rec.etapas.forEach((et, i) => {
     lines.push('');
-    lines.push(`ETAPA ${i + 1}: ${et.nombre}${et.tiempoEstimado ? ` (${et.tiempoEstimado} min)` : ''}`);
+    lines.push(`ETAPA ${i + 1}: ${et.nombre}`);
 
     const instrucciones = parseInstrucciones(et.instrucciones);
     let stepNum = 0;
@@ -925,41 +924,14 @@ function generateEjecucionAnalysis(ej) {
 
   let html = '<div class="analysis-block"><div class="analysis-title">📊 Análisis de la ejecución</div>';
 
-  // Time precision
-  const receta = recetas.find(r => r.id === ej.recetaId);
-  const durReal = +ej.duracionTotal || 0;
-  if (receta) {
-    const durPlan = receta.etapas.reduce((sum, et) => sum + (et.tiempoEstimado || 0) * 60, 0);
-    if (durPlan > 0) {
-      const prec = Math.max(0, Math.round(100 - Math.abs((durReal - durPlan) / durPlan * 100)));
-      const color = prec >= 80 ? '#10B981' : prec >= 60 ? '#F59E0B' : '#EF4444';
-      html += `<div class="analysis-row">
-        <span class="analysis-label">Precisión temporal</span>
-        <span class="analysis-value" style="color:${color};font-weight:700">${prec}%</span>
-      </div>`;
-      html += `<div class="analysis-row">
-        <span class="analysis-label">Tiempo real / planificado</span>
-        <span class="analysis-value">${Math.round(durReal/60)} min / ${Math.round(durPlan/60)} min</span>
-      </div>`;
-    }
-  }
-
   // Stage breakdown
   if (etapas.length > 0) {
     html += '<div class="analysis-subtitle">Tiempo por etapa</div>';
     etapas.forEach((et, i) => {
-      const planned = receta?.etapas.find(e => e.nombre === et.nombre)?.tiempoEstimado;
       const realMin = Math.round(et.duracionReal / 60);
-      let diffStr   = '';
-      if (planned) {
-        const delta = Math.round(et.duracionReal / 60) - planned;
-        if (delta > 0) diffStr = `<span style="color:#F59E0B">+${delta} min</span>`;
-        else if (delta < 0) diffStr = `<span style="color:#10B981">${delta} min</span>`;
-        else diffStr = `<span style="color:#10B981">exacto ✓</span>`;
-      }
       html += `<div class="analysis-stage-row">
         <span class="analysis-stage-name">Etapa ${i+1}: ${esc(et.nombre)}</span>
-        <span>${realMin} min${planned ? ` / ${planned} min plan ${diffStr}` : ''}</span>
+        <span>${realMin} min</span>
       </div>`;
     });
   }
@@ -1201,33 +1173,6 @@ function collectIngredientesMaestros() {
     });
 }
 
-function syncIngMaestroTotals() {
-  const totals = {};
-  document.querySelectorAll('#etapasList .etapa-item:not([data-fija]) .insumo-row').forEach(row => {
-    const nombre = row.querySelector('.insumo-nombre')?.value.trim();
-    if (!nombre) return;
-    const qty   = parseFloat(row.querySelector('.insumo-cantidad')?.value) || 0;
-    const key   = normalizeIngName(nombre);
-    totals[key] = (totals[key] || 0) + qty;
-  });
-
-  document.querySelectorAll('.ing-check-row').forEach(row => {
-    const cb    = row.querySelector('.ing-check-cb');
-    const key   = normalizeIngName(cb.dataset.nombre);
-    const wrap  = row.querySelector('.ing-check-qty-wrap');
-    const qtyIn = row.querySelector('.ing-check-qty');
-    const badge = row.querySelector('.ing-check-auto-badge');
-
-    if (totals[key] !== undefined && totals[key] > 0) {
-      if (!cb.checked) { cb.checked = true; wrap.style.visibility = ''; }
-      qtyIn.value = totals[key];
-      if (badge) badge.style.display = '';
-    } else {
-      if (badge) badge.style.display = 'none';
-    }
-  });
-}
-
 // ── Procesos: Receta modal (crear / editar) ───────────────────────────────────
 
 function openRecetaModal(editId) {
@@ -1281,7 +1226,7 @@ function addEtapaToList(etapa, idx, insertBeforeEl) {
 
   item.innerHTML = `
     <div class="etapa-header">
-      <span class="etapa-num">Etapa ${num + 2}</span>
+      <span class="etapa-num">${esc(etapa.nombre || 'Nueva etapa')}</span>
       ${isFija ? '<span class="etapa-fija-tag">🔒 Fija</span>' : ''}
       <button class="etapa-collapse-btn" title="Colapsar/Expandir etapa">▼</button>
       ${isFija ? '' : '<button class="etapa-del" title="Eliminar etapa">✕</button>'}
@@ -1292,23 +1237,12 @@ function addEtapaToList(etapa, idx, insertBeforeEl) {
       <label class="field-label">Instrucciones <span class="field-label-hint">· # = paso numerado &nbsp;•  = viñeta</span></label>
       <div class="instrucciones-list"></div>
       <button class="btn-outline btn-sm btn-add-instruccion" style="margin-top:4px;margin-bottom:14px">+ Agregar instrucción</button>
-      <label class="field-label">Tiempo estimado (minutos)</label>
-      <input class="field-input etapa-tiempo" type="number" min="1" value="${etapa.tiempoEstimado || ''}" placeholder="15" style="width:120px" />
-      ${!isFija ? `
-      <label class="field-label">Insumos / ingredientes</label>
-      <div class="insumos-list"></div>
-      <button class="btn-outline btn-sm btn-add-insumo" style="margin-top:4px">+ Agregar insumo</button>
-      ` : ''}
     </div>
   `;
 
   // Populate instruction rows
   const instrList = item.querySelector('.instrucciones-list');
   instrArr.forEach(instr => instrList.appendChild(buildInstruccionRow(instr.text, instr.tipo, instr.alarmMin)));
-
-  // Populate insumo rows (non-fixed stages only)
-  const insList = item.querySelector('.insumos-list');
-  if (insList) (etapa.insumos || []).forEach((ins, iIdx) => insList.appendChild(buildInsumoRow(ins, iIdx)));
 
   // Collapse/expand toggle
   const collapseBtn = item.querySelector('.etapa-collapse-btn');
@@ -1327,24 +1261,24 @@ function addEtapaToList(etapa, idx, insertBeforeEl) {
     collapseBtn.textContent  = collapsed ? '▼' : '▶';
   });
 
+  // Mantiene el encabezado sincronizado con el nombre mientras se escribe.
+  const nombreInput = item.querySelector('.etapa-nombre');
+  const numLabel    = item.querySelector('.etapa-num');
+  nombreInput.addEventListener('input', () => {
+    numLabel.textContent = nombreInput.value.trim() || 'Nueva etapa';
+  });
+
   const delBtn = item.querySelector('.etapa-del');
   if (delBtn) {
     delBtn.addEventListener('click', () => {
-      if (!confirm('¿Eliminar esta etapa? Se perderán sus instrucciones e insumos.')) return;
+      if (!confirm('¿Eliminar esta etapa? Se perderán sus instrucciones.')) return;
       item.remove();
-      renumberEtapas();
     });
   }
   item.querySelector('.btn-add-instruccion').addEventListener('click', () => {
     instrList.appendChild(buildInstruccionRow('', 'paso'));
     instrList.lastElementChild.querySelector('.instruccion-text').focus();
   });
-  const addInsumoBtn = item.querySelector('.btn-add-insumo');
-  if (addInsumoBtn && insList) {
-    addInsumoBtn.addEventListener('click', () => {
-      insList.appendChild(buildInsumoRow({}, insList.children.length));
-    });
-  }
 
   if (insertBeforeEl) {
     container.insertBefore(item, insertBeforeEl);
@@ -1450,49 +1384,8 @@ function buildInstruccionRow(text, tipo = 'paso', alarmMin) {
   return row;
 }
 
-function buildInsumoRow(ins, idx) {
-  const row = document.createElement('div');
-  row.className = 'insumo-row';
-  const unidad = getIngredienteUnidad(ins.nombre || '');
-  row.innerHTML = `
-    <input class="field-input insumo-nombre" type="text" value="${esc(ins.nombre || '')}" placeholder="Insumo" style="flex:2" autocomplete="off" />
-    <input class="field-input insumo-cantidad" type="number" value="${ins.cantidad || ''}" placeholder="Cant." style="flex:1;min-width:70px" min="0" step="any" />
-    <span class="insumo-unidad-display" title="Unidad definida en el ingrediente">${esc(unidad || '—')}</span>
-    <button class="subtask-remove" title="Quitar">✕</button>
-  `;
-  const nombreInput   = row.querySelector('.insumo-nombre');
-  const unidadDisplay = row.querySelector('.insumo-unidad-display');
-  row.querySelector('.subtask-remove').addEventListener('click', () => {
-    if (!confirm('¿Quitar este insumo de la etapa?')) return;
-    row.remove();
-    syncIngMaestroTotals();
-  });
-  row.querySelector('.insumo-cantidad').addEventListener('input', syncIngMaestroTotals);
-  nombreInput.addEventListener('change', () => {
-    unidadDisplay.textContent = getIngredienteUnidad(nombreInput.value.trim()) || '—';
-    syncIngMaestroTotals();
-  });
-  attachIngredienteAutocomplete(nombreInput);
-  return row;
-}
-
-function renumberEtapas() {
-  document.querySelectorAll('#etapasList .etapa-item').forEach((item, i) => {
-    const span = item.querySelector('.etapa-num');
-    if (span) span.textContent = `Etapa ${i + 2}`;
-  });
-}
-
 function collectEtapas() {
   return Array.from(document.querySelectorAll('#etapasList .etapa-item')).map(item => {
-    const insumos = Array.from(item.querySelectorAll('.insumo-row')).map(row => {
-      const nombre = row.querySelector('.insumo-nombre').value.trim();
-      return {
-        nombre,
-        cantidad: parseFloat(row.querySelector('.insumo-cantidad').value) || 0,
-        unidad:   getIngredienteUnidad(nombre)
-      };
-    }).filter(ins => ins.nombre);
     const instrucciones = Array.from(item.querySelectorAll('.instruccion-row'))
       .map(row => ({
         text: row.querySelector('.instruccion-text').value.trim(),
@@ -1501,12 +1394,11 @@ function collectEtapas() {
       }))
       .filter(i => i.text);
     return {
-      id:             crypto.randomUUID(),
-      nombre:         item.querySelector('.etapa-nombre').value.trim(),
+      id:            crypto.randomUUID(),
+      nombre:        item.querySelector('.etapa-nombre').value.trim(),
       instrucciones,
-      tiempoEstimado: parseInt(item.querySelector('.etapa-tiempo').value) || 0,
-      insumos,
-      fija:           false
+      insumos:       [],
+      fija:          false
     };
   }).filter(et => et.nombre);
 }
@@ -1519,7 +1411,6 @@ function collectEtapasFull() {
 
 document.getElementById('btnAddEtapa').addEventListener('click', () => {
   addEtapaToList({}, undefined);
-  renumberEtapas();
 });
 
 function isRecetaFormDirty() {
@@ -1614,7 +1505,6 @@ const LIMPIEZA_ETAPA = {
     { text: 'Limpieza de pisos', tipo: 'viñeta' },
     { text: 'Limpieza de zona', tipo: 'viñeta' }
   ],
-  tiempoEstimado: 60,
   insumos: [],
   fija: true
 };
@@ -1780,7 +1670,6 @@ function renderExecutionStep() {
     </div>
     <h3 class="exec-stage-name">${esc(etapa.nombre)}</h3>
     ${buildInstruccionesHTML(etapa.instrucciones, true)}
-    ${etapa.tiempoEstimado ? `<div class="exec-time-hint">⏱ Tiempo estimado: ${etapa.tiempoEstimado} min</div>` : ''}
 
     <div class="exec-obs-section">
       <h4 class="exec-insumos-title">Observaciones de esta etapa</h4>
