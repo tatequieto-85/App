@@ -135,6 +135,7 @@ const DEFAULT_COLUMNS = [
   { name: 'Postpuesto',  color: '#546E7A', terminal: true  },
 ];
 const DEFAULT_AREAS = ['Marketing', 'Ventas', 'Producción', 'Administración'];
+const RECETA_BLOCK_HUES = [355, 25, 45, 95, 165, 200, 230, 280];
 
 // Paleta crema/pastel para diferenciar áreas (Gantt) sin romper el look de la app.
 const AREA_PASTEL_PALETTE = [
@@ -6614,12 +6615,16 @@ function renderRecetasList() {
       items: recetas.filter(r => !r.blockId || !recetaBlocks.find(b => b.id === r.blockId))
     });
 
-    container.innerHTML = sections.map(sec => {
+    container.innerHTML = sections.map((sec, idx) => {
       const toggleKey  = sec.id || '__sinbloque__';
       const collapsed  = collapsedRecetaBlocks.has(toggleKey);
       const draggable  = !!sec.id;
+      // Colores muy pasteles (10% de relleno) para separar visualmente cada
+      // bloque; "Sin bloque" queda neutro por no ser un grupo real.
+      const hue = sec.id ? RECETA_BLOCK_HUES[idx % RECETA_BLOCK_HUES.length] : null;
+      const bgStyle = hue != null ? ` style="background:hsl(${hue} 70% 55% / .1)"` : '';
       return `
-      <div class="receta-block-section">
+      <div class="receta-block-section"${bgStyle}>
         <div class="receta-block-header" data-block-id="${esc(sec.id)}" ${draggable ? 'draggable="true"' : ''}>
           ${draggable ? '<span class="receta-block-drag-handle" title="Arrastra para reordenar bloque">⠿</span>' : ''}
           <button type="button" class="receta-block-collapse-btn" data-block-toggle="${esc(toggleKey)}" title="Colapsar/Expandir">${collapsed ? '▸' : '▾'}</button>
@@ -6789,12 +6794,13 @@ function renderRecetaBlocksList() {
       if (!block) return;
       if (!confirm(`¿Eliminar el bloque "${block.nombre}"? Las recetas no se borrarán, quedarán sin bloque.`)) return;
       const fb = document.getElementById('recetaBlockFeedback');
+      btn.disabled = true;
       try {
         await deleteRecetaBlock(block.id);
         renderRecetaBlocksList();
         renderRecetasList();
         setFb(fb, `✅ Bloque eliminado.`, 'ok');
-      } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); }
+      } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); btn.disabled = false; }
     });
   });
 }
@@ -7449,6 +7455,7 @@ function addEtapaToList(etapa, idx, insertBeforeEl) {
   const delBtn = item.querySelector('.etapa-del');
   if (delBtn) {
     delBtn.addEventListener('click', () => {
+      if (!confirm('¿Eliminar esta etapa? Se perderán sus instrucciones e insumos.')) return;
       item.remove();
       renumberEtapas();
     });
@@ -7518,7 +7525,10 @@ function buildInstruccionRow(text, tipo = 'paso', alarmMin) {
     btn.textContent  = newTipo === 'viñeta' ? '•' : '#';
     btn.title        = newTipo === 'viñeta' ? 'Cambiar a paso numerado' : 'Cambiar a viñeta';
   });
-  row.querySelector('.subtask-remove').addEventListener('click', () => row.remove());
+  row.querySelector('.subtask-remove').addEventListener('click', () => {
+    if (!confirm('¿Quitar este paso de la etapa?')) return;
+    row.remove();
+  });
 
   // ── Drag to reorder within the same instrucciones-list ──────────────────
   const handle = row.querySelector('.instr-drag-handle');
@@ -7577,7 +7587,11 @@ function buildInsumoRow(ins, idx) {
   `;
   const nombreInput   = row.querySelector('.insumo-nombre');
   const unidadDisplay = row.querySelector('.insumo-unidad-display');
-  row.querySelector('.subtask-remove').addEventListener('click', () => { row.remove(); syncIngMaestroTotals(); });
+  row.querySelector('.subtask-remove').addEventListener('click', () => {
+    if (!confirm('¿Quitar este insumo de la etapa?')) return;
+    row.remove();
+    syncIngMaestroTotals();
+  });
   row.querySelector('.insumo-cantidad').addEventListener('input', syncIngMaestroTotals);
   nombreInput.addEventListener('change', () => {
     unidadDisplay.textContent = getIngredienteUnidad(nombreInput.value.trim()) || '—';
@@ -7793,7 +7807,6 @@ function saveExecutionProgress() {
       currentStageIndex: executionState.currentStageIndex,
       stagesData:        executionState.stagesData,
       stageObsDraft:     executionState.stageObsDraft || {},
-      insumosVolcados:   executionState.insumosVolcados || false,
       savedAt:           new Date().toISOString()
     }));
   } catch {}
@@ -7818,10 +7831,8 @@ function startExecution(recetaId) {
         stageStartTime:    Date.now(),
         timerInterval:     null,
         stagesData:        saved.stagesData,
-        stageObsDraft:     saved.stageObsDraft || {},
-        insumosVolcados:   saved.insumosVolcados || false
+        stageObsDraft:     saved.stageObsDraft || {}
       };
-      document.getElementById('ejecutarTitle').textContent = `Receta: ${receta.nombre}`;
       document.getElementById('ejecutarOverlay').classList.add('open');
       renderExecutionStep();
       return;
@@ -7835,11 +7846,9 @@ function startExecution(recetaId) {
     stageStartTime: Date.now(),
     timerInterval: null,
     stagesData: [],
-    stageObsDraft: {},
-    insumosVolcados: false
+    stageObsDraft: {}
   };
 
-  document.getElementById('ejecutarTitle').textContent = `Receta: ${receta.nombre}`;
   document.getElementById('ejecutarOverlay').classList.add('open');
   renderExecutionStep();
 }
@@ -7847,106 +7856,11 @@ function startExecution(recetaId) {
 function goBackStage() {
   if (!executionState || executionState.currentStageIndex === 0) return;
   if (executionState.timerInterval) clearInterval(executionState.timerInterval);
-  executionState.stagesData.pop();
+  // No se descarta lo ya registrado de la etapa: al volver a avanzar,
+  // advanceStage() actualiza el mismo registro en vez de duplicarlo.
   executionState.currentStageIndex--;
   renderExecutionStep();
 }
-
-function buildExecInsumosSection(receta, etapa) {
-  const maestros = receta.ingredientesMaestros || [];
-  if (maestros.length) {
-    const rows = maestros.map((ing, i) => `
-      <div class="exec-insumo-row">
-        <span class="exec-insumo-nombre">${esc(ing.nombre)}</span>
-        <span class="exec-insumo-planned">(total planeado: ${ing.cantidadTotal} ${esc(ing.unidad)})</span>
-        <div style="display:flex;align-items:center;gap:6px">
-          <input class="field-input exec-insumo-real" data-ing-idx="${i}" type="number" value="" min="0" step="any" style="width:90px" placeholder="0" />
-          <span>${esc(ing.unidad)}</span>
-        </div>
-      </div>
-    `).join('');
-    return `
-      <details class="exec-insumos-section">
-        <summary class="exec-insumos-title"><span class="exec-insumos-chevron">▸</span> ¿Cuánto usaste en esta etapa?</summary>
-        <p class="exec-insumos-note">Ingresa la cantidad real de cada ingrediente usado en esta etapa. Déjalo en 0 si no lo usaste aquí.</p>
-        <div class="exec-insumos-list">${rows}</div>
-      </details>`;
-  }
-  if (etapa.insumos && etapa.insumos.length) {
-    const rows = etapa.insumos.map((ins, i) => `
-      <div class="exec-insumo-row">
-        <span class="exec-insumo-nombre">${esc(ins.nombre)}</span>
-        <span class="exec-insumo-planned">(planeado: ${ins.cantidad} ${esc(ins.unidad)})</span>
-        <div style="display:flex;align-items:center;gap:6px">
-          <input class="field-input exec-insumo-real" data-idx="${i}" type="number" value="${ins.cantidad}" min="0" step="any" style="width:90px" />
-          <span>${esc(ins.unidad)}</span>
-        </div>
-      </div>
-    `).join('');
-    return `
-      <details class="exec-insumos-section">
-        <summary class="exec-insumos-title"><span class="exec-insumos-chevron">▸</span> Confirmar insumos usados</summary>
-        <p class="exec-insumos-note">Verifica o ajusta las cantidades reales antes de continuar.</p>
-        <div class="exec-insumos-list">${rows}</div>
-      </details>`;
-  }
-  return '';
-}
-
-function maybeShowComparacion(receta, stagesData) {
-  const maestros = receta.ingredientesMaestros || [];
-  if (maestros.length) {
-    showComparacionIngredientes(receta, stagesData);
-  } else {
-    document.getElementById('evaluacionOverlay').classList.add('open');
-    startEvalClock();
-  }
-}
-
-function showComparacionIngredientes(receta, stagesData) {
-  const maestros = receta.ingredientesMaestros || [];
-  const totalReal = {};
-  stagesData.forEach(stage => {
-    (stage.insumosConfirmados || []).forEach(ins => {
-      const key = normalizeIngName(ins.nombre);
-      totalReal[key] = (totalReal[key] || { nombre: ins.nombre, cantidad: 0, unidad: ins.unidad });
-      totalReal[key].cantidad += parseFloat(ins.cantidadReal) || 0;
-    });
-  });
-
-  const rows = maestros.map(ing => {
-    const key    = normalizeIngName(ing.nombre);
-    const real   = totalReal[key] ? totalReal[key].cantidad : 0;
-    const plan   = parseFloat(ing.cantidadTotal) || 0;
-    const delta  = real - plan;
-    const sign   = delta > 0 ? '+' : '';
-    const cls    = Math.abs(delta) < 0.001 ? 'comp-delta--ok' : (delta < 0 ? 'comp-delta--low' : 'comp-delta--high');
-    return `
-      <div class="comp-row">
-        <span class="comp-nombre">${esc(ing.nombre)}</span>
-        <span class="comp-plan">${plan} ${esc(ing.unidad)}</span>
-        <span class="comp-actual">${real} ${esc(ing.unidad)}</span>
-        <span class="comp-delta ${cls}">${sign}${delta.toFixed(2)}</span>
-      </div>`;
-  }).join('');
-
-  document.getElementById('comparacionBody').innerHTML = `
-    <div class="comp-header">
-      <span class="comp-nombre">Ingrediente</span>
-      <span class="comp-plan">Planeado</span>
-      <span class="comp-actual">Usado</span>
-      <span class="comp-delta">Diferencia</span>
-    </div>
-    ${rows}
-  `;
-  document.getElementById('comparacionOverlay').classList.add('open');
-}
-
-document.getElementById('btnContinuarEval').addEventListener('click', () => {
-  document.getElementById('comparacionOverlay').classList.remove('open');
-  document.getElementById('evaluacionOverlay').classList.add('open');
-  startEvalClock();
-});
 
 function renderExecStageObsList() {
   const list = document.getElementById('execStageObsList');
@@ -7972,7 +7886,13 @@ function renderExecutionStep() {
   (executionState.alarmIntervals || []).forEach(id => clearInterval(id));
   executionState.alarmTimeouts  = [];
   executionState.alarmIntervals = [];
-  executionState.stageStartTime = Date.now();
+  // Si ya se había avanzado por esta etapa antes (venimos de "Regresar"),
+  // el cronómetro sigue contando desde el tiempo ya acumulado, no desde cero.
+  const prevDuracion = executionState.stagesData[currentStageIndex]?.duracionReal || 0;
+  executionState.stageStartTime = Date.now() - prevDuracion * 1000;
+
+  document.getElementById('ejecutarTitle').textContent =
+    `ETAPA: ${etapa.nombre} - RECETA: ${receta.nombre}`;
 
   const body = document.getElementById('ejecutarBody');
   body.innerHTML = `
@@ -7980,37 +7900,28 @@ function renderExecutionStep() {
       <div class="exec-progress-bar" style="width:${((currentStageIndex + 1) / total * 100).toFixed(0)}%"></div>
     </div>
     <div class="exec-step-nav">
-      ${currentStageIndex > 0 ? `<button class="btn-back-stage" id="btnBackStage">← Etapa anterior</button>` : '<span></span>'}
       <div class="exec-step-label">Etapa ${currentStageIndex + 1} de ${total}</div>
-    </div>
-    <h3 class="exec-stage-name">ETAPA ${currentStageIndex + 1}: ${esc(etapa.nombre)}</h3>
-    ${buildInstruccionesHTML(etapa.instrucciones, true)}
-    ${etapa.tiempoEstimado ? `<div class="exec-time-hint">⏱ Tiempo estimado: ${etapa.tiempoEstimado} min</div>` : ''}
-
-    <div class="exec-timer-wrap">
-      <div class="exec-timer-label">Tiempo en esta etapa</div>
       <div class="exec-timer" id="execTimer">00:00</div>
     </div>
-
-    ${(!executionState.insumosVolcados && ((receta.ingredientesMaestros || []).length || (etapa.insumos || []).length)) ? `
-      <button type="button" class="btn-outline" id="btnVolcarInsumos" style="margin-bottom:14px">Volcar insumos planeados</button>
-    ` : ''}
-    ${buildExecInsumosSection(receta, etapa)}
+    <h3 class="exec-stage-name">${esc(etapa.nombre)}</h3>
+    ${buildInstruccionesHTML(etapa.instrucciones, true)}
+    ${etapa.tiempoEstimado ? `<div class="exec-time-hint">⏱ Tiempo estimado: ${etapa.tiempoEstimado} min</div>` : ''}
 
     <div class="exec-obs-section">
       <h4 class="exec-insumos-title">Observaciones de esta etapa</h4>
       <div id="execStageObsList" class="obs-list"></div>
       <div class="obs-input-wrap">
-        <textarea class="field-textarea obs-textarea" id="execStageObsInput" rows="2" placeholder="Escribe una observación de esta etapa…"></textarea>
-        <button type="button" class="btn-outline obs-btn" id="btnAddExecStageObs">Agregar</button>
+        <textarea class="field-textarea obs-textarea exec-obs-textarea" id="execStageObsInput" rows="3" placeholder="Escribe una observación…" autocapitalize="sentences" autocorrect="on" enterkeyhint="done"></textarea>
+        <button type="button" class="btn-outline obs-btn exec-obs-btn" id="btnAddExecStageObs">Agregar</button>
       </div>
     </div>
 
-    <div style="margin-top:20px">
+    <div class="exec-nav-footer">
+      ${currentStageIndex > 0 ? `<button type="button" class="btn-back-stage" id="btnBackStage">← Regresar</button>` : '<span></span>'}
       <button class="btn-primary exec-next-btn" id="btnNextStage">
         ${isLast
           ? ICON_CHECK + 'Finalizar receta'
-          : 'Siguiente etapa <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:4px"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>'}
+          : 'Etapa siguiente <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-left:4px"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>'}
       </button>
     </div>
   `;
@@ -8042,27 +7953,6 @@ function renderExecutionStep() {
   document.getElementById('btnNextStage').addEventListener('click', () => advanceStage());
   const backBtn = document.getElementById('btnBackStage');
   if (backBtn) backBtn.addEventListener('click', () => goBackStage());
-
-  const volcarBtn = document.getElementById('btnVolcarInsumos');
-  if (volcarBtn) {
-    volcarBtn.addEventListener('click', () => {
-      const maestros = receta.ingredientesMaestros || [];
-      if (maestros.length) {
-        document.querySelectorAll('.exec-insumo-real[data-ing-idx]').forEach(inp => {
-          const ing = maestros[+inp.dataset.ingIdx];
-          if (ing) inp.value = ing.cantidadTotal;
-        });
-      } else {
-        document.querySelectorAll('.exec-insumo-real[data-idx]').forEach(inp => {
-          const ins = (etapa.insumos || [])[+inp.dataset.idx];
-          if (ins) inp.value = ins.cantidad;
-        });
-      }
-      executionState.insumosVolcados = true;
-      saveExecutionProgress();
-      volcarBtn.remove();
-    });
-  }
 }
 
 // ── Procesos: Alarmas por instrucción (inicio manual, opcional, con sonido) ──
@@ -8176,32 +8066,24 @@ function advanceStage() {
   clearInterval(executionState.timerInterval);
   const duracion = Math.floor((Date.now() - executionState.stageStartTime) / 1000);
 
-  const maestros = receta.ingredientesMaestros || [];
-  let insumosConfirmados;
-  if (maestros.length) {
-    insumosConfirmados = maestros.map((ing, i) => {
-      const realInput = document.querySelector(`.exec-insumo-real[data-ing-idx="${i}"]`);
-      const qty = realInput ? parseFloat(realInput.value) || 0 : 0;
-      return { nombre: ing.nombre, cantidadPlanificada: ing.cantidadTotal, cantidadReal: qty, unidad: ing.unidad };
-    }).filter(ins => ins.cantidadReal > 0);
-  } else {
-    insumosConfirmados = (etapa.insumos || []).map((ins, i) => {
-      const realInput = document.querySelector(`.exec-insumo-real[data-idx="${i}"]`);
-      return {
-        nombre:              ins.nombre,
-        cantidadPlanificada: ins.cantidad,
-        cantidadReal:        realInput ? parseFloat(realInput.value) || 0 : ins.cantidad,
-        unidad:              ins.unidad
-      };
-    });
-  }
+  // Ya no se pide confirmar cantidad real por etapa: se registra lo
+  // planeado como usado (ver también finishExecution para el caso de
+  // ingredientes maestros, que se totalizan una sola vez al terminar).
+  const insumosConfirmados = (etapa.insumos || []).map(ins => ({
+    nombre:              ins.nombre,
+    cantidadPlanificada: ins.cantidad,
+    cantidadReal:        ins.cantidad,
+    unidad:              ins.unidad
+  }));
 
-  executionState.stagesData.push({
+  // Se asigna por índice (no push) para no duplicar el registro si esta
+  // etapa ya se había completado antes y el usuario volvió con "Regresar".
+  executionState.stagesData[currentStageIndex] = {
     nombre:              etapa.nombre,
     duracionReal:        duracion,
     insumosConfirmados,
     observaciones:       (executionState.stageObsDraft || {})[currentStageIndex] || []
-  });
+  };
 
   saveExecutionProgress();
 
@@ -8221,6 +8103,18 @@ function finishExecution() {
 
   const { receta, stagesData } = executionState;
   const durTotal = stagesData.reduce((sum, s) => sum + s.duracionReal, 0);
+
+  // Recetas con ingredientes maestros (total por receta, no por etapa):
+  // se registran una sola vez, en la última etapa, para no duplicar el total.
+  const maestros = receta.ingredientesMaestros || [];
+  if (maestros.length && stagesData.length) {
+    stagesData[stagesData.length - 1].insumosConfirmados = maestros.map(ing => ({
+      nombre:              ing.nombre,
+      cantidadPlanificada: ing.cantidadTotal,
+      cantidadReal:        ing.cantidadTotal,
+      unidad:              ing.unidad
+    }));
+  }
 
   evaluacionPendiente = {
     id:           crypto.randomUUID(),
@@ -8301,7 +8195,8 @@ function finishExecution() {
   evaluacionPendiente.fase2UnlockAt      = new Date(nowMs + 60 * 60 * 1000).toISOString();
   evaluacionPendiente.sineresisUnlockAt  = new Date(nowMs + 24 * 60 * 60 * 1000).toISOString();
 
-  maybeShowComparacion(receta, stagesData);
+  document.getElementById('evaluacionOverlay').classList.add('open');
+  startEvalClock();
 }
 
 document.getElementById('btnCancelEjecutar').addEventListener('click', () => {

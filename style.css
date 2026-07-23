@@ -1426,7 +1426,10 @@ body {
 .receta-card-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
 
 /* ── Procesos: Bloques de recetas ─────────────────────────────────────────── */
-.receta-block-section { margin-bottom: 22px; border-radius: var(--radius); transition: background .15s, outline .15s; }
+.receta-block-section {
+  margin-bottom: 22px; padding: 12px 12px 4px; border-radius: var(--radius);
+  transition: background .15s, outline .15s;
+}
 .receta-block-section:last-child { margin-bottom: 0; }
 .receta-block-section.dragging { opacity: .4; }
 .receta-block-section.block-drag-over { outline: 2px dashed var(--brand); outline-offset: 2px; }
@@ -1495,15 +1498,6 @@ body {
   border-radius: 6px; padding: 12px 14px; margin-bottom: 16px;
   font-size: 13px; line-height: 1.6; color: var(--text);
 }
-.exec-step-nav {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 4px; min-height: 28px;
-}
-.btn-back-stage {
-  font-size: 12px; color: var(--text-sub); background: none; border: none;
-  cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 2px;
-}
-.btn-back-stage:hover { color: var(--text); }
 .fase2-scale-btn {
   flex: 1; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
   padding: 6px 4px; background: var(--bg); cursor: pointer;
@@ -1614,104 +1608,73 @@ body {
 .etapa-item--fija { border-color: var(--brand) !important; opacity: .9; }
 .etapa-item--fija .etapa-num { color: var(--text-sub); }
 
-/* ── Procesos: Execution overlay ─────────────────────────────────────────── */
+/* ── Procesos: Execution overlay (pensado para iPhone) ────────────────────── */
 .modal-ejecutar { max-width: 540px !important; }
+.modal-ejecutar .modal-body { padding-bottom: 0; }
 
 .exec-progress {
   height: 4px; background: var(--border); border-radius: 99px;
-  overflow: hidden; margin-bottom: 16px;
+  overflow: hidden; margin-bottom: 14px;
 }
 .exec-progress-bar {
   height: 100%; background: var(--brand);
   border-radius: 99px; transition: width .4s ease;
 }
+.exec-step-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px; gap: 10px;
+}
 .exec-step-label {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .07em; color: var(--text-sub); margin-bottom: 4px;
+  letter-spacing: .07em; color: var(--text-sub);
+}
+/* Cronómetro compacto, arriba a la derecha (antes era un bloque grande y centrado) */
+.exec-timer {
+  font-size: 14px; font-weight: 800; color: var(--brand);
+  letter-spacing: .02em; font-variant-numeric: tabular-nums;
+  font-family: 'Courier New', monospace;
+  background: rgba(113,75,103,.1);
+  padding: 5px 12px; border-radius: 999px; flex-shrink: 0;
 }
 .exec-stage-name {
-  font-size: 18px; font-weight: 700; color: var(--text);
+  font-size: 19px; font-weight: 700; color: var(--text);
   margin-bottom: 10px;
 }
 .exec-instrucciones {
-  font-size: 13.5px; color: var(--text); line-height: 1.6;
-  background: var(--bg); border-radius: var(--radius-sm); padding: 10px 14px;
+  font-size: 14px; color: var(--text); line-height: 1.65;
+  background: var(--bg); border-radius: var(--radius-sm); padding: 12px 14px;
   margin-bottom: 12px; white-space: pre-wrap;
 }
 .exec-time-hint { font-size: 12px; color: var(--text-sub); margin-bottom: 10px; }
 
-.exec-timer-wrap { text-align: center; margin: 14px 0 10px; }
-.exec-timer-label {
-  font-size: 10px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .08em; color: var(--text-sub); margin-bottom: 4px;
-}
-.exec-timer {
-  font-size: 44px; font-weight: 800; text-align: center;
-  color: var(--text); letter-spacing: .04em;
-  font-variant-numeric: tabular-nums;
-  font-family: 'Courier New', monospace;
-}
-
-.exec-insumos-section, .exec-obs-section {
+.exec-obs-section {
   background: var(--bg); border-radius: var(--radius);
   border: 1.5px solid var(--border); padding: 14px 16px;
   margin-top: 12px;
 }
 .exec-insumos-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-summary.exec-insumos-title { cursor: pointer; list-style: none; margin-bottom: 0; }
-summary.exec-insumos-title::-webkit-details-marker { display: none; }
-.exec-insumos-chevron { display: inline-block; transition: transform .15s; }
-.exec-insumos-section[open] > summary .exec-insumos-chevron { transform: rotate(90deg); }
-.exec-insumos-section[open] .exec-insumos-note { margin-top: 10px; }
-.exec-insumos-note  { font-size: 12px; color: var(--text-sub); margin-bottom: 10px; }
-.exec-insumos-list  { display: flex; flex-direction: column; gap: 10px; }
-.exec-insumo-row {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-}
-.exec-insumo-nombre  { font-size: 13px; font-weight: 600; color: var(--text); min-width: 90px; }
-.exec-insumo-planned { font-size: 11px; color: var(--text-sub); white-space: nowrap; }
-.exec-insumo-real    { width: 90px; margin: 0 !important; padding: 7px 10px !important; font-size: 13px !important; }
 
-.exec-next-btn { margin-top: 0 !important; }
+/* Observaciones: pensado para escribir desde el celular (16px evita el
+   zoom automático de iOS al enfocar, botón con buen tamaño para el dedo) */
+.exec-obs-textarea { font-size: 16px !important; min-height: 90px !important; }
+.exec-obs-btn { min-height: 46px !important; font-size: 15px !important; }
 
-/* ── Ingredient comparison table ───────────────────────────────────────────── */
-.comp-header,
-.comp-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 10px;
-  font-size: 13px;
+/* Barra inferior fija: Regresar siempre a la izquierda, Etapa siguiente
+   siempre a la derecha, visible sin necesidad de hacer scroll */
+.exec-nav-footer {
+  position: sticky; bottom: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--surface); border-top: 1.5px solid var(--border);
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+  margin: 20px -20px -20px;
 }
-.comp-header {
-  background: var(--bg);
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  border: 1.5px solid var(--border);
-  border-bottom: none;
-  font-weight: 700;
-  color: var(--text-sub);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: .04em;
+.exec-next-btn { margin-top: 0 !important; flex: 1; min-height: 46px; }
+.btn-back-stage {
+  font-size: 14px; font-weight: 600; color: var(--text);
+  background: none; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  cursor: pointer; padding: 13px 18px; min-height: 46px; white-space: nowrap;
 }
-.comp-row {
-  border: 1.5px solid var(--border);
-  border-top: none;
-  background: var(--surface);
-}
-@media (max-width: 600px) {
-  .comp-header, .comp-row { gap: 4px; padding: 8px 6px; }
-  .comp-row { font-size: 11.5px; }
-}
-.comp-row:last-child { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
-.comp-nombre  { font-weight: 600; color: var(--text); }
-.comp-plan    { color: var(--text-sub); }
-.comp-actual  { color: var(--text); }
-.comp-delta   { font-weight: 700; }
-.comp-delta--ok   { color: var(--brand); }
-.comp-delta--low  { color: #F59E0B; }
-.comp-delta--high { color: #EF4444; }
+.btn-back-stage:hover { border-color: var(--text-sub); }
 
 /* ── Instrucciones por fila (edición de etapa) ───────────────────────────── */
 .instrucciones-list { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
