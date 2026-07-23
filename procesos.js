@@ -878,9 +878,8 @@ function downloadRecetaTxt(recetaId) {
     instrucciones.forEach(item => {
       const text = item.text || item;
       const tipo = item.tipo || 'paso';
-      const alarmMin = parseInt(item.alarmMin) || 0;
       const num = tipo === 'viñeta' ? '-' : `${++stepNum}.`;
-      lines.push(`  ${num} ${text}${alarmMin > 0 ? ` (alarma: ${alarmMin} min)` : ''}`);
+      lines.push(`  ${num} ${text}`);
     });
 
     const insumos = (et.insumos || []).filter(ins => ins.nombre);
@@ -1234,7 +1233,7 @@ function addEtapaToList(etapa, idx, insertBeforeEl) {
 
   // Populate instruction rows
   const instrList = item.querySelector('.instrucciones-list');
-  instrArr.forEach(instr => instrList.appendChild(buildInstruccionRow(instr.text, instr.tipo, instr.alarmMin)));
+  instrArr.forEach(instr => instrList.appendChild(buildInstruccionRow(instr.text, instr.tipo)));
 
   // Collapse/expand toggle
   const collapseBtn = item.querySelector('.etapa-collapse-btn');
@@ -1287,35 +1286,27 @@ function parseInstrucciones(val) {
   return val.split('\n').map(s => s.trim()).filter(Boolean).map(text => ({ text, tipo: 'paso' }));
 }
 
-function buildInstruccionesHTML(instrucciones, interactive = false) {
+function buildInstruccionesHTML(instrucciones) {
   const arr = parseInstrucciones(instrucciones);
   if (!arr.length) return '';
   let stepNum = 0;
   return `<div class="exec-instrucciones">
     ${arr.map(item => {
-      const text     = item.text || item;
-      const tipo     = item.tipo || 'paso';
-      const alarmMin = parseInt(item.alarmMin) || 0;
-      const num = tipo === 'viñeta' ? '•' : `${++stepNum}.`;
-      let alarmHTML = '';
-      if (alarmMin > 0) {
-        alarmHTML = interactive
-          ? `<button type="button" class="instr-alarm-btn" data-alarm-min="${alarmMin}" data-instr-text="${esc(text)}">▶ Iniciar alarma (${alarmMin} min)</button>`
-          : `<span class="exec-instruccion-alarm">⏰ ${alarmMin} min</span>`;
-      }
-      return `<div class="exec-instruccion-row"><span class="exec-instruccion-num">${num}</span> ${esc(text)}${alarmHTML}</div>`;
+      const text = item.text || item;
+      const tipo = item.tipo || 'paso';
+      const num  = tipo === 'viñeta' ? '•' : `${++stepNum}.`;
+      return `<div class="exec-instruccion-row"><span class="exec-instruccion-num">${num}</span> ${esc(text)}</div>`;
     }).join('')}
   </div>`;
 }
 
-function buildInstruccionRow(text, tipo = 'paso', alarmMin) {
+function buildInstruccionRow(text, tipo = 'paso') {
   const row = document.createElement('div');
   row.className = 'instruccion-row';
   row.innerHTML = `
     <span class="instr-drag-handle" title="Arrastrar para reordenar">⠿</span>
     <button class="instruccion-tipo-btn" data-tipo="${tipo}" type="button" title="${tipo === 'viñeta' ? 'Cambiar a paso numerado' : 'Cambiar a viñeta'}">${tipo === 'viñeta' ? '•' : '#'}</button>
     <input class="field-input instruccion-text" type="text" value="${esc(text || '')}" placeholder="Describir el paso…" style="flex:1" />
-    <input class="field-input instruccion-alarm" type="number" min="1" step="1" value="${alarmMin ? esc(String(alarmMin)) : ''}" placeholder="⏰ min" title="Alarma con sonido (minutos, opcional)" style="width:72px;flex:none" />
     <button class="subtask-remove" title="Quitar paso">✕</button>
   `;
 
@@ -1381,8 +1372,7 @@ function collectEtapas() {
     const instrucciones = Array.from(item.querySelectorAll('.instruccion-row'))
       .map(row => ({
         text: row.querySelector('.instruccion-text').value.trim(),
-        tipo: row.querySelector('.instruccion-tipo-btn')?.dataset.tipo || 'paso',
-        alarmMin: parseInt(row.querySelector('.instruccion-alarm')?.value) || 0
+        tipo: row.querySelector('.instruccion-tipo-btn')?.dataset.tipo || 'paso'
       }))
       .filter(i => i.text);
     return {
@@ -1637,10 +1627,6 @@ function renderExecutionStep() {
   const isLast = currentStageIndex === total - 1;
 
   if (executionState.timerInterval) clearInterval(executionState.timerInterval);
-  (executionState.alarmTimeouts || []).forEach(id => clearTimeout(id));
-  (executionState.alarmIntervals || []).forEach(id => clearInterval(id));
-  executionState.alarmTimeouts  = [];
-  executionState.alarmIntervals = [];
   // Si ya se había avanzado por esta etapa antes (venimos de "Regresar"),
   // el cronómetro sigue contando desde el tiempo ya acumulado, no desde cero.
   const prevDuracion = executionState.stagesData[currentStageIndex]?.duracionReal || 0;
@@ -1659,7 +1645,7 @@ function renderExecutionStep() {
       <div class="exec-timer" id="execTimer">00:00</div>
     </div>
     <h3 class="exec-stage-name">${esc(etapa.nombre)}</h3>
-    ${buildInstruccionesHTML(etapa.instrucciones, true)}
+    ${buildInstruccionesHTML(etapa.instrucciones)}
 
     <div class="exec-obs-section">
       <h4 class="exec-insumos-title">Observaciones de esta etapa</h4>
@@ -1702,114 +1688,9 @@ function renderExecutionStep() {
     if (timerEl) timerEl.textContent = fmtSeconds(elapsed);
   }, 1000);
 
-  scheduleStageAlarms(body);
-
   document.getElementById('btnNextStage').addEventListener('click', () => advanceStage());
   const backBtn = document.getElementById('btnBackStage');
   if (backBtn) backBtn.addEventListener('click', () => goBackStage());
-}
-
-// ── Procesos: Alarmas por instrucción (inicio manual, opcional, con sonido) ──
-
-function scheduleStageAlarms(body) {
-  body.querySelectorAll('.instr-alarm-btn').forEach(btn => {
-    btn.addEventListener('click', () => toggleInstructionAlarm(btn));
-  });
-}
-
-function toggleInstructionAlarm(btn) {
-  const minutes = parseFloat(btn.dataset.alarmMin);
-  const row     = btn.closest('.exec-instruccion-row');
-  const text    = btn.dataset.instrText || '';
-
-  if (btn.dataset.running === 'true') {
-    clearTimeout(+btn.dataset.timeoutId);
-    clearInterval(+btn.dataset.intervalId);
-    resetAlarmBtn(btn, minutes);
-    return;
-  }
-
-  let remaining = Math.round(minutes * 60);
-  btn.dataset.running = 'true';
-  btn.classList.add('instr-alarm-btn--running');
-
-  const updateLabel = () => {
-    const m = Math.floor(remaining / 60), s = remaining % 60;
-    btn.textContent = `⏳ ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} · cancelar`;
-  };
-  updateLabel();
-
-  const intervalId = setInterval(() => {
-    remaining--;
-    if (remaining >= 0) updateLabel();
-  }, 1000);
-
-  const timeoutId = setTimeout(() => {
-    clearInterval(intervalId);
-    resetAlarmBtn(btn, minutes, true);
-    triggerInstructionAlarm(row, text);
-  }, minutes * 60000);
-
-  btn.dataset.timeoutId  = timeoutId;
-  btn.dataset.intervalId = intervalId;
-  executionState.alarmTimeouts.push(timeoutId);
-  executionState.alarmIntervals.push(intervalId);
-}
-
-function resetAlarmBtn(btn, minutes, fired = false) {
-  btn.dataset.running = 'false';
-  btn.classList.remove('instr-alarm-btn--running');
-  btn.textContent = fired
-    ? `▶ Reiniciar alarma (${minutes} min)`
-    : `▶ Iniciar alarma (${minutes} min)`;
-}
-
-function triggerInstructionAlarm(row, text) {
-  playAlarmSound();
-  if (row && row.isConnected) {
-    row.classList.add('instr-alarm-fired');
-    setTimeout(() => row.classList.remove('instr-alarm-fired'), 4200);
-  }
-  showAlarmToast(text);
-}
-
-function showAlarmToast(text) {
-  const toast = document.createElement('div');
-  toast.className = 'alarm-toast';
-  toast.innerHTML = `⏰ <span>${esc(text || 'Alarma de paso')}</span><button class="alarm-toast-close" title="Cerrar">✕</button>`;
-  document.body.appendChild(toast);
-  const remove = () => toast.remove();
-  toast.querySelector('.alarm-toast-close').addEventListener('click', remove);
-  setTimeout(remove, 15000);
-}
-
-let alarmAudioCtx = null;
-function playAlarmSound() {
-  try {
-    if (!alarmAudioCtx) alarmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const ctx = alarmAudioCtx;
-    if (ctx.state === 'suspended') ctx.resume();
-    const beepAt = (startOffset, freq) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      const t0 = ctx.currentTime + startOffset;
-      gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.exponentialRampToValueAtTime(0.3, t0 + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.55);
-      osc.start(t0);
-      osc.stop(t0 + 0.6);
-    };
-    // Secuencia prolongada: ~7s de aviso, alternando dos tonos.
-    for (let i = 0; i < 10; i++) {
-      beepAt(i * 0.75, i % 2 === 0 ? 880 : 660);
-    }
-  } catch (e) {
-    console.warn('playAlarmSound:', e.message);
-  }
 }
 
 function advanceStage() {
@@ -1852,8 +1733,6 @@ function advanceStage() {
 function finishExecution() {
   if (!executionState) return;
   if (executionState.timerInterval) clearInterval(executionState.timerInterval);
-  (executionState.alarmTimeouts || []).forEach(id => clearTimeout(id));
-  (executionState.alarmIntervals || []).forEach(id => clearInterval(id));
 
   const { receta, stagesData } = executionState;
   const durTotal = stagesData.reduce((sum, s) => sum + s.duracionReal, 0);
@@ -1956,8 +1835,6 @@ function finishExecution() {
 document.getElementById('btnCancelEjecutar').addEventListener('click', () => {
   if (!confirm('¿Cancelar la ejecución? Se perderán los datos de las etapas ya registradas.')) return;
   if (executionState?.timerInterval) clearInterval(executionState.timerInterval);
-  (executionState?.alarmTimeouts || []).forEach(id => clearTimeout(id));
-  (executionState?.alarmIntervals || []).forEach(id => clearInterval(id));
   executionState = null;
   clearExecutionProgress();
   document.getElementById('ejecutarOverlay').classList.remove('open');
