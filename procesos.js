@@ -1,7 +1,7 @@
 import { sheetsReq } from './auth.js';
 import {
   esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeParseJSON,
-  fmtDate, fmtDateShortEs, fmtDuration, fmtCOP, parseISODate, toISODate, addDays, diffDays,
+  fmtDate, fmtDateShortEs, fmtDuration, fmtCOP, fmtSeconds, parseISODate, toISODate, addDays, diffDays,
   normalizeObsList, ICON_COPY, ICON_EDIT, ICON_TRASH, ICON_DOWNLOAD, ICON_CHECK
 } from './utils.js';
 import { wasAccidentalTouch } from './input-guard.js';
@@ -41,6 +41,16 @@ let fase2Scores          = { D3: 0, D6: 0 };
 let lastTapTime          = {}; // para detección de doble-toque en móvil
 
 const RECETA_BLOCK_HUES = [355, 25, 45, 95, 165, 200, 230, 280];
+
+// Convierte "#RRGGBB" (o "#RGB") a rgba(...) con la opacidad dada, para el
+// fondo muy pastel de cada bloque cuando el usuario elige un color propio.
+function hexToRgba(hex, alpha) {
+  const h    = (hex || '').replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  if (full.length !== 6 || /[^0-9a-fA-F]/.test(full)) return null;
+  const n = parseInt(full, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
 
 // Suma de frascos producidos para una receta — la usan tanto Ferias como
 // Stock para calcular disponibilidad, por eso vive aquí (dueño de `ejecuciones`)
@@ -274,7 +284,7 @@ export async function initRecetasSheets() {
   if (!bd.values) {
     await sheetsReq('/values/RecetaBlocks!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID','Nombre','CreadoEn','SortOrder']] })
+      body: JSON.stringify({ values: [['ID','Nombre','CreadoEn','SortOrder','Color']] })
     });
   }
 
@@ -341,13 +351,14 @@ async function deleteRecetaRow(rowIndex) {
 // ── Recetas: Bloques CRUD ────────────────────────────────────────────────────
 
 async function loadRecetaBlocks() {
-  const data = await sheetsReq('/values/RecetaBlocks!A:D');
+  const data = await sheetsReq('/values/RecetaBlocks!A:E');
   const rows = (data.values || []).slice(1);
   recetaBlocks = rows.filter(r => r[0]).map((r, i) => ({
     id:        r[0] || '',
     nombre:    r[1] || '',
     creadoEn:  r[2] || '',
     sortOrder: r[3] !== undefined && r[3] !== '' ? +r[3] : i,
+    color:     r[4] || '',
     rowIndex:  i + 2
   }));
   recetaBlocks.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -356,16 +367,16 @@ async function loadRecetaBlocks() {
 
 async function appendRecetaBlock(block) {
   const sortOrder = recetaBlocks.length;
-  await sheetsReq('/values/RecetaBlocks!A:D:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/RecetaBlocks!A:E:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
-    body: JSON.stringify({ values: [[block.id, block.nombre, block.creadoEn, sortOrder]] })
+    body: JSON.stringify({ values: [[block.id, block.nombre, block.creadoEn, sortOrder, block.color || '']] })
   });
 }
 
 async function updateRecetaBlock(block) {
-  await sheetsReq(`/values/RecetaBlocks!A${block.rowIndex}:D${block.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/RecetaBlocks!A${block.rowIndex}:E${block.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
-    body: JSON.stringify({ values: [[block.id, block.nombre, block.creadoEn, block.sortOrder ?? 0]] })
+    body: JSON.stringify({ values: [[block.id, block.nombre, block.creadoEn, block.sortOrder ?? 0, block.color || '']] })
   });
 }
 
@@ -482,7 +493,7 @@ function renderRecetasList() {
     container.innerHTML = recetas.map(recetaCardHTML).join('');
   } else {
     const sections = recetaBlocks.map(b => ({
-      id: b.id, nombre: b.nombre, items: recetas.filter(r => r.blockId === b.id)
+      id: b.id, nombre: b.nombre, color: b.color, items: recetas.filter(r => r.blockId === b.id)
     }));
     sections.push({
       id: '', nombre: 'Sin bloque',
@@ -494,9 +505,12 @@ function renderRecetasList() {
       const collapsed  = collapsedRecetaBlocks.has(toggleKey);
       const draggable  = !!sec.id;
       // Colores muy pasteles (10% de relleno) para separar visualmente cada
-      // bloque; "Sin bloque" queda neutro por no ser un grupo real.
-      const hue = sec.id ? RECETA_BLOCK_HUES[idx % RECETA_BLOCK_HUES.length] : null;
-      const bgStyle = hue != null ? ` style="background:hsl(${hue} 70% 55% / .1)"` : '';
+      // bloque; "Sin bloque" queda neutro por no ser un grupo real. Si el
+      // usuario eligió un color propio para el bloque, se usa ese en vez
+      // del tono automático.
+      const customBg = sec.id ? hexToRgba(sec.color, .12) : null;
+      const hue = (!customBg && sec.id) ? RECETA_BLOCK_HUES[idx % RECETA_BLOCK_HUES.length] : null;
+      const bgStyle = customBg ? ` style="background:${customBg}"` : (hue != null ? ` style="background:hsl(${hue} 70% 55% / .1)"` : '');
       return `
       <div class="receta-block-section"${bgStyle}>
         <div class="receta-block-header" data-block-id="${esc(sec.id)}" ${draggable ? 'draggable="true"' : ''}>
@@ -657,10 +671,30 @@ function renderRecetaBlocksList() {
   }
   container.innerHTML = recetaBlocks.map(b => `
     <div class="mgmt-item">
+      <input type="color" class="color-picker" data-color-id="${esc(b.id)}" value="${esc(b.color || '#714B67')}" title="Color del bloque" />
       <span class="mgmt-item-name">${esc(b.nombre)}</span>
       <button class="mgmt-item-del" data-del-block="${esc(b.id)}">✕</button>
     </div>
   `).join('');
+
+  container.querySelectorAll('.color-picker[data-color-id]').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      const block = recetaBlocks.find(b => b.id === inp.dataset.colorId);
+      if (!block) return;
+      const fb = document.getElementById('recetaBlockFeedback');
+      inp.disabled = true;
+      try {
+        await updateRecetaBlock({ ...block, color: inp.value });
+        await loadRecetaBlocks();
+        renderRecetasList();
+        setFb(fb, '✅ Color actualizado.', 'ok');
+      } catch (e) {
+        setFb(fb, 'Error: ' + e.message, 'err');
+      } finally {
+        inp.disabled = false;
+      }
+    });
+  });
 
   container.querySelectorAll('[data-del-block]').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -700,16 +734,19 @@ document.getElementById('recetaBlockOverlay').addEventListener('click', e => {
 });
 
 document.getElementById('btnAddRecetaBlock').addEventListener('click', async () => {
-  const nombre = document.getElementById('newRecetaBlockName').value.trim();
-  const fb     = document.getElementById('recetaBlockFeedback');
+  const nombre     = document.getElementById('newRecetaBlockName').value.trim();
+  const colorInput = document.getElementById('newRecetaBlockColor');
+  const color      = colorInput.value;
+  const fb         = document.getElementById('recetaBlockFeedback');
   if (!nombre) return setFb(fb, 'El nombre del bloque es obligatorio.', 'err');
   if (recetaBlocks.find(b => b.nombre.toLowerCase() === nombre.toLowerCase()))
     return setFb(fb, 'Ya existe un bloque con ese nombre.', 'err');
 
   try {
-    await appendRecetaBlock({ id: crypto.randomUUID(), nombre, creadoEn: new Date().toISOString() });
+    await appendRecetaBlock({ id: crypto.randomUUID(), nombre, color, creadoEn: new Date().toISOString() });
     await loadRecetaBlocks();
     document.getElementById('newRecetaBlockName').value = '';
+    colorInput.value = '#714B67';
     renderRecetaBlocksList();
     renderRecetasList();
     setFb(fb, `✅ Bloque "${nombre}" agregado.`, 'ok');
