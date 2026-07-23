@@ -1182,6 +1182,9 @@ body {
 /* ── QR home card (purple) ────────────────────────────────────────────────── */
 .app-card-icon--purple { background: #7C3AED; }
 
+/* ── Ideas home card (yellow) ─────────────────────────────────────────────── */
+.app-card-icon--yellow { background: #CA8A04; }
+
 /* ── Stock: resumen de inventario ─────────────────────────────────────────── */
 .stock-disponible-cell { font-weight: 700; color: var(--brand); }
 .stock-disponible-neg  { color: #C0392B; }
@@ -1463,6 +1466,37 @@ body {
   padding: 14px; text-align: center;
   font-size: 12px; color: var(--text-sub);
 }
+
+/* ── Ideas: agrupadas por área (mismas áreas que Tareas) ──────────────────── */
+.idea-group-section { margin-bottom: 22px; }
+.idea-group-section:last-child { margin-bottom: 0; }
+.idea-group-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 12px; border-radius: var(--radius-sm); margin-bottom: 8px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+}
+.idea-group-count {
+  background: rgba(0,0,0,.12); font-size: 11px; font-weight: 700;
+  padding: 1px 7px; border-radius: 999px; flex-shrink: 0;
+}
+.idea-group-body { display: flex; flex-direction: column; gap: 10px; }
+.idea-card {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); cursor: pointer;
+  transition: box-shadow .2s, border-color .2s;
+}
+.idea-card:hover { border-color: rgba(113,75,103,.3); box-shadow: var(--shadow); }
+.idea-card-body  { flex: 1; min-width: 0; }
+.idea-card-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.idea-card-desc  { font-size: 12.5px; color: var(--text-sub); margin-top: 4px; line-height: 1.5; white-space: pre-wrap; }
+.idea-card-del {
+  background: none; border: none; cursor: pointer; color: var(--text-sub);
+  font-size: 12px; padding: 4px 7px; border-radius: 4px; flex-shrink: 0;
+  transition: background .15s, color .15s;
+}
+.idea-card-del:hover { background: rgba(192,57,43,.1); color: #C0392B; }
 
 /* ── Procesos: Ejecución cards ───────────────────────────────────────────── */
 .ejecucion-card {

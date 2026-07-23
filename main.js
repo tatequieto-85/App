@@ -13,6 +13,7 @@ import { loadFerias, renderFeriasDisponibles, renderFeriasConfirmadas } from './
 import { loadStockTestigos, loadStockMovimientos, renderStockResumen, renderStockTrazabilidad, renderStockTestigoList } from './stock.js';
 import { renderInformes } from './informes.js';
 import { loadQRs, renderQRList } from './qr.js';
+import { loadIdeas, renderIdeasList } from './ideas.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentView = 'home';
@@ -48,6 +49,7 @@ export function navigateTo(view) {
   document.getElementById('viewStock').style.display     = view === 'stock'     ? '' : 'none';
   document.getElementById('viewInformes').style.display  = view === 'informes'  ? '' : 'none';
   document.getElementById('viewQR').style.display        = view === 'qr'        ? '' : 'none';
+  document.getElementById('viewIdeas').style.display     = view === 'ideas'     ? '' : 'none';
 
   // Load data for the selected view
   if (view === 'tareas') {
@@ -72,6 +74,9 @@ export function navigateTo(view) {
   }
   if (view === 'qr') {
     loadQRs().then(() => renderQRList());
+  }
+  if (view === 'ideas') {
+    loadIdeas().then(() => renderIdeasList());
   }
 
   window.scrollTo(0, 0);
@@ -302,9 +307,11 @@ const COMMAND_PALETTE_ITEMS = [
   { label: 'Procesos · Ejecuciones', module: 'procesos',  action: () => { navigateTo('procesos'); document.querySelector('[data-procesostab="ejecuciones"]')?.click(); } },
   { label: 'Informes',               module: 'informes',  action: () => navigateTo('informes') },
   { label: 'QR',                     module: 'qr',        action: () => navigateTo('qr') },
+  { label: 'Ideas',                  module: 'ideas',     action: () => navigateTo('ideas') },
   { label: '+ Nueva tarea',          module: 'tareas',    action: () => { navigateTo('tareas'); openTaskModal(null, null); } },
   { label: '+ Nueva receta',         module: 'procesos',  action: () => { navigateTo('procesos'); document.getElementById('btnNewReceta')?.click(); } },
   { label: '+ Generar QR',           module: 'qr',        action: () => { navigateTo('qr'); document.getElementById('qrNombre')?.focus(); } },
+  { label: '+ Nueva idea',           module: 'ideas',     action: () => { navigateTo('ideas'); document.getElementById('btnNewIdea')?.click(); } },
 ];
 
 let commandPaletteIndex = 0;

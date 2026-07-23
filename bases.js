@@ -10,13 +10,14 @@ import { initComprasSheet } from './compras.js';
 import { initFeriasSheet } from './ferias.js';
 import { initStockSheets } from './stock.js';
 import { initQRSheet } from './qr.js';
+import { initIdeasSheet } from './ideas.js';
 
 const screenApp      = document.getElementById('screenApp');
 const screenDbPicker = document.getElementById('screenDbPicker');
 
 export let bases      = [];
 let basesSheetId       = null;
-const ALL_MODULE_KEYS  = ['contenido', 'tareas', 'procesos', 'compras', 'ferias', 'stock', 'informes', 'qr'];
+const ALL_MODULE_KEYS  = ['contenido', 'tareas', 'procesos', 'compras', 'ferias', 'stock', 'informes', 'qr', 'ideas'];
 const ACTIVE_BASE_KEY  = 'ss_activeBase';
 
 // ── Bases de datos: registro central (siempre vive en CONFIG.SHEET_ID) ──────────
@@ -105,6 +106,7 @@ async function provisionAllTabs() {
   await initFeriasSheet();
   await initStockSheets();
   await initQRSheet();
+  await initIdeasSheet();
 }
 
 // Conecta la app a una base de datos ya registrada: la deja activa, asegura
@@ -149,7 +151,7 @@ function applyModuleVisibility() {
 
 const MODULE_LABELS = {
   contenido: 'Contenido', tareas: 'Tareas', procesos: 'Procesos', compras: 'Compras',
-  ferias: 'Ferias', stock: 'Stock', informes: 'Informes', qr: 'QR'
+  ferias: 'Ferias', stock: 'Stock', informes: 'Informes', qr: 'QR', ideas: 'Ideas'
 };
 
 export function showDbPicker() {

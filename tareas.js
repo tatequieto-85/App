@@ -11,7 +11,7 @@ import { navigateTo } from './main.js';
 // ── State ─────────────────────────────────────────────────────────────────────
 export let kanbanTasks  = [];
 let kanbanColumns       = [];
-let kanbanAreas         = [];
+export let kanbanAreas   = [];
 let kanbanTasksSheetId  = null;
 let kanbanEditId        = null;
 let taskAutosaveTimer   = null;
@@ -57,7 +57,7 @@ const AREA_PASTEL_PALETTE = [
   { bg: '#DDE8E3', text: '#3E7264' }, // menta
 ];
 
-function getAreaColor(area) {
+export function getAreaColor(area) {
   const key = area || 'Sin área';
   let hash = 0;
   for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
