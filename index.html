@@ -796,16 +796,27 @@
         <button class="btn-icon" id="btnCloseIdea"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body modal-body-scroll">
-        <label class="field-label" for="ideaTitulo">Título *</label>
-        <input class="field-input" id="ideaTitulo" type="text" placeholder="Ej: Salsa de mango biche" />
-        <label class="field-label" for="ideaDescripcion">Descripción</label>
-        <textarea class="field-textarea" id="ideaDescripcion" rows="4" placeholder="Detalles de la idea…"></textarea>
+        <label class="field-label" for="ideaDescripcion">Descripción *</label>
+        <textarea class="field-textarea" id="ideaDescripcion" rows="4" placeholder="Ej: Salsa de mango biche…"></textarea>
         <label class="field-label" for="ideaProposito">Propósito</label>
         <textarea class="field-textarea" id="ideaProposito" rows="2" placeholder="¿Para qué serviría esta idea?"></textarea>
         <label class="field-label" for="ideaArea">Área *</label>
         <select class="field-select" id="ideaArea"></select>
-        <label class="field-label" for="ideaAlineacion">Alineación con TateQuieto</label>
-        <select class="field-select" id="ideaAlineacion"></select>
+        <label class="field-label">Alineación con TateQuieto</label>
+        <div class="alineacion-picker" id="ideaAlineacionPicker">
+          <label class="alineacion-option">
+            <input type="radio" name="ideaAlineacion" value="Poco" />
+            <span class="alineacion-dot alineacion-dot--poco"></span>Poco
+          </label>
+          <label class="alineacion-option">
+            <input type="radio" name="ideaAlineacion" value="Moderado" />
+            <span class="alineacion-dot alineacion-dot--moderado"></span>Moderado
+          </label>
+          <label class="alineacion-option">
+            <input type="radio" name="ideaAlineacion" value="Afín" />
+            <span class="alineacion-dot alineacion-dot--afin"></span>Afín
+          </label>
+        </div>
         <button class="btn-primary" id="btnSaveIdea" style="margin-top:14px">Guardar idea</button>
         <div class="feedback" id="ideaFeedback"></div>
       </div>

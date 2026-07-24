@@ -88,8 +88,7 @@ async function deleteIdeaRow(rowIndex) {
 function ideaCardHTML(idea) {
   return `
     <div class="idea-kanban-card" data-edit-idea="${esc(idea.id)}">
-      <div class="idea-kanban-card-title">${esc(idea.titulo)}</div>
-      ${idea.descripcion ? `<div class="idea-kanban-card-desc">${esc(idea.descripcion)}</div>` : ''}
+      <div class="idea-kanban-card-title">${esc(idea.descripcion)}</div>
       <div class="idea-kanban-card-footer">
         <button class="idea-kanban-card-del" data-del-idea="${idea.rowIndex}" title="Eliminar">✕</button>
       </div>
@@ -166,43 +165,54 @@ function populateIdeaAreaSelect() {
   sel.innerHTML = kanbanAreas.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
 }
 
-function populateIdeaAlineacionSelect() {
-  const sel = document.getElementById('ideaAlineacion');
-  if (!sel) return;
-  sel.innerHTML = ALINEACION_OPTIONS.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+function setAlineacionPicker(value) {
+  const picker = document.getElementById('ideaAlineacionPicker');
+  if (!picker) return;
+  picker.querySelectorAll('.alineacion-option').forEach(opt => {
+    const input = opt.querySelector('input[type="radio"]');
+    const on = input.value === value;
+    input.checked = on;
+    opt.classList.toggle('active', on);
+  });
 }
+
+function getAlineacionValue() {
+  const picker = document.getElementById('ideaAlineacionPicker');
+  return picker?.querySelector('input[type="radio"]:checked')?.value || ALINEACION_DEFAULT;
+}
+
+document.getElementById('ideaAlineacionPicker').addEventListener('change', e => {
+  if (e.target.name !== 'ideaAlineacion') return;
+  setAlineacionPicker(e.target.value);
+});
 
 export function openIdeaModal(editId) {
   editIdeaId = editId || null;
   document.getElementById('ideaFeedback').textContent = '';
   populateIdeaAreaSelect();
-  populateIdeaAlineacionSelect();
 
   if (editId) {
     const idea = ideas.find(i => i.id === editId);
     if (!idea) return;
     document.getElementById('ideaModalTitle').textContent = 'Editar idea';
-    document.getElementById('ideaTitulo').value      = idea.titulo;
     document.getElementById('ideaDescripcion').value = idea.descripcion;
     document.getElementById('ideaProposito').value   = idea.proposito;
     document.getElementById('ideaArea').value         = idea.area || kanbanAreas[0] || '';
-    document.getElementById('ideaAlineacion').value   = idea.alineacion || ALINEACION_DEFAULT;
+    setAlineacionPicker(idea.alineacion || ALINEACION_DEFAULT);
   } else {
     document.getElementById('ideaModalTitle').textContent = 'Nueva idea';
-    document.getElementById('ideaTitulo').value      = '';
     document.getElementById('ideaDescripcion').value = '';
     document.getElementById('ideaProposito').value   = '';
     document.getElementById('ideaArea').value         = kanbanAreas[0] || '';
-    document.getElementById('ideaAlineacion').value   = ALINEACION_DEFAULT;
+    setAlineacionPicker(ALINEACION_DEFAULT);
   }
 
   document.getElementById('ideaOverlay').classList.add('open');
-  setTimeout(() => document.getElementById('ideaTitulo').focus(), 100);
+  setTimeout(() => document.getElementById('ideaDescripcion').focus(), 100);
 }
 
 function isIdeaFormDirty() {
-  return !!document.getElementById('ideaTitulo')?.value.trim()
-    || !!document.getElementById('ideaDescripcion')?.value.trim()
+  return !!document.getElementById('ideaDescripcion')?.value.trim()
     || !!document.getElementById('ideaProposito')?.value.trim();
 }
 
@@ -217,22 +227,21 @@ document.getElementById('ideaOverlay').addEventListener('click', e => {
 document.getElementById('btnNewIdea').addEventListener('click', () => openIdeaModal(null));
 
 document.getElementById('btnSaveIdea').addEventListener('click', async () => {
-  const titulo      = document.getElementById('ideaTitulo').value.trim();
   const descripcion = document.getElementById('ideaDescripcion').value.trim();
   const proposito    = document.getElementById('ideaProposito').value.trim();
   const area         = document.getElementById('ideaArea').value;
-  const alineacion   = document.getElementById('ideaAlineacion').value;
+  const alineacion   = getAlineacionValue();
   const fb           = document.getElementById('ideaFeedback');
-  if (!titulo) return setFb(fb, 'El título es obligatorio.', 'err');
+  if (!descripcion) return setFb(fb, 'La descripción es obligatoria.', 'err');
 
   const btn = document.getElementById('btnSaveIdea');
   btn.disabled = true;
   try {
     if (editIdeaId) {
       const idea = ideas.find(i => i.id === editIdeaId);
-      if (idea) await updateIdeaRow({ ...idea, titulo, descripcion, proposito, area, alineacion });
+      if (idea) await updateIdeaRow({ ...idea, descripcion, proposito, area, alineacion });
     } else {
-      await appendIdea({ titulo, descripcion, proposito, area, alineacion });
+      await appendIdea({ titulo: '', descripcion, proposito, area, alineacion });
     }
     await loadIdeas();
     renderIdeasList();
