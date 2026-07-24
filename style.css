@@ -1467,12 +1467,33 @@ body {
   font-size: 12px; color: var(--text-sub);
 }
 
-/* ── Ideas: tablero Kanban (columnas = áreas de Tareas) ───────────────────── */
+/* ── Ideas: tablero de bloques por área (4 columnas, con filas que crecen) ── */
 .idea-board-header {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 20px 16px 4px;
 }
-.idea-kanban-col .kanban-col-body { gap: 0; }
+.idea-board-wrap { padding: 4px 16px 56px; }
+.idea-board-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .idea-board-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .idea-board-grid { grid-template-columns: 1fr; }
+}
+/* En la cuadrícula cada bloque ocupa su celda (no un ancho fijo de 272px como
+   en el Kanban de Tareas) y crece según su contenido en vez de ocupar casi
+   toda la altura de la pantalla — así las filas se apilan de forma compacta. */
+.idea-kanban-col {
+  width: auto;
+  height: auto;
+  overflow: visible;
+}
+.idea-kanban-col .kanban-col-body { gap: 0; overflow-y: visible; }
 .idea-align-group { margin-bottom: 12px; }
 .idea-align-group:last-child { margin-bottom: 0; }
 .idea-align-label {
@@ -1492,12 +1513,26 @@ body {
   font-size: 12.5px; font-weight: 600; color: var(--text); line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
 }
-.idea-kanban-card-footer { display: flex; justify-content: flex-end; margin-top: 4px; }
+.idea-kanban-card-footer { display: flex; justify-content: flex-end; align-items: center; gap: 2px; margin-top: 4px; }
 .idea-kanban-card-del {
   background: none; border: none; cursor: pointer; color: var(--text-sub);
   font-size: 11px; padding: 3px 6px; border-radius: 4px;
   transition: background .15s, color .15s;
 }
+.idea-kanban-card-attach { font-size: 12px; text-decoration: none; padding: 3px 4px; line-height: 1; }
+
+.idea-archivo-row { margin-top: 12px; }
+.idea-archivo-preview {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+  font-size: 12.5px; color: var(--text-sub);
+}
+.idea-archivo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+.idea-archivo-remove {
+  background: none; border: none; cursor: pointer; color: var(--text-sub);
+  font-size: 12px; padding: 2px 5px; border-radius: 4px; flex-shrink: 0;
+  transition: background .15s, color .15s;
+}
+.idea-archivo-remove:hover { background: rgba(192,57,43,.1); color: #C0392B; }
 .idea-kanban-card-del:hover { background: rgba(192,57,43,.1); color: #C0392B; }
 
 .alineacion-picker { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }

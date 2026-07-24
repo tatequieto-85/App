@@ -1,13 +1,14 @@
 // ── Ideas: tablero tipo Kanban, una columna por área (las mismas de Tareas), ─
 // con 3 sub-categorías de alineación con TateQuieto dentro de cada columna.
 
-import { sheetsReq } from './auth.js';
-import { esc, setFb, confirmCloseIfDirty } from './utils.js';
+import { sheetsReq, uploadToDrive, deleteDriveFile } from './auth.js';
+import { esc, setFb, confirmCloseIfDirty, safeParseJSON } from './utils.js';
 import { kanbanAreas, getAreaColor } from './tareas.js';
 
 export let ideas = [];
 let ideasSheetId = null;
 let editIdeaId   = null;
+let modalArchivo = null; // { fileId, name, mimeType } | null — adjunto de la idea que se está creando/editando
 
 const ALINEACION_OPTIONS = ['Poco', 'Moderado', 'Afín'];
 const ALINEACION_DEFAULT = 'Moderado';
@@ -30,14 +31,14 @@ export async function initIdeasSheet() {
     if (added) ideasSheetId = added.sheetId;
     await sheetsReq('/values/Ideas!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID', 'Titulo', 'Descripcion', 'Area', 'CreadoEn', 'Proposito', 'Alineacion']] })
+      body: JSON.stringify({ values: [['ID', 'Titulo', 'Descripcion', 'Area', 'CreadoEn', 'Proposito', 'Alineacion', 'Archivo']] })
     });
   }
   await loadIdeas();
 }
 
 export async function loadIdeas() {
-  const data = await sheetsReq('/values/Ideas!A:G');
+  const data = await sheetsReq('/values/Ideas!A:H');
   const rows = (data.values || []).slice(1);
   ideas = rows.filter(r => r[0]).map((r, i) => ({
     id:          r[0] || '',
@@ -47,24 +48,27 @@ export async function loadIdeas() {
     creadoEn:    r[4] || '',
     proposito:   r[5] || '',
     alineacion:  r[6] || ALINEACION_DEFAULT,
+    archivo:     safeParseJSON(r[7], null),
     rowIndex:    i + 2
   }));
 }
 
 async function appendIdea(idea) {
-  await sheetsReq('/values/Ideas!A:G:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Ideas!A:H:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
-      crypto.randomUUID(), idea.titulo, idea.descripcion, idea.area, new Date().toISOString(), idea.proposito, idea.alineacion
+      crypto.randomUUID(), idea.titulo, idea.descripcion, idea.area, new Date().toISOString(), idea.proposito, idea.alineacion,
+      JSON.stringify(idea.archivo || null)
     ]] })
   });
 }
 
 async function updateIdeaRow(idea) {
-  await sheetsReq(`/values/Ideas!A${idea.rowIndex}:G${idea.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Ideas!A${idea.rowIndex}:H${idea.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
-      idea.id, idea.titulo, idea.descripcion, idea.area, idea.creadoEn, idea.proposito, idea.alineacion
+      idea.id, idea.titulo, idea.descripcion, idea.area, idea.creadoEn, idea.proposito, idea.alineacion,
+      JSON.stringify(idea.archivo || null)
     ]] })
   });
 }
@@ -86,10 +90,14 @@ async function deleteIdeaRow(rowIndex) {
 // ── Ideas: UI — tablero Kanban (columnas = áreas, sub-grupos = alineación) ────
 
 function ideaCardHTML(idea) {
+  const attachHTML = idea.archivo
+    ? `<a class="idea-kanban-card-attach" data-attach-link href="https://drive.google.com/file/d/${esc(idea.archivo.fileId)}/view" target="_blank" rel="noopener" title="${esc(idea.archivo.name)}">📎</a>`
+    : '';
   return `
     <div class="idea-kanban-card" data-edit-idea="${esc(idea.id)}">
       <div class="idea-kanban-card-title">${esc(idea.descripcion)}</div>
       <div class="idea-kanban-card-footer">
+        ${attachHTML}
         <button class="idea-kanban-card-del" data-del-idea="${idea.rowIndex}" title="Eliminar">✕</button>
       </div>
     </div>
@@ -115,6 +123,7 @@ function columnHTML(areaKey, area, items) {
       <div class="kanban-col-header" style="background:${c.bg};color:${c.text}">
         <span class="kanban-col-title">${esc(areaKey)}</span>
         <span class="kanban-col-count">${items.length}</span>
+        ${area ? `<button class="kanban-add-card-icon" data-add-area="${esc(area)}" title="Agregar idea en ${esc(area)}" style="color:inherit;border-color:currentColor">+</button>` : ''}
       </div>
       <div class="kanban-col-body">${groupsHTML}</div>
     </div>
@@ -140,13 +149,21 @@ export function renderIdeasList() {
   container.querySelectorAll('[data-edit-idea]').forEach(card => {
     card.addEventListener('click', () => openIdeaModal(card.dataset.editIdea));
   });
+  container.querySelectorAll('[data-add-area]').forEach(btn => {
+    btn.addEventListener('click', () => openIdeaModal(null, btn.dataset.addArea));
+  });
+  container.querySelectorAll('[data-attach-link]').forEach(a => {
+    a.addEventListener('click', e => e.stopPropagation());
+  });
   container.querySelectorAll('[data-del-idea]').forEach(btn => {
     btn.addEventListener('click', async e => {
       e.stopPropagation();
       if (!confirm('¿Eliminar esta idea?')) return;
+      const idea = ideas.find(i => i.rowIndex === +btn.dataset.delIdea);
       btn.disabled = true;
       try {
         await deleteIdeaRow(+btn.dataset.delIdea);
+        if (idea?.archivo?.fileId) await deleteDriveFile(idea.archivo.fileId);
         await loadIdeas();
         renderIdeasList();
       } catch (err) {
@@ -186,7 +203,23 @@ document.getElementById('ideaAlineacionPicker').addEventListener('change', e => 
   setAlineacionPicker(e.target.value);
 });
 
-export function openIdeaModal(editId) {
+function renderIdeaArchivoPreview() {
+  const el = document.getElementById('ideaArchivoPreview');
+  if (!el) return;
+  if (!modalArchivo) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <span class="idea-archivo-name">📄 ${esc(modalArchivo.name)}</span>
+    <button type="button" class="idea-archivo-remove" id="btnRemoveIdeaArchivo" title="Quitar">✕</button>
+  `;
+  document.getElementById('btnRemoveIdeaArchivo').addEventListener('click', async () => {
+    const removed = modalArchivo;
+    modalArchivo = null;
+    renderIdeaArchivoPreview();
+    if (removed?.fileId) await deleteDriveFile(removed.fileId);
+  });
+}
+
+export function openIdeaModal(editId, defaultArea) {
   editIdeaId = editId || null;
   document.getElementById('ideaFeedback').textContent = '';
   populateIdeaAreaSelect();
@@ -199,13 +232,16 @@ export function openIdeaModal(editId) {
     document.getElementById('ideaProposito').value   = idea.proposito;
     document.getElementById('ideaArea').value         = idea.area || kanbanAreas[0] || '';
     setAlineacionPicker(idea.alineacion || ALINEACION_DEFAULT);
+    modalArchivo = idea.archivo || null;
   } else {
     document.getElementById('ideaModalTitle').textContent = 'Nueva idea';
     document.getElementById('ideaDescripcion').value = '';
     document.getElementById('ideaProposito').value   = '';
-    document.getElementById('ideaArea').value         = kanbanAreas[0] || '';
+    document.getElementById('ideaArea').value         = defaultArea || kanbanAreas[0] || '';
     setAlineacionPicker(ALINEACION_DEFAULT);
+    modalArchivo = null;
   }
+  renderIdeaArchivoPreview();
 
   document.getElementById('ideaOverlay').classList.add('open');
   setTimeout(() => document.getElementById('ideaDescripcion').focus(), 100);
@@ -213,8 +249,36 @@ export function openIdeaModal(editId) {
 
 function isIdeaFormDirty() {
   return !!document.getElementById('ideaDescripcion')?.value.trim()
-    || !!document.getElementById('ideaProposito')?.value.trim();
+    || !!document.getElementById('ideaProposito')?.value.trim()
+    || !!modalArchivo;
 }
+
+document.getElementById('btnAttachIdea').addEventListener('click', () => {
+  document.getElementById('ideaFileInput').click();
+});
+
+document.getElementById('ideaFileInput').addEventListener('change', async function() {
+  const file = this.files?.[0];
+  this.value = '';
+  if (!file) return;
+
+  const btn = document.getElementById('btnAttachIdea');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Subiendo…';
+  try {
+    const previousFileId = modalArchivo?.fileId;
+    const data = await uploadToDrive(file);
+    modalArchivo = { fileId: data.id, name: file.name, mimeType: file.type };
+    renderIdeaArchivoPreview();
+    if (previousFileId) await deleteDriveFile(previousFileId);
+  } catch (e) {
+    alert('Error al subir archivo: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
 
 function closeIdeaModal() {
   confirmCloseIfDirty('ideaOverlay', isIdeaFormDirty);
@@ -224,7 +288,6 @@ document.getElementById('btnCloseIdea').addEventListener('click', closeIdeaModal
 document.getElementById('ideaOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('ideaOverlay')) closeIdeaModal();
 });
-document.getElementById('btnNewIdea').addEventListener('click', () => openIdeaModal(null));
 
 document.getElementById('btnSaveIdea').addEventListener('click', async () => {
   const descripcion = document.getElementById('ideaDescripcion').value.trim();
@@ -239,9 +302,9 @@ document.getElementById('btnSaveIdea').addEventListener('click', async () => {
   try {
     if (editIdeaId) {
       const idea = ideas.find(i => i.id === editIdeaId);
-      if (idea) await updateIdeaRow({ ...idea, descripcion, proposito, area, alineacion });
+      if (idea) await updateIdeaRow({ ...idea, descripcion, proposito, area, alineacion, archivo: modalArchivo });
     } else {
-      await appendIdea({ titulo: '', descripcion, proposito, area, alineacion });
+      await appendIdea({ titulo: '', descripcion, proposito, area, alineacion, archivo: modalArchivo });
     }
     await loadIdeas();
     renderIdeasList();

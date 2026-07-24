@@ -13,7 +13,7 @@ import { loadFerias, renderFeriasDisponibles, renderFeriasConfirmadas } from './
 import { loadStockTestigos, loadStockMovimientos, renderStockResumen, renderStockTrazabilidad, renderStockTestigoList } from './stock.js';
 import { renderInformes } from './informes.js';
 import { loadQRs, renderQRList } from './qr.js';
-import { loadIdeas, renderIdeasList } from './ideas.js';
+import { loadIdeas, renderIdeasList, openIdeaModal } from './ideas.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentView = 'home';
@@ -311,7 +311,7 @@ const COMMAND_PALETTE_ITEMS = [
   { label: '+ Nueva tarea',          module: 'tareas',    action: () => { navigateTo('tareas'); openTaskModal(null, null); } },
   { label: '+ Nueva receta',         module: 'procesos',  action: () => { navigateTo('procesos'); document.getElementById('btnNewReceta')?.click(); } },
   { label: '+ Generar QR',           module: 'qr',        action: () => { navigateTo('qr'); document.getElementById('qrNombre')?.focus(); } },
-  { label: '+ Nueva idea',           module: 'ideas',     action: () => { navigateTo('ideas'); document.getElementById('btnNewIdea')?.click(); } },
+  { label: '+ Nueva idea',           module: 'ideas',     action: () => { navigateTo('ideas'); openIdeaModal(null); } },
 ];
 
 let commandPaletteIndex = 0;

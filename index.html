@@ -543,10 +543,9 @@
         <div id="viewIdeas" class="view" style="display:none">
           <div class="idea-board-header">
             <h2 class="section-title">Ideas</h2>
-            <button class="btn-add-task" id="btnNewIdea">+ Nueva idea</button>
           </div>
-          <div class="kanban-wrap">
-            <div class="kanban-board" id="ideasList">
+          <div class="idea-board-wrap">
+            <div class="idea-board-grid" id="ideasList">
               <div class="loading-state" style="padding:48px 0">Cargando…</div>
             </div>
           </div>
@@ -816,6 +815,11 @@
             <input type="radio" name="ideaAlineacion" value="Afín" />
             <span class="alineacion-dot alineacion-dot--afin"></span>Afín
           </label>
+        </div>
+        <div class="idea-archivo-row">
+          <button type="button" class="btn-outline btn-sm" id="btnAttachIdea">📎 Subir archivo</button>
+          <input type="file" id="ideaFileInput" hidden />
+          <div id="ideaArchivoPreview" class="idea-archivo-preview"></div>
         </div>
         <button class="btn-primary" id="btnSaveIdea" style="margin-top:14px">Guardar idea</button>
         <div class="feedback" id="ideaFeedback"></div>
