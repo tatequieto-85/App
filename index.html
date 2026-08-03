@@ -590,6 +590,26 @@
     </div>
   </div>
 
+  <!-- Modal: Historia (editar) -->
+  <div class="modal-overlay" id="editStoryOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Editar historia</h2>
+        <button class="btn-icon" id="btnCloseEditStory"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <label class="field-label" for="editStoryTitle">Título</label>
+        <input class="field-input" id="editStoryTitle" type="text" />
+        <label class="field-label" for="editStoryActions">Acciones</label>
+        <textarea class="field-textarea" id="editStoryActions" rows="3"></textarea>
+        <label class="field-label" for="editStorySchedule">Fecha y hora programada</label>
+        <input class="field-input" id="editStorySchedule" type="datetime-local" />
+        <button class="btn-primary" id="btnSaveEditStory">Guardar cambios</button>
+        <div class="feedback" id="editStoryFeedback"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Tarea (crear / editar) -->
   <div class="modal-overlay" id="taskOverlay">
     <div class="modal modal-task">

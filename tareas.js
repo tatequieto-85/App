@@ -686,9 +686,6 @@ export function renderKanban() {
       const newStatus = col.name;
       const task = kanbanTasks.find(t => t.id === draggedId);
       if (!task || task.status === newStatus) return;
-      if (TERMINAL_STATES.includes(newStatus)) {
-        if (!confirm(`¿Finalizar la tarea como "${newStatus}"?`)) return;
-      }
       const prevStatus = task.status;
       task.status = newStatus;
       if (TERMINAL_STATES.includes(newStatus)) stopTaskTimer(task);
@@ -1251,7 +1248,6 @@ function wireGanttBarInteractions(tasks, unitWidth) {
     barEl.querySelector('.gantt-bar-done')?.addEventListener('click', async e => {
       e.stopPropagation();
       if (task.status === 'Realizado') return;
-      if (!confirm(`¿Finalizar la tarea como "Realizado"?`)) return;
       const prevStatus = task.status;
       task.status = 'Realizado';
       stopTaskTimer(task);
@@ -2298,10 +2294,6 @@ function openTaskDetail(taskId) {
       const newStatus = this.value;
       const t = kanbanTasks.find(x => x.id === taskDetailId);
       if (!t || t.status === newStatus) return;
-      if (TERMINAL_STATES.includes(newStatus) && !confirm(`¿Finalizar la tarea como "${newStatus}"?`)) {
-        this.value = t.status;
-        return;
-      }
       const prev = t.status;
       t.status   = newStatus;
       if (TERMINAL_STATES.includes(newStatus)) stopTaskTimer(t);

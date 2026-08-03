@@ -1,5 +1,5 @@
 import { sheetsReq } from './auth.js';
-import { esc, setFb, setFieldError, clearFieldErrors, safeParseJSON, fmtDate, fmtDateShortEs, fmtCOP, parseISODate, toISODate, addDays, ICON_EDIT, ICON_TRASH } from './utils.js';
+import { esc, setFb, setFieldError, clearFieldErrors, safeParseJSON, fmtDate, fmtDateShortEs, fmtCOP, parseISODate, toISODate, addDays, ICON_EDIT, ICON_TRASH, ICON_MORE, initCardMenus } from './utils.js';
 import { wasAccidentalTouch } from './input-guard.js';
 import { openCalendarPopover } from './tareas.js';
 import { ejecuciones, getStockProducido } from './procesos.js';
@@ -202,21 +202,28 @@ function feriaCardHTML(f) {
 function feriaBlockHTML(f) {
   const fechas = (f.fechaInicio && f.fechaFin) ? `${fmtDateShortEs(f.fechaInicio)} → ${fmtDateShortEs(f.fechaFin)}` : '—';
   return `
-    <div class="feria-block" data-id="${esc(f.id)}" title="Doble clic para registrar conteo">
+    <div class="feria-block" data-id="${esc(f.id)}">
       <div class="feria-block-title">${esc(f.empresa)}</div>
       <div class="feria-block-meta">📅 ${fechas}</div>
       <div class="feria-block-meta">📍 ${esc(f.lugar || '—')}</div>
       <div class="feria-block-counter">👥 ${f.conteoPersonas || 0}</div>
       <div class="feria-block-actions">
-        <button class="task-action-btn" data-plan-stock-feria="${esc(f.id)}" title="Plan de stock por día">📦</button>
-        <button class="task-action-btn" data-edit-feria="${esc(f.id)}" title="Editar">${ICON_EDIT}</button>
-        <button class="task-action-btn" data-volver-feria="${esc(f.id)}" title="Volver a disponibles">↩</button>
-        <button class="task-action-btn" data-del-feria="${esc(f.id)}" data-row="${f.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
+        <button class="feria-confirm-btn" data-conteo-feria="${esc(f.id)}">👥 Registrar conteo</button>
+        <div class="card-menu">
+          <button type="button" class="card-menu-btn" data-menu-btn title="Más acciones">${ICON_MORE}</button>
+          <div class="card-menu-list">
+            <button type="button" data-plan-stock-feria="${esc(f.id)}">📦 Plan de stock por día</button>
+            <button type="button" data-edit-feria="${esc(f.id)}">${ICON_EDIT} Editar</button>
+            <button type="button" data-volver-feria="${esc(f.id)}">↩ Volver a disponibles</button>
+            <button type="button" data-del-feria="${esc(f.id)}" data-row="${f.rowIndex}">${ICON_TRASH} Eliminar</button>
+          </div>
+        </div>
       </div>
     </div>`;
 }
 
 function wireFeriaCardActions(container) {
+  initCardMenus(container);
   container.querySelectorAll('[data-edit-feria]').forEach(btn => {
     btn.addEventListener('click', e => { e.stopPropagation(); openFeriaModal(btn.dataset.editFeria); });
   });
@@ -262,6 +269,9 @@ export function renderFeriasConfirmadas() {
   wireFeriaCardActions(container);
   container.querySelectorAll('[data-plan-stock-feria]').forEach(btn => {
     btn.addEventListener('click', e => { e.stopPropagation(); openFeriaStockModal(btn.dataset.planStockFeria); });
+  });
+  container.querySelectorAll('[data-conteo-feria]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); openFeriaCounter(btn.dataset.conteoFeria); });
   });
   container.querySelectorAll('.feria-block').forEach(block => {
     block.addEventListener('dblclick', e => {

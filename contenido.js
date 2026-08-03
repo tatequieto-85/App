@@ -1,5 +1,5 @@
 import { sheetsReq, uploadToDrive, deleteDriveFile, downloadDriveFile, thumbUrl } from './auth.js';
-import { esc, setFb, fmtDate, delay, confirmCloseIfDirty, ICON_FILM, ICON_IMAGE, ICON_FOLDER, ICON_DOWNLOAD, ICON_CHECK, ICON_CALENDAR, ICON_TRASH, ICON_SPINNER } from './utils.js';
+import { esc, setFb, fmtDate, delay, confirmCloseIfDirty, ICON_FILM, ICON_IMAGE, ICON_FOLDER, ICON_DOWNLOAD, ICON_CHECK, ICON_CALENDAR, ICON_TRASH, ICON_EDIT, ICON_SPINNER } from './utils.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const dropzone      = document.getElementById('dropzone');
@@ -18,6 +18,14 @@ const formFeedback = document.getElementById('formFeedback');
 const storiesList   = document.getElementById('storiesList');
 const pendingBadge  = document.getElementById('pendingBadge');
 const todayAlert    = document.getElementById('todayAlert');
+
+const editStoryOverlay   = document.getElementById('editStoryOverlay');
+const btnCloseEditStory  = document.getElementById('btnCloseEditStory');
+const btnSaveEditStory   = document.getElementById('btnSaveEditStory');
+const editStoryTitle     = document.getElementById('editStoryTitle');
+const editStoryActions   = document.getElementById('editStoryActions');
+const editStorySchedule  = document.getElementById('editStorySchedule');
+const editStoryFeedback  = document.getElementById('editStoryFeedback');
 
 const btnSettings      = document.getElementById('btnSettings');
 const btnCloseSettings = document.getElementById('btnCloseSettings');
@@ -119,6 +127,13 @@ async function appendStory(story) {
       story.driveFileId, story.origName, story.mimeType, story.thumbUrl,
       'FALSE', '', story.createdAt
     ]] })
+  });
+}
+
+async function updateStoryFields(rowIndex, { title, actions, scheduledAt }) {
+  await sheetsReq(`/values/Stories!B${rowIndex}:D${rowIndex}?valueInputOption=USER_ENTERED`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[title, actions, scheduledAt]] })
   });
 }
 
@@ -399,6 +414,13 @@ function renderStories(stories) {
     });
   });
 
+  storiesList.querySelectorAll('[data-edit-row]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const story = stories.find(s => s.rowIndex === +btn.dataset.editRow);
+      if (story) openEditStoryModal(story);
+    });
+  });
+
   storiesList.querySelectorAll('[data-drive-id]').forEach(btn => {
     btn.addEventListener('click', () =>
       window.open(`https://drive.google.com/file/d/${btn.dataset.driveId}/view`, '_blank')
@@ -475,10 +497,54 @@ function storyCardHTML(s) {
         </div>
       </div>
       <div class="story-actions-btn">
+        <button class="story-delete" data-edit-row="${s.rowIndex}" title="Editar">${ICON_EDIT}</button>
         <button class="story-delete" data-delete-row="${s.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
       </div>
     </div>`;
 }
+
+// ── Edit story modal ──────────────────────────────────────────────────────────
+
+let editingStoryRow = null;
+
+function openEditStoryModal(story) {
+  editingStoryRow = story.rowIndex;
+  editStoryTitle.value    = story.title;
+  editStoryActions.value  = story.actions;
+  const d = new Date(story.scheduledAt);
+  editStorySchedule.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  setFb(editStoryFeedback, '', '');
+  editStoryOverlay.classList.add('open');
+}
+
+function closeEditStoryModal() {
+  editStoryOverlay.classList.remove('open');
+}
+
+btnCloseEditStory.addEventListener('click', closeEditStoryModal);
+editStoryOverlay.addEventListener('click', e => {
+  if (e.target === editStoryOverlay) closeEditStoryModal();
+});
+
+btnSaveEditStory.addEventListener('click', async () => {
+  const title   = editStoryTitle.value.trim();
+  const actions = editStoryActions.value.trim();
+  const sched   = editStorySchedule.value;
+
+  if (!title) return setFb(editStoryFeedback, 'El título es obligatorio.', 'err');
+  if (!sched) return setFb(editStoryFeedback, 'La fecha es obligatoria.', 'err');
+
+  btnSaveEditStory.disabled = true;
+  try {
+    await updateStoryFields(editingStoryRow, { title, actions, scheduledAt: new Date(sched).toISOString() });
+    closeEditStoryModal();
+    await loadStories();
+  } catch (e) {
+    setFb(editStoryFeedback, `Error: ${e.message}`, 'err');
+  } finally {
+    btnSaveEditStory.disabled = false;
+  }
+});
 
 // ── Settings modal ────────────────────────────────────────────────────────────
 

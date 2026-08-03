@@ -9,8 +9,33 @@ export const ICON_TRASH    = '<svg width="15" height="15" viewBox="0 0 24 24" fi
 export const ICON_EDIT     = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>';
 export const ICON_SPINNER  = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="icon-spin"><path d="M21 12a9 9 0 11-9-9"/></svg>';
 export const ICON_COPY     = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+export const ICON_MORE     = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>';
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
+
+let cardMenuOutsideWired = false;
+
+// Menú "⋯" reutilizable para tarjetas (recetas, ferias, etc). Marcado esperado:
+// <div class="card-menu"><button data-menu-btn>…</button><div class="card-menu-list">…</div></div>
+// Llamar de nuevo después de cada re-render del contenedor (el listener global
+// de "clic afuera cierra todo" solo se registra una vez).
+export function initCardMenus(container) {
+  container.querySelectorAll('[data-menu-btn]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const list = btn.nextElementSibling;
+      const wasOpen = list.classList.contains('open');
+      document.querySelectorAll('.card-menu-list.open').forEach(m => m.classList.remove('open'));
+      if (!wasOpen) list.classList.add('open');
+    });
+  });
+  if (!cardMenuOutsideWired) {
+    cardMenuOutsideWired = true;
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.card-menu-list.open').forEach(m => m.classList.remove('open'));
+    });
+  }
+}
 
 export function setFb(el, msg, type) {
   el.textContent = msg; el.className = `feedback ${type}`;

@@ -2,7 +2,8 @@ import { sheetsReq } from './auth.js';
 import {
   esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeParseJSON,
   fmtDate, fmtDateShortEs, fmtDuration, fmtCOP, fmtSeconds, parseISODate, toISODate, addDays, diffDays,
-  normalizeObsList, ICON_COPY, ICON_EDIT, ICON_TRASH, ICON_DOWNLOAD, ICON_CHECK
+  normalizeObsList, ICON_COPY, ICON_EDIT, ICON_TRASH, ICON_DOWNLOAD, ICON_CHECK, ICON_MORE,
+  initCardMenus
 } from './utils.js';
 import { wasAccidentalTouch } from './input-guard.js';
 import { loadConfig } from './contenido.js';
@@ -466,16 +467,22 @@ export async function loadProcesos() {
 
 function recetaCardHTML(r) {
   return `
-    <div class="receta-card" data-id="${esc(r.id)}" draggable="true" title="Doble clic para ver detalle">
+    <div class="receta-card" data-id="${esc(r.id)}" draggable="true">
       <div class="receta-card-body">
         <div class="receta-card-title">${esc(r.nombre)}</div>
-        <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''} &nbsp;·&nbsp; doble clic = ver pasos</div>
+        <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''}</div>
       </div>
       <div class="receta-card-actions">
+        <button class="btn-outline btn-sm" data-ver-receta="${esc(r.id)}">👁 Ver pasos</button>
         <button class="btn-ejecutar" data-ejecutar="${esc(r.id)}">▶ Ejecutar</button>
-        <button class="btn-outline btn-sm" data-dup-receta="${esc(r.id)}" title="Duplicar receta">${ICON_COPY}</button>
-        <button class="btn-outline btn-sm" data-edit-receta="${esc(r.id)}">${ICON_EDIT}</button>
-        <button class="btn-outline btn-sm" data-del-receta="${esc(r.id)}" data-row="${r.rowIndex}">${ICON_TRASH}</button>
+        <div class="card-menu">
+          <button type="button" class="card-menu-btn" data-menu-btn title="Más acciones">${ICON_MORE}</button>
+          <div class="card-menu-list">
+            <button type="button" data-dup-receta="${esc(r.id)}">${ICON_COPY} Duplicar</button>
+            <button type="button" data-edit-receta="${esc(r.id)}">${ICON_EDIT} Editar</button>
+            <button type="button" data-del-receta="${esc(r.id)}" data-row="${r.rowIndex}">${ICON_TRASH} Eliminar</button>
+          </div>
+        </div>
       </div>
     </div>`;
 }
@@ -625,6 +632,10 @@ function renderRecetasList() {
   container.querySelectorAll('[data-ejecutar]').forEach(btn => {
     btn.addEventListener('click', () => startExecution(btn.dataset.ejecutar));
   });
+  container.querySelectorAll('[data-ver-receta]').forEach(btn => {
+    btn.addEventListener('click', () => openRecetaDetail(btn.dataset.verReceta));
+  });
+  initCardMenus(container);
   container.querySelectorAll('[data-dup-receta]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const rec = recetas.find(r => r.id === btn.dataset.dupReceta);

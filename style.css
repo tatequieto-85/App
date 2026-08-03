@@ -1425,7 +1425,29 @@ body {
 .feria-counter-actions .feria-counter-plus {
   flex: 1; max-width: 130px; padding: 14px; font-size: 16px; font-weight: 700;
 }
-.receta-card-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+.receta-card-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; align-items: center; }
+
+/* ── Menú "⋯" reutilizable (recetas, ferias) ──────────────────────────────── */
+.card-menu { position: relative; }
+.card-menu-btn {
+  border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm);
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text-sub); transition: background .15s; flex-shrink: 0;
+}
+.card-menu-btn:hover { background: rgba(0,0,0,.07); }
+.card-menu-list {
+  display: none; flex-direction: column; gap: 2px;
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow); min-width: 170px; padding: 4px;
+}
+.card-menu-list.open { display: flex; }
+.card-menu-list button {
+  display: flex; align-items: center; gap: 6px; background: none; border: none; text-align: left;
+  padding: 7px 10px; font-size: 13px; color: var(--text); border-radius: var(--radius-sm);
+  cursor: pointer; white-space: nowrap; width: 100%;
+}
+.card-menu-list button:hover { background: rgba(0,0,0,.07); }
 
 /* ── Procesos: Bloques de recetas ─────────────────────────────────────────── */
 .receta-block-section {
