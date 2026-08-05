@@ -9,7 +9,7 @@ import { loadStories } from './contenido.js';
 import { switchSubTab, openTaskModal, enterTareasView, openDueBadgeDropdown, closeDueBadgeDropdown } from './tareas.js';
 import { loadProcesos, loadRecetasData, loadEjecucionesData } from './procesos.js';
 import { loadCompras, renderComprasList } from './compras.js';
-import { loadFerias, renderFeriasDisponibles, renderFeriasConfirmadas } from './ferias.js';
+import { loadFerias, renderFerias } from './ferias.js';
 import { loadStockTestigos, loadStockMovimientos, renderStockResumen, renderStockTrazabilidad, renderStockTestigoList } from './stock.js';
 import { renderInformes } from './informes.js';
 import { loadQRs, renderQRList } from './qr.js';
@@ -63,7 +63,7 @@ export function navigateTo(view) {
   }
   if (view === 'ferias') {
     Promise.all([loadFerias(), loadRecetasData(), loadEjecucionesData()])
-      .then(() => { renderFeriasDisponibles(); renderFeriasConfirmadas(); });
+      .then(() => { renderFerias(); });
   }
   if (view === 'stock') {
     Promise.all([loadRecetasData(), loadEjecucionesData(), loadFerias(), loadStockTestigos(), loadStockMovimientos()])
@@ -400,5 +400,22 @@ document.getElementById('commandPaletteInput').addEventListener('keydown', e => 
 // ── Service Worker ────────────────────────────────────────────────────────────
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW:', err));
+  // sw.js hace skipWaiting() + clients.claim(), así que en cuanto detecta una
+  // versión nueva la activa sola en segundo plano y esta pestaña cambia de
+  // controlador. La primera vez que un SW toma el control de una pestaña recién
+  // abierta también dispara ese evento, así que la ignoramos — solo un cambio
+  // posterior es realmente "hay una versión nueva, hace falta recargar".
+  let hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) { hadController = true; return; }
+    document.getElementById('btnSyncVersion').style.display = '';
+  });
+
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(err => console.warn('SW:', err));
+
+  document.getElementById('btnSyncVersion').addEventListener('click', () => location.reload());
 }

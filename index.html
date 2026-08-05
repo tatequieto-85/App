@@ -59,7 +59,10 @@
           <div class="user-menu-dropdown" id="userMenuDropdown" style="display:none">
             <div class="user-menu-name" id="userMenuName"></div>
             <div class="user-menu-email" id="userMenuEmail"></div>
-            <div class="user-menu-version" id="userMenuVersion"></div>
+            <div class="user-menu-version-row">
+              <div class="user-menu-version" id="userMenuVersion"></div>
+              <button class="user-menu-sync-btn" id="btnSyncVersion" style="display:none" title="Hay una nueva versión disponible">🔄 Sincronizar</button>
+            </div>
             <div class="user-menu-sep"></div>
             <button class="user-menu-item" id="btnSettings">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -400,40 +403,14 @@
 
         <!-- FERIAS VIEW -->
         <div id="viewFerias" class="view" style="display:none">
-          <div class="sub-tab-nav">
-            <div class="sub-tab-nav-inner">
-              <div class="sub-tabs">
-                <button class="sub-tab-btn active" data-feriastab="disponibles">Ferias Disponibles</button>
-                <button class="sub-tab-btn" data-feriastab="confirmadas">Ferias Confirmadas</button>
-              </div>
-              <div class="sub-tab-actions">
+          <div class="main">
+            <section class="card">
+              <div class="section-header">
+                <h2 class="section-title">Ferias</h2>
                 <button class="btn-add-task" id="btnNewFeria">+ Nueva feria</button>
               </div>
-            </div>
-          </div>
-
-          <div id="subTabFeriasDisponibles">
-            <div class="main">
-              <section class="card">
-                <div class="section-header">
-                  <h2 class="section-title">Ferias disponibles</h2>
-                  <span class="hint-chip">Doble clic para ver el detalle</span>
-                </div>
-                <div id="feriasDisponiblesList"><div class="loading-state">Cargando ferias…</div></div>
-              </section>
-            </div>
-          </div>
-
-          <div id="subTabFeriasConfirmadas" style="display:none">
-            <div class="main">
-              <section class="card">
-                <div class="section-header">
-                  <h2 class="section-title">Ferias confirmadas</h2>
-                  <span class="hint-chip">Doble clic en un bloque para registrar el conteo</span>
-                </div>
-                <div id="feriasConfirmadasList"><div class="loading-state">Cargando ferias…</div></div>
-              </section>
-            </div>
+              <div id="feriasList"><div class="loading-state">Cargando ferias…</div></div>
+            </section>
           </div>
         </div>
 

@@ -151,7 +151,14 @@ body {
   font-size: 11.5px; color: var(--text-sub); padding: 0 10px 8px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.user-menu-version { font-size: 10.5px; color: var(--text-sub); opacity: .7; padding: 0 10px 8px; }
+.user-menu-version-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px 8px; }
+.user-menu-version { font-size: 10.5px; color: var(--text-sub); opacity: .7; }
+.user-menu-sync-btn {
+  background: var(--brand); color: #fff; border: none; border-radius: var(--radius-sm);
+  padding: 3px 8px; font-size: 10.5px; font-weight: 600; cursor: pointer;
+  white-space: nowrap; transition: background .15s;
+}
+.user-menu-sync-btn:hover { background: var(--brand-hover); }
 .user-menu-sep { height: 1px; background: var(--border); margin: 4px 0; }
 .user-menu-item {
   display: flex; align-items: center; gap: 8px;
@@ -1361,19 +1368,8 @@ body {
 .receta-card-title { font-size: 15px; font-weight: 700; color: var(--text); }
 .receta-card-meta  { font-size: 11px; color: var(--text-sub); margin-top: 4px; }
 
-/* ── Ferias: tarjetas (disponibles) ──────────────────────────────────────── */
-.feria-card {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  padding: 14px 16px;
-  border: 1.5px solid var(--border); border-radius: var(--radius);
-  margin-bottom: 10px; background: var(--surface);
-}
-.feria-card:last-child { margin-bottom: 0; }
-.feria-card-body  { flex: 1; min-width: 220px; }
-.feria-card-title { font-size: 15px; font-weight: 700; color: var(--text); }
-.feria-card-meta  { font-size: 11.5px; color: var(--text-sub); margin-top: 4px; }
-.feria-card-desc  { font-size: 12px; color: var(--text-sub); margin-top: 3px; }
-.feria-card-stars { font-size: 13px; color: #F59E0B; margin-top: 5px; letter-spacing: 1px; }
+/* ── Ferias: acción primaria de tarjeta ────────────────────────────────────── */
+.feria-card-desc { font-size: 12px; color: var(--text-sub); margin-top: 3px; } /* también usada en Stock (producto testigo) */
 .feria-confirm-btn {
   background: var(--brand); color: #fff; border: none; border-radius: var(--radius-sm);
   padding: 7px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer;
@@ -1396,7 +1392,7 @@ body {
 .feria-stock-receta { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
 .feria-stock-disponible { font-size: 10.5px; font-weight: 500; color: var(--text-sub); margin-top: 2px; }
 
-/* ── Ferias: bloques (confirmadas) ───────────────────────────────────────── */
+/* ── Ferias: bloques ──────────────────────────────────────────────────────── */
 .feria-blocks-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 14px;

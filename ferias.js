@@ -12,7 +12,6 @@ let feriaAlineacion      = 0;
 let feriaCounterId       = null;
 let feriaCounterSaveTimer = null;
 let feriaStockPendingId  = null;
-let currentFeriasTab     = 'disponibles';
 let lastTapTime          = {}; // para detección de doble-toque en móvil
 
 // ── Ferias: Sheets init + CRUD ──────────────────────────────────────────────────
@@ -125,7 +124,7 @@ async function deleteFeriaRow(rowIndex) {
 
 export function getStockComprometidoLote(ejecucionId, excludeFeriaId) {
   return ferias
-    .filter(f => f.estado === 'confirmada' && f.id !== excludeFeriaId)
+    .filter(f => f.id !== excludeFeriaId)
     .reduce((sum, f) => {
       let total = 0;
       Object.values(f.planStock || {}).forEach(porLote => { total += (porLote[ejecucionId] || 0); });
@@ -167,38 +166,6 @@ function getFeriaDateList(f) {
 
 // ── Ferias: UI ─────────────────────────────────────────────────────────────────
 
-document.querySelectorAll('[data-feriastab]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    currentFeriasTab = btn.dataset.feriastab;
-    document.querySelectorAll('[data-feriastab]').forEach(b =>
-      b.classList.toggle('active', b.dataset.feriastab === currentFeriasTab)
-    );
-    document.getElementById('subTabFeriasDisponibles').style.display = currentFeriasTab === 'disponibles' ? '' : 'none';
-    document.getElementById('subTabFeriasConfirmadas').style.display = currentFeriasTab === 'confirmadas' ? '' : 'none';
-  });
-});
-
-function feriaCardHTML(f) {
-  const fechas    = (f.fechaInicio && f.fechaFin) ? `${fmtDateShortEs(f.fechaInicio)} → ${fmtDateShortEs(f.fechaFin)}` : '—';
-  const alineacion = Math.max(0, Math.min(5, f.alineacion || 0));
-  const stars      = '★'.repeat(alineacion) + '☆'.repeat(5 - alineacion);
-  return `
-    <div class="feria-card" data-id="${esc(f.id)}">
-      <div class="feria-card-body">
-        <div class="feria-card-title">${esc(f.empresa)}</div>
-        <div class="feria-card-meta">📅 ${fechas} &nbsp;·&nbsp; ⏰ ${esc(f.horaInicio || '—')}–${esc(f.horaFin || '—')} &nbsp;·&nbsp; 📍 ${esc(f.lugar || '—')} &nbsp;·&nbsp; ${fmtCOP(f.precio)}</div>
-        ${f.fechaImportante ? `<div class="feria-card-desc">🎯 ${esc(f.fechaImportante)}</div>` : ''}
-        ${f.observaciones ? `<div class="feria-card-desc">${esc(f.observaciones)}</div>` : ''}
-        <div class="feria-card-stars" title="Alineación con TateQuieto">${stars}</div>
-      </div>
-      <div class="receta-card-actions">
-        <button class="feria-confirm-btn" data-confirmar="${esc(f.id)}">✓ Confirmar participación</button>
-        <button class="task-action-btn" data-edit-feria="${esc(f.id)}" title="Editar">${ICON_EDIT}</button>
-        <button class="task-action-btn" data-del-feria="${esc(f.id)}" data-row="${f.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
-      </div>
-    </div>`;
-}
-
 function feriaBlockHTML(f) {
   const fechas = (f.fechaInicio && f.fechaFin) ? `${fmtDateShortEs(f.fechaInicio)} → ${fmtDateShortEs(f.fechaFin)}` : '—';
   return `
@@ -214,7 +181,6 @@ function feriaBlockHTML(f) {
           <div class="card-menu-list">
             <button type="button" data-plan-stock-feria="${esc(f.id)}">📦 Plan de stock por día</button>
             <button type="button" data-edit-feria="${esc(f.id)}">${ICON_EDIT} Editar</button>
-            <button type="button" data-volver-feria="${esc(f.id)}">↩ Volver a disponibles</button>
             <button type="button" data-del-feria="${esc(f.id)}" data-row="${f.rowIndex}">${ICON_TRASH} Eliminar</button>
           </div>
         </div>
@@ -235,37 +201,20 @@ function wireFeriaCardActions(container) {
       try {
         await deleteFeriaRow(+btn.dataset.row);
         await loadFerias();
-        renderFeriasDisponibles();
-        renderFeriasConfirmadas();
+        renderFerias();
       } catch (err) { alert('Error: ' + err.message); btn.disabled = false; }
     });
   });
 }
 
-export function renderFeriasDisponibles() {
-  const container = document.getElementById('feriasDisponiblesList');
+export function renderFerias() {
+  const container = document.getElementById('feriasList');
   if (!container) return;
-  const list = ferias.filter(f => f.estado !== 'confirmada');
-  if (!list.length) {
-    container.innerHTML = '<div class="empty-state">No hay ferias disponibles. Agrega la primera con "+ Nueva feria".</div>';
+  if (!ferias.length) {
+    container.innerHTML = '<div class="empty-state">No hay ferias. Agrega la primera con "+ Nueva feria".</div>';
     return;
   }
-  container.innerHTML = list.map(feriaCardHTML).join('');
-  wireFeriaCardActions(container);
-  container.querySelectorAll('[data-confirmar]').forEach(btn => {
-    btn.addEventListener('click', () => openFeriaStockModal(btn.dataset.confirmar));
-  });
-}
-
-export function renderFeriasConfirmadas() {
-  const container = document.getElementById('feriasConfirmadasList');
-  if (!container) return;
-  const list = ferias.filter(f => f.estado === 'confirmada');
-  if (!list.length) {
-    container.innerHTML = '<div class="empty-state">Aún no hay ferias confirmadas.</div>';
-    return;
-  }
-  container.innerHTML = `<div class="feria-blocks-grid">${list.map(feriaBlockHTML).join('')}</div>`;
+  container.innerHTML = `<div class="feria-blocks-grid">${ferias.map(feriaBlockHTML).join('')}</div>`;
   wireFeriaCardActions(container);
   container.querySelectorAll('[data-plan-stock-feria]').forEach(btn => {
     btn.addEventListener('click', e => { e.stopPropagation(); openFeriaStockModal(btn.dataset.planStockFeria); });
@@ -284,20 +233,6 @@ export function renderFeriasConfirmadas() {
       const last = lastTapTime['feria_' + block.dataset.id] || 0;
       lastTapTime['feria_' + block.dataset.id] = now;
       if (now - last < 350) openFeriaCounter(block.dataset.id);
-    });
-  });
-  container.querySelectorAll('[data-volver-feria]').forEach(btn => {
-    btn.addEventListener('click', async e => {
-      e.stopPropagation();
-      const f = ferias.find(x => x.id === btn.dataset.volverFeria);
-      if (!f) return;
-      btn.disabled = true;
-      try {
-        f.estado = 'disponible';
-        await updateFeria(f);
-        renderFeriasDisponibles();
-        renderFeriasConfirmadas();
-      } catch (e2) { alert('Error: ' + e2.message); btn.disabled = false; }
     });
   });
 }
@@ -413,13 +348,12 @@ document.getElementById('btnSaveFeria').addEventListener('click', async () => {
     } else {
       await appendFeria({
         id: crypto.randomUUID(), empresa, fechaInicio, fechaFin, horaInicio, horaFin, precio, lugar, fechaImportante,
-        observaciones, alineacion: feriaAlineacion, estado: 'disponible', conteoPersonas: 0,
+        observaciones, alineacion: feriaAlineacion, estado: 'confirmada', conteoPersonas: 0,
         planStock: {}, ventas: [], observacionesDiarias: [], conteoProductos: {}
       });
     }
     await loadFerias();
-    renderFeriasDisponibles();
-    renderFeriasConfirmadas();
+    renderFerias();
     closeFeriaModal();
   } catch (e) {
     setFb(fb, 'Error: ' + e.message, 'err');
@@ -454,7 +388,7 @@ function openFeriaStockModal(feriaId) {
   if (!f) return;
   feriaStockPendingId = feriaId;
   document.getElementById('feriaStockFeedback').textContent = '';
-  document.getElementById('btnSaveFeriaStock').textContent = f.estado === 'confirmada' ? 'Guardar plan' : 'Confirmar participación';
+  document.getElementById('btnSaveFeriaStock').textContent = 'Guardar plan';
   const dias  = getFeriaDateList(f);
   const wrap  = document.getElementById('feriaStockTableWrap');
   const lotes = ejecuciones.filter(ej => (ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180));
@@ -528,11 +462,9 @@ document.getElementById('btnSaveFeriaStock').addEventListener('click', async () 
   btn.disabled = true; btn.textContent = 'Guardando…';
   try {
     f.planStock = newPlan;
-    f.estado    = 'confirmada';
     await updateFeria(f);
     await loadFerias();
-    renderFeriasDisponibles();
-    renderFeriasConfirmadas();
+    renderFerias();
     closeFeriaStockModal();
   } catch (e) {
     setFb(fb, 'Error: ' + e.message, 'err');
