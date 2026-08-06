@@ -18,7 +18,9 @@ let lastTapTime          = {}; // para detección de doble-toque en móvil
 
 // Nota: las columnas A–L mantienen el orden original de este módulo
 // (antes de agregar horario/stock/ventas) para no desalinear filas ya
-// guardadas. Los campos nuevos siempre se agregan al final (M–R).
+// guardadas. Los campos nuevos siempre se agregan al final (M–R, luego S–T).
+// ConteoPersonas (K) queda congelada como respaldo histórico de ferias
+// anteriores al conteo por rango etario — ver feriaConteoTotal().
 export async function initFeriasSheet() {
   const info = await sheetsReq('');
   const tabs = info.sheets || [];
@@ -26,7 +28,7 @@ export async function initFeriasSheet() {
 
   if (hasF) {
     feriasSheetId = hasF.properties.sheetId;
-    const headerData = await sheetsReq('/values/Ferias!A1:R1').catch(() => ({}));
+    const headerData = await sheetsReq('/values/Ferias!A1:T1').catch(() => ({}));
     const headerRow  = (headerData.values || [])[0] || [];
     if (headerRow.length < 18) {
       await sheetsReq('/values/Ferias!M1:R1?valueInputOption=RAW', {
@@ -34,6 +36,12 @@ export async function initFeriasSheet() {
         body: JSON.stringify({ values: [[
           'HoraInicio','HoraFin','PlanStock','Ventas','ObservacionesDiarias','ConteoProductos'
         ]] })
+      });
+    }
+    if (headerRow.length < 20) {
+      await sheetsReq('/values/Ferias!S1:T1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [[ 'ConteoMenores50', 'ConteoMayores50' ]] })
       });
     }
   } else {
@@ -48,7 +56,8 @@ export async function initFeriasSheet() {
       body: JSON.stringify({ values: [[
         'ID','Empresa','FechaInicio','FechaFin','Precio','FechaImportante','Lugar',
         'Observaciones','Alineacion','Estado','ConteoPersonas','CreadoEn',
-        'HoraInicio','HoraFin','PlanStock','Ventas','ObservacionesDiarias','ConteoProductos'
+        'HoraInicio','HoraFin','PlanStock','Ventas','ObservacionesDiarias','ConteoProductos',
+        'ConteoMenores50','ConteoMayores50'
       ]] })
     });
   }
@@ -56,7 +65,7 @@ export async function initFeriasSheet() {
 }
 
 export async function loadFerias() {
-  const data = await sheetsReq('/values/Ferias!A:R');
+  const data = await sheetsReq('/values/Ferias!A:T');
   const rows = (data.values || []).slice(1);
   ferias = rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0]  || '',
@@ -69,7 +78,7 @@ export async function loadFerias() {
     observaciones:        r[7]  || '',
     alineacion:           parseInt(r[8]) || 0,
     estado:               r[9]  || 'disponible',
-    conteoPersonas:       parseInt(r[10]) || 0,
+    conteoPersonas:       parseInt(r[10]) || 0, // respaldo histórico, ver feriaConteoTotal()
     creadoEn:             r[11] || '',
     horaInicio:           r[12] || '',
     horaFin:              r[13] || '',
@@ -77,8 +86,17 @@ export async function loadFerias() {
     ventas:               safeParseJSON(r[15], []),
     observacionesDiarias: safeParseJSON(r[16], []),
     conteoProductos:      safeParseJSON(r[17], {}),
+    conteoMenores50:      parseInt(r[18]) || 0,
+    conteoMayores50:      parseInt(r[19]) || 0,
     rowIndex:             i + 2
   }));
+}
+
+// Antes de esta función el conteo era un solo total sin rango etario; las
+// ferias anteriores a este cambio solo tienen ese dato en ConteoPersonas.
+export function feriaConteoTotal(f) {
+  const porRango = (f.conteoMenores50 || 0) + (f.conteoMayores50 || 0);
+  return porRango || (f.conteoPersonas || 0);
 }
 
 function feriaRowValues(f) {
@@ -87,19 +105,20 @@ function feriaRowValues(f) {
     f.observaciones || '', f.alineacion || 0, f.estado || 'disponible', f.conteoPersonas || 0,
     f.creadoEn || new Date().toISOString(),
     f.horaInicio || '', f.horaFin || '', JSON.stringify(f.planStock || {}), JSON.stringify(f.ventas || []),
-    JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {})
+    JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {}),
+    f.conteoMenores50 || 0, f.conteoMayores50 || 0
   ];
 }
 
 async function appendFeria(f) {
-  await sheetsReq('/values/Ferias!A:R:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Ferias!A:T:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
 }
 
 async function updateFeria(f) {
-  await sheetsReq(`/values/Ferias!A${f.rowIndex}:R${f.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Ferias!A${f.rowIndex}:T${f.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
@@ -164,6 +183,14 @@ function getFeriaDateList(f) {
   return dates;
 }
 
+// Si hoy cae dentro del rango de fechas de alguna feria, la primera vista
+// al entrar al módulo debe ser el conteo de personas, no la lista.
+export function openTodaysFeriaCounterIfAny() {
+  const today = toISODate(new Date());
+  const activa = ferias.find(f => getFeriaDateList(f).includes(today));
+  if (activa) openFeriaCounter(activa.id);
+}
+
 // ── Ferias: UI ─────────────────────────────────────────────────────────────────
 
 function feriaBlockHTML(f) {
@@ -173,7 +200,7 @@ function feriaBlockHTML(f) {
       <div class="feria-block-title">${esc(f.empresa)}</div>
       <div class="feria-block-meta">📅 ${fechas}</div>
       <div class="feria-block-meta">📍 ${esc(f.lugar || '—')}</div>
-      <div class="feria-block-counter">👥 ${f.conteoPersonas || 0}</div>
+      <div class="feria-block-counter">👥 ${feriaConteoTotal(f)}</div>
       <div class="feria-block-actions">
         <button class="feria-confirm-btn" data-conteo-feria="${esc(f.id)}">👥 Registrar conteo</button>
         <div class="card-menu">
@@ -349,7 +376,8 @@ document.getElementById('btnSaveFeria').addEventListener('click', async () => {
       await appendFeria({
         id: crypto.randomUUID(), empresa, fechaInicio, fechaFin, horaInicio, horaFin, precio, lugar, fechaImportante,
         observaciones, alineacion: feriaAlineacion, estado: 'confirmada', conteoPersonas: 0,
-        planStock: {}, ventas: [], observacionesDiarias: [], conteoProductos: {}
+        planStock: {}, ventas: [], observacionesDiarias: [], conteoProductos: {},
+        conteoMenores50: 0, conteoMayores50: 0
       });
     }
     await loadFerias();
@@ -487,10 +515,17 @@ function openFeriaCounter(feriaId) {
     .map(d => `<option value="${d}" ${d === defaultDay ? 'selected' : ''}>${esc(fmtDateShortEs(d))}</option>`)
     .join('');
 
-  document.getElementById('feriaCounterValue').textContent = f.conteoPersonas || 0;
-
+  renderFeriaCounterValues(f);
   renderFeriaCounterDay();
   document.getElementById('feriaCounterOverlay').classList.add('open');
+}
+
+function renderFeriaCounterValues(f) {
+  document.getElementById('feriaCounterValueMenores').textContent = f.conteoMenores50 || 0;
+  document.getElementById('feriaCounterValueMayores').textContent = f.conteoMayores50 || 0;
+  document.getElementById('feriaCounterValueTotal').textContent   = feriaConteoTotal(f);
+  const blockCounterEl = document.querySelector(`.feria-block[data-id="${CSS.escape(f.id)}"] .feria-block-counter`);
+  if (blockCounterEl) blockCounterEl.textContent = `👥 ${feriaConteoTotal(f)}`;
 }
 
 document.getElementById('feriaCounterDaySelect').addEventListener('change', renderFeriaCounterDay);
@@ -516,26 +551,25 @@ function scheduleFeriaCounterSave() {
   }, 700);
 }
 
-function adjustFeriaCounter(delta) {
+function adjustFeriaCounter(campo, delta) {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
-  f.conteoPersonas = Math.max(0, (f.conteoPersonas || 0) + delta);
-  document.getElementById('feriaCounterValue').textContent = f.conteoPersonas;
-  const blockCounterEl = document.querySelector(`.feria-block[data-id="${CSS.escape(feriaCounterId)}"] .feria-block-counter`);
-  if (blockCounterEl) blockCounterEl.textContent = `👥 ${f.conteoPersonas}`;
+  f[campo] = Math.max(0, (f[campo] || 0) + delta);
+  renderFeriaCounterValues(f);
   scheduleFeriaCounterSave();
 }
 
-document.getElementById('btnFeriaCounterPlus').addEventListener('click', () => adjustFeriaCounter(1));
-document.getElementById('btnFeriaCounterMinus').addEventListener('click', () => adjustFeriaCounter(-1));
+document.getElementById('btnFeriaCounterPlusMenores').addEventListener('click', () => adjustFeriaCounter('conteoMenores50', 1));
+document.getElementById('btnFeriaCounterMinusMenores').addEventListener('click', () => adjustFeriaCounter('conteoMenores50', -1));
+document.getElementById('btnFeriaCounterPlusMayores').addEventListener('click', () => adjustFeriaCounter('conteoMayores50', 1));
+document.getElementById('btnFeriaCounterMinusMayores').addEventListener('click', () => adjustFeriaCounter('conteoMayores50', -1));
 document.getElementById('btnFeriaCounterReset').addEventListener('click', () => {
   if (!confirm('¿Reiniciar el conteo a 0?')) return;
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
-  f.conteoPersonas = 0;
-  document.getElementById('feriaCounterValue').textContent = 0;
-  const blockCounterEl = document.querySelector(`.feria-block[data-id="${CSS.escape(feriaCounterId)}"] .feria-block-counter`);
-  if (blockCounterEl) blockCounterEl.textContent = '👥 0';
+  f.conteoMenores50 = 0;
+  f.conteoMayores50 = 0;
+  renderFeriaCounterValues(f);
   scheduleFeriaCounterSave();
 });
 
@@ -716,7 +750,9 @@ function feriaToText(f) {
   lines.push(`Fecha importante cercana: ${f.fechaImportante || '—'}`);
   lines.push(`Alineación con TateQuieto: ${f.alineacion || 0}/5`);
   if (f.observaciones) lines.push(`Observaciones generales: ${f.observaciones}`);
-  lines.push('', `Personas que probaron TateQuieto (total): ${f.conteoPersonas || 0}`);
+  lines.push('', `Personas que probaron TateQuieto (total): ${feriaConteoTotal(f)}`);
+  lines.push(`  • Menores de 50: ${f.conteoMenores50 || 0}`);
+  lines.push(`  • Mayores de 50: ${f.conteoMayores50 || 0}`);
 
   getFeriaDateList(f).forEach(fecha => {
     lines.push('', `── DÍA ${fecha} ─────────────────────────────────────────`);

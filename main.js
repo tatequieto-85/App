@@ -9,7 +9,7 @@ import { loadStories } from './contenido.js';
 import { switchSubTab, openTaskModal, enterTareasView, openDueBadgeDropdown, closeDueBadgeDropdown } from './tareas.js';
 import { loadProcesos, loadRecetasData, loadEjecucionesData } from './procesos.js';
 import { loadCompras, renderComprasList } from './compras.js';
-import { loadFerias, renderFerias } from './ferias.js';
+import { loadFerias, renderFerias, openTodaysFeriaCounterIfAny } from './ferias.js';
 import { loadStockTestigos, loadStockMovimientos, renderStockResumen, renderStockTrazabilidad, renderStockTestigoList } from './stock.js';
 import { renderInformes } from './informes.js';
 import { loadQRs, renderQRList } from './qr.js';
@@ -63,7 +63,7 @@ export function navigateTo(view) {
   }
   if (view === 'ferias') {
     Promise.all([loadFerias(), loadRecetasData(), loadEjecucionesData()])
-      .then(() => { renderFerias(); });
+      .then(() => { renderFerias(); openTodaysFeriaCounterIfAny(); });
   }
   if (view === 'stock') {
     Promise.all([loadRecetasData(), loadEjecucionesData(), loadFerias(), loadStockTestigos(), loadStockMovimientos()])

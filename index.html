@@ -950,12 +950,26 @@
         <select class="field-input" id="feriaCounterDaySelect"></select>
 
         <div style="text-align:center;margin:18px 0 8px">
-          <p class="mgmt-note" style="margin-bottom:0">Personas que probaron TateQuieto</p>
-          <div class="feria-counter-value" id="feriaCounterValue">0</div>
-          <div class="feria-counter-actions">
-            <button class="btn-outline" id="btnFeriaCounterMinus">−1</button>
-            <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlus">+1</button>
+          <p class="mgmt-note" style="margin-bottom:8px">Personas que probaron TateQuieto</p>
+          <div class="feria-counter-groups">
+            <div class="feria-counter-group">
+              <span class="feria-counter-group-label">Menores de 50</span>
+              <div class="feria-counter-value" id="feriaCounterValueMenores">0</div>
+              <div class="feria-counter-actions">
+                <button class="btn-outline" id="btnFeriaCounterMinusMenores">−1</button>
+                <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlusMenores">+1</button>
+              </div>
+            </div>
+            <div class="feria-counter-group">
+              <span class="feria-counter-group-label">Mayores de 50</span>
+              <div class="feria-counter-value" id="feriaCounterValueMayores">0</div>
+              <div class="feria-counter-actions">
+                <button class="btn-outline" id="btnFeriaCounterMinusMayores">−1</button>
+                <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlusMayores">+1</button>
+              </div>
+            </div>
           </div>
+          <div class="feria-counter-total">Total: <strong id="feriaCounterValueTotal">0</strong></div>
           <button class="btn-outline btn-sm" id="btnFeriaCounterReset" style="margin-top:10px">Reiniciar conteo</button>
         </div>
 
