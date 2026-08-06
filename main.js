@@ -285,7 +285,7 @@ setInterval(async () => {
   if (accessToken && screenApp.style.display !== 'none') await trySilentGoogleAuth();
 }, 50 * 60 * 1000);
 
-setInterval(() => { if (accessToken) loadStories(); }, 60000);
+setInterval(() => { if (accessToken && currentView === 'contenido') loadStories(); }, 60000);
 
 // ── Event listeners: navegación genérica ─────────────────────────────────────
 
@@ -305,11 +305,20 @@ const COMMAND_PALETTE_ITEMS = [
   { label: 'Tareas · Gantt',         module: 'tareas',    action: () => { navigateTo('tareas'); switchSubTab('gantt'); } },
   { label: 'Procesos · Recetas',     module: 'procesos',  action: () => { navigateTo('procesos'); document.querySelector('[data-procesostab="recetas"]')?.click(); } },
   { label: 'Procesos · Ejecuciones', module: 'procesos',  action: () => { navigateTo('procesos'); document.querySelector('[data-procesostab="ejecuciones"]')?.click(); } },
+  { label: 'Compras',                module: 'compras',   action: () => navigateTo('compras') },
+  { label: 'Ferias',                 module: 'ferias',    action: () => navigateTo('ferias') },
+  { label: 'Stock · Resumen',        module: 'stock',     action: () => { navigateTo('stock'); document.querySelector('[data-stocktab="resumen"]')?.click(); } },
+  { label: 'Stock · Trazabilidad',   module: 'stock',     action: () => { navigateTo('stock'); document.querySelector('[data-stocktab="trazabilidad"]')?.click(); } },
+  { label: 'Stock · Producto testigo', module: 'stock',   action: () => { navigateTo('stock'); document.querySelector('[data-stocktab="testigo"]')?.click(); } },
   { label: 'Informes',               module: 'informes',  action: () => navigateTo('informes') },
   { label: 'QR',                     module: 'qr',        action: () => navigateTo('qr') },
   { label: 'Ideas',                  module: 'ideas',     action: () => navigateTo('ideas') },
+  { label: 'Bases de datos',         action: () => showDbPicker() },
   { label: '+ Nueva tarea',          module: 'tareas',    action: () => { navigateTo('tareas'); openTaskModal(null, null); } },
   { label: '+ Nueva receta',         module: 'procesos',  action: () => { navigateTo('procesos'); document.getElementById('btnNewReceta')?.click(); } },
+  { label: '+ Registrar compra',     module: 'compras',   action: () => { navigateTo('compras'); document.getElementById('btnNewCompra')?.click(); } },
+  { label: '+ Nueva feria',          module: 'ferias',    action: () => { navigateTo('ferias'); document.getElementById('btnNewFeria')?.click(); } },
+  { label: '+ Ajuste de stock',      module: 'stock',     action: () => { navigateTo('stock'); document.querySelector('[data-stocktab="resumen"]')?.click(); document.getElementById('btnNewStockAjuste')?.click(); } },
   { label: '+ Generar QR',           module: 'qr',        action: () => { navigateTo('qr'); document.getElementById('qrNombre')?.focus(); } },
   { label: '+ Nueva idea',           module: 'ideas',     action: () => { navigateTo('ideas'); openIdeaModal(null); } },
 ];

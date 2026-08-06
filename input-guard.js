@@ -24,7 +24,14 @@ document.addEventListener('touchmove', e => {
 }, { passive: true, capture: true });
 
 document.addEventListener('touchend', () => {
-  if (touchTapMoved) suppressNextClick = true;
+  if (!touchTapMoved) return;
+  suppressNextClick = true;
+  // El click fantasma (si el navegador lo dispara) llega casi de inmediato
+  // después del touchend. Si no llega, hay que desarmar la bandera pronto:
+  // si no, se queda "armada" para siempre y se come el próximo clic real
+  // del usuario en cualquier parte de la app (o rompe un doble clic al
+  // tragarse el primero de los dos clics).
+  setTimeout(() => { suppressNextClick = false; }, 400);
 }, { capture: true });
 
 document.addEventListener('click', e => {

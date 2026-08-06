@@ -919,7 +919,7 @@ function cascadeDependencyShift(changedTask, projectTasks, visited = new Set()) 
 async function applyCascade(changedTask) {
   const projectTasks = kanbanTasks.filter(t => t.projectId === changedTask.projectId);
   const moved = cascadeDependencyShift(changedTask, projectTasks);
-  for (const t of moved) await updateKanbanTask(t);
+  await Promise.all(moved.map(updateKanbanTask));
   return moved;
 }
 
@@ -1212,7 +1212,7 @@ function wireGanttRowReorder(tasks) {
       reordered.forEach((t, i) => { t.sortOrder = i; });
       renderGanttChart();
       try {
-        for (const t of reordered) await updateKanbanTask(t);
+        await Promise.all(reordered.map(updateKanbanTask));
       } catch (err) {
         alert('Error al guardar el orden: ' + err.message);
         await loadKanbanTasks();
@@ -1968,7 +1968,7 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
         if (pred) moved.push(...cascadeDependencyShift(pred, projectTasks));
       });
       if (moved.length) {
-        for (const t of moved) await updateKanbanTask(t);
+        await Promise.all(moved.map(updateKanbanTask));
         await loadKanbanTasks();
       }
     }
@@ -2500,7 +2500,7 @@ document.getElementById('obsFileInput').addEventListener('change', async functio
       if (!t || !(t.observations || []).length) return;
       const removed = t.observations.pop();
       await updateKanbanTask(t);
-      for (const a of (removed.attachments || [])) await deleteDriveFile(a.fileId);
+      await Promise.all((removed.attachments || []).map(a => deleteDriveFile(a.fileId)));
       if (taskDetailId === t.id) renderObservations(t);
     });
   } catch (e) {

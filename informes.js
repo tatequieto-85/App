@@ -45,6 +45,11 @@ function computeInformesStats(range) {
 }
 
 export async function renderInformes() {
+  const needsLoad = !kanbanTasks.length || !ejecuciones.length;
+  if (needsLoad) {
+    document.getElementById('informesInvestedValue').textContent = 'Cargando…';
+    document.getElementById('informesPendingValue').textContent  = 'Cargando…';
+  }
   if (!kanbanTasks.length) await loadKanbanTasks().catch(() => {});
   if (!ejecuciones.length) await loadEjecucionesData().catch(() => {});
 

@@ -1705,6 +1705,17 @@ body {
 .autocomplete-option:last-child { border-bottom: none; }
 .autocomplete-option:hover { background: rgba(17,24,39,.06); }
 .autocomplete-add { color: var(--brand); font-style: italic; }
+.autocomplete-add-form { padding: 9px 13px; display: flex; flex-direction: column; gap: 6px; }
+.autocomplete-add-label { font-size: 12px; color: var(--text-sub); }
+.autocomplete-add-input {
+  width: 100%; box-sizing: border-box; padding: 6px 8px; font-size: 13px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+}
+.autocomplete-add-confirm {
+  background: var(--brand); color: #fff; border: none; border-radius: var(--radius-sm);
+  padding: 6px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.autocomplete-add-confirm:hover { background: var(--brand-hover); }
 
 /* ── Etapa fija ───────────────────────────────────────────────────────────── */
 .etapa-fija-tag {

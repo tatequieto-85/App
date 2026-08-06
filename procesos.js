@@ -600,7 +600,7 @@ function renderRecetasList() {
         recetaBlocks.splice(toIdx, 0, moved);
         recetaBlocks.forEach((b, i) => { b.sortOrder = i; });
         renderRecetasList();
-        try { for (const b of recetaBlocks) await updateRecetaBlock(b); }
+        try { await Promise.all(recetaBlocks.map(updateRecetaBlock)); }
         catch (err) { alert('Error al guardar el orden: ' + err.message); await loadRecetaBlocks(); renderRecetasList(); }
       });
     });

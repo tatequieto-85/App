@@ -105,9 +105,40 @@ export async function tryAddIngrediente(nombre, unidad) {
 
 export function attachIngredienteAutocomplete(input) {
   let dropdown = null;
+  let blurTimeout = null;
 
   function removeDropdown() {
     if (dropdown) { dropdown.remove(); dropdown = null; }
+  }
+
+  function showAddIngredienteForm(nombre) {
+    if (!dropdown) return;
+    dropdown.innerHTML = `
+      <div class="autocomplete-add-form">
+        <span class="autocomplete-add-label">Unidad para "${esc(nombre)}":</span>
+        <input type="text" class="autocomplete-add-input" placeholder="g, kg, L, unidades…" />
+        <button type="button" class="autocomplete-add-confirm">Agregar</button>
+      </div>`;
+    const unitInput  = dropdown.querySelector('.autocomplete-add-input');
+    const confirmBtn = dropdown.querySelector('.autocomplete-add-confirm');
+
+    const submit = async () => {
+      confirmBtn.disabled = true;
+      const result = await tryAddIngrediente(nombre, unitInput.value.trim());
+      if (result) input.value = result;
+      removeDropdown();
+    };
+    confirmBtn.addEventListener('click', submit);
+    unitInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); submit(); }
+      if (e.key === 'Escape') { e.preventDefault(); removeDropdown(); }
+    });
+    // Mover el foco al input de unidad dispara el blur del input original,
+    // que agendaría un cierre del dropdown — se cancela porque el formulario
+    // sigue abierto; el propio input de unidad queda con su propio blur.
+    unitInput.focus();
+    if (blurTimeout) { clearTimeout(blurTimeout); blurTimeout = null; }
+    unitInput.addEventListener('blur', () => { blurTimeout = setTimeout(removeDropdown, 180); });
   }
 
   function positionDropdown() {
@@ -149,12 +180,9 @@ export function attachIngredienteAutocomplete(input) {
       const addOpt = document.createElement('div');
       addOpt.className = 'autocomplete-option autocomplete-add';
       addOpt.innerHTML = `+ Agregar "<strong>${esc(val)}</strong>"`;
-      addOpt.addEventListener('mousedown', async e => {
+      addOpt.addEventListener('mousedown', e => {
         e.preventDefault();
-        const unidad = prompt(`¿Unidad de medida para "${val}"? (g, kg, L, unidades…)`, '') || '';
-        const result = await tryAddIngrediente(val, unidad.trim());
-        if (result) input.value = result;
-        removeDropdown();
+        showAddIngredienteForm(val);
       });
       dropdown.appendChild(addOpt);
     }
@@ -165,7 +193,7 @@ export function attachIngredienteAutocomplete(input) {
 
   input.addEventListener('input', showDropdown);
   input.addEventListener('focus', showDropdown);
-  input.addEventListener('blur', () => setTimeout(removeDropdown, 180));
+  input.addEventListener('blur', () => { blurTimeout = setTimeout(removeDropdown, 180); });
   window.addEventListener('scroll', removeDropdown, { passive: true, capture: true });
 }
 

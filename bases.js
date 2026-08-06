@@ -111,6 +111,11 @@ async function provisionAllTabs() {
 
 // Conecta la app a una base de datos ya registrada: la deja activa, asegura
 // que sus pestañas existan y refresca la vista según sus módulos habilitados.
+// No navega a "home" por sí sola: provisionAllTabs() puede tardar varios
+// segundos (crea pestañas si hacen falta) y el usuario puede haber navegado
+// a un módulo mientras tanto — forzar "home" aquí lo devolvía al inicio de
+// golpe. Quien llama a connectToDatabase decide si corresponde ir a "home"
+// (p. ej. al crear/cambiar de base desde el selector de pantalla completa).
 export async function connectToDatabase(base) {
   setActiveBase(base);
   localStorage.setItem(ACTIVE_BASE_KEY, JSON.stringify(base));
@@ -122,7 +127,6 @@ export async function connectToDatabase(base) {
   screenDbPicker.style.display = 'none';
   screenApp.style.display = '';
   applyModuleVisibility();
-  navigateTo('home');
   checkPendingEvalNotifications();
 }
 
@@ -139,6 +143,7 @@ async function createNewDatabase({ nombre, modulos }) {
   await appendBase({ nombre, sheetId, modulos });
   const base = bases.find(b => b.sheetId === sheetId);
   await connectToDatabase(base); // ya arma las pestañas y activa la base — no lo dupliques aquí
+  navigateTo('home');
 }
 
 function applyModuleVisibility() {
@@ -192,6 +197,7 @@ function renderDbPickerList() {
       btn.textContent = 'Conectando…';
       try {
         await connectToDatabase(base);
+        navigateTo('home');
       } catch (e) {
         alert(`Error al conectar: ${e.message}`);
         btn.disabled = false;
