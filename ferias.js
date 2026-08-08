@@ -513,10 +513,8 @@ function openFeriaCounter(feriaId) {
   document.getElementById('feriaCounterTitle').textContent = f.empresa;
   document.getElementById('feriaCounterDateLabel').textContent = fmtDateShortEs(feriaCounterFecha);
 
-  document.getElementById('feriaVentaFormWrap').style.display = 'none';
-  document.getElementById('btnToggleFeriaVenta').style.display = '';
-  document.getElementById('feriaObsFormWrap').style.display = 'none';
-  document.getElementById('btnToggleFeriaObs').style.display = '';
+  document.getElementById('feriaVentaOverlay').classList.remove('open');
+  document.getElementById('feriaObsOverlay').classList.remove('open');
 
   renderFeriaCounterValues(f);
   renderFeriaCounterDay();
@@ -620,9 +618,15 @@ function renderFeriaVentasList(f, fecha) {
   });
 }
 
-document.getElementById('btnToggleFeriaVenta').addEventListener('click', () => {
-  document.getElementById('feriaVentaFormWrap').style.display = '';
-  document.getElementById('btnToggleFeriaVenta').style.display = 'none';
+function closeFeriaVentaModal() {
+  document.getElementById('feriaVentaOverlay').classList.remove('open');
+}
+document.getElementById('btnOpenFeriaVenta').addEventListener('click', () => {
+  document.getElementById('feriaVentaOverlay').classList.add('open');
+});
+document.getElementById('btnCloseFeriaVenta').addEventListener('click', closeFeriaVentaModal);
+document.getElementById('feriaVentaOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('feriaVentaOverlay')) closeFeriaVentaModal();
 });
 
 document.getElementById('btnAddFeriaVenta').addEventListener('click', async () => {
@@ -640,6 +644,7 @@ document.getElementById('btnAddFeriaVenta').addEventListener('click', async () =
   });
   document.getElementById('feriaVentaCantidad').value = '';
   renderFeriaCounterDay();
+  closeFeriaVentaModal();
   try { await updateFeria(f); } catch (e) { console.warn('Error guardando venta:', e.message); }
 });
 
@@ -659,9 +664,15 @@ function renderFeriaObsDiariasList(f, fecha) {
   list.scrollTop = list.scrollHeight;
 }
 
-document.getElementById('btnToggleFeriaObs').addEventListener('click', () => {
-  document.getElementById('feriaObsFormWrap').style.display = '';
-  document.getElementById('btnToggleFeriaObs').style.display = 'none';
+function closeFeriaObsModal() {
+  document.getElementById('feriaObsOverlay').classList.remove('open');
+}
+document.getElementById('btnOpenFeriaObs').addEventListener('click', () => {
+  document.getElementById('feriaObsOverlay').classList.add('open');
+});
+document.getElementById('btnCloseFeriaObs').addEventListener('click', closeFeriaObsModal);
+document.getElementById('feriaObsOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('feriaObsOverlay')) closeFeriaObsModal();
 });
 
 document.getElementById('btnAddFeriaObsDiaria').addEventListener('click', async () => {
@@ -675,6 +686,7 @@ document.getElementById('btnAddFeriaObsDiaria').addEventListener('click', async 
   f.observacionesDiarias.push({ fecha, text, createdAt: new Date().toISOString() });
   input.value = '';
   renderFeriaCounterDay();
+  closeFeriaObsModal();
   try { await updateFeria(f); } catch (e) { console.warn('Error guardando observación:', e.message); }
 });
 

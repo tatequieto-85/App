@@ -947,57 +947,51 @@
         <button class="btn-icon" id="btnCloseFeriaCounter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body modal-body-scroll">
-        <div style="text-align:center;margin:18px 0 8px">
-          <p class="mgmt-note" style="margin-bottom:8px">Personas que probaron TateQuieto</p>
-          <div class="feria-counter-groups">
-            <div class="feria-counter-group">
-              <span class="feria-counter-group-label">Menores de 30</span>
-              <div class="feria-counter-value" id="feriaCounterValueMenores30">0</div>
-              <div class="feria-counter-actions">
-                <button class="btn-outline" id="btnFeriaCounterMinusMenores30">−1</button>
-                <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlusMenores30">+1</button>
+        <div style="margin:18px 0 8px">
+          <p class="mgmt-note" style="margin-bottom:8px;text-align:center">Personas que probaron TateQuieto</p>
+          <div class="feria-counter-rows">
+            <div class="feria-counter-row">
+              <button class="btn-outline feria-counter-row-btn" id="btnFeriaCounterMinusMenores30">−1</button>
+              <div class="feria-counter-row-info">
+                <span class="feria-counter-row-label">Menores de 30</span>
+                <span class="feria-counter-row-value" id="feriaCounterValueMenores30">0</span>
               </div>
+              <button class="btn-primary feria-counter-row-btn" id="btnFeriaCounterPlusMenores30">+1</button>
             </div>
-            <div class="feria-counter-group">
-              <span class="feria-counter-group-label">Entre 30 y 55</span>
-              <div class="feria-counter-value" id="feriaCounterValueEntre30y55">0</div>
-              <div class="feria-counter-actions">
-                <button class="btn-outline" id="btnFeriaCounterMinusEntre30y55">−1</button>
-                <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlusEntre30y55">+1</button>
+            <div class="feria-counter-row">
+              <button class="btn-outline feria-counter-row-btn" id="btnFeriaCounterMinusEntre30y55">−1</button>
+              <div class="feria-counter-row-info">
+                <span class="feria-counter-row-label">Entre 30 y 55</span>
+                <span class="feria-counter-row-value" id="feriaCounterValueEntre30y55">0</span>
               </div>
+              <button class="btn-primary feria-counter-row-btn" id="btnFeriaCounterPlusEntre30y55">+1</button>
             </div>
-            <div class="feria-counter-group">
-              <span class="feria-counter-group-label">55 en adelante</span>
-              <div class="feria-counter-value" id="feriaCounterValueMayores55">0</div>
-              <div class="feria-counter-actions">
-                <button class="btn-outline" id="btnFeriaCounterMinusMayores55">−1</button>
-                <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlusMayores55">+1</button>
+            <div class="feria-counter-row">
+              <button class="btn-outline feria-counter-row-btn" id="btnFeriaCounterMinusMayores55">−1</button>
+              <div class="feria-counter-row-info">
+                <span class="feria-counter-row-label">55 en adelante</span>
+                <span class="feria-counter-row-value" id="feriaCounterValueMayores55">0</span>
               </div>
+              <button class="btn-primary feria-counter-row-btn" id="btnFeriaCounterPlusMayores55">+1</button>
             </div>
           </div>
-          <div class="feria-counter-total">Total: <strong id="feriaCounterValueTotal">0</strong></div>
-          <button class="btn-outline btn-sm" id="btnFeriaCounterReset" style="margin-top:10px">Reiniciar conteo</button>
+          <div class="feria-counter-total" style="text-align:center">Total: <strong id="feriaCounterValueTotal">0</strong></div>
+          <button class="btn-outline btn-sm" id="btnFeriaCounterReset" style="margin-top:10px;display:block;margin-left:auto;margin-right:auto">Reiniciar conteo</button>
+        </div>
+
+        <div class="feria-counter-quickrow">
+          <button class="btn-primary" id="btnOpenFeriaVenta">Registrar venta</button>
+          <button class="btn-primary" id="btnOpenFeriaObs">Registrar observación</button>
         </div>
 
         <div class="feria-section">
           <h4 class="feria-section-title">Ventas del día</h4>
           <div id="feriaVentasList" class="obs-list"></div>
-          <button class="btn-outline btn-sm" type="button" id="btnToggleFeriaVenta">+ Registrar venta</button>
-          <div class="feria-venta-add-row" id="feriaVentaFormWrap" style="display:none">
-            <select class="field-input" id="feriaVentaLote"></select>
-            <input class="field-input" id="feriaVentaCantidad" type="number" min="1" step="1" placeholder="Cant." />
-            <button class="btn-outline btn-sm" id="btnAddFeriaVenta">Agregar</button>
-          </div>
         </div>
 
         <div class="feria-section">
           <h4 class="feria-section-title">Observaciones del día</h4>
           <div id="feriaObsDiariasList" class="obs-list"></div>
-          <button class="btn-outline btn-sm" type="button" id="btnToggleFeriaObs">+ Registrar observación</button>
-          <div class="obs-input-wrap" id="feriaObsFormWrap" style="display:none">
-            <textarea class="field-textarea obs-textarea" id="feriaObsDiariaInput" rows="2" placeholder="Escribe una observación de hoy…"></textarea>
-            <button type="button" class="btn-outline obs-btn" id="btnAddFeriaObsDiaria">Agregar</button>
-          </div>
         </div>
 
         <div class="feria-section">
@@ -1008,6 +1002,37 @@
         <div id="feriaDownloadWrap" style="display:none;margin-top:16px">
           <button class="btn-primary" id="btnDownloadFeria" style="width:100%">⬇ Descargar información completa de la feria</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Registrar venta (feria) -->
+  <div class="modal-overlay" id="feriaVentaOverlay">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <h2>Registrar venta</h2>
+        <button class="btn-icon" id="btnCloseFeriaVenta"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <label class="field-label" for="feriaVentaLote" style="margin-top:0">Lote</label>
+        <select class="field-input" id="feriaVentaLote"></select>
+        <label class="field-label" for="feriaVentaCantidad">Cantidad</label>
+        <input class="field-input" id="feriaVentaCantidad" type="number" min="1" step="1" placeholder="Cant." />
+        <button class="btn-primary" id="btnAddFeriaVenta" style="width:100%;margin-top:16px">Agregar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Registrar observación (feria) -->
+  <div class="modal-overlay" id="feriaObsOverlay">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <h2>Registrar observación</h2>
+        <button class="btn-icon" id="btnCloseFeriaObs"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <textarea class="field-textarea obs-textarea" id="feriaObsDiariaInput" rows="4" style="margin-top:0" placeholder="Escribe una observación de hoy…"></textarea>
+        <button type="button" class="btn-primary" id="btnAddFeriaObsDiaria" style="width:100%;margin-top:16px">Agregar</button>
       </div>
     </div>
   </div>

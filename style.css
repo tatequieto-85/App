@@ -1384,9 +1384,8 @@ body {
 /* ── Ferias: modal de conteo — secciones ─────────────────────────────────── */
 .feria-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 .feria-section-title { font-size: 12px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
-.feria-venta-add-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-.feria-venta-add-row select { flex: 2 1 140px; min-width: 0; margin: 0 !important; }
-.feria-venta-add-row input { flex: 1 1 70px; min-width: 0; margin: 0 !important; max-width: 80px; }
+.feria-counter-quickrow { display: flex; gap: 8px; margin: 16px 0; }
+.feria-counter-quickrow button { flex: 1; margin: 0; }
 
 /* ── Ferias: tabla de plan de stock ───────────────────────────────────────── */
 .feria-stock-receta { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
@@ -1412,27 +1411,26 @@ body {
 .feria-block-actions { display: flex; gap: 4px; margin-top: 10px; }
 
 /* ── Ferias: modal de conteo ──────────────────────────────────────────────── */
-.feria-counter-value {
-  font-size: 56px; font-weight: 800; color: var(--brand);
-  margin: 14px 0; font-variant-numeric: tabular-nums;
+.feria-counter-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.feria-counter-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
 }
-.feria-counter-actions { display: flex; gap: 10px; justify-content: center; }
-.feria-counter-actions .btn-outline,
-.feria-counter-actions .feria-counter-plus {
-  flex: 1; max-width: 130px; padding: 14px; font-size: 16px; font-weight: 700;
-  width: auto; margin: 0; /* .btn-primary trae width:100%/margin-top:20px que hay que anular */
+.feria-counter-row-btn {
+  flex: 0 0 44px; width: 44px; height: 44px; margin: 0; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700;
 }
-.feria-counter-groups { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-.feria-counter-group { flex: 1 1 105px; max-width: 160px; }
-.feria-counter-group-label {
-  font-size: 10.5px; font-weight: 700; color: var(--text-sub);
-  text-transform: uppercase; letter-spacing: .03em;
+.feria-counter-row-info {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
-.feria-counter-group .feria-counter-value { font-size: 30px; margin: 6px 0; }
-.feria-counter-group .feria-counter-actions { gap: 5px; }
-.feria-counter-group .feria-counter-actions .btn-outline,
-.feria-counter-group .feria-counter-actions .feria-counter-plus {
-  max-width: 70px; padding: 8px; font-size: 13px;
+.feria-counter-row-label {
+  font-size: 12.5px; font-weight: 600; color: var(--text-sub);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.feria-counter-row-value {
+  font-size: 22px; font-weight: 800; color: var(--brand); font-variant-numeric: tabular-nums;
 }
 .feria-counter-total { margin-top: 14px; font-size: 14px; color: var(--text-sub); }
 .feria-counter-total strong { color: var(--text); font-size: 19px; font-variant-numeric: tabular-nums; }
