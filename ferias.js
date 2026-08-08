@@ -534,8 +534,6 @@ function renderFeriaCounterDay() {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
   renderFeriaVentaLoteOptions(f, feriaCounterFecha);
-  renderFeriaVentasList(f, feriaCounterFecha);
-  renderFeriaObsDiariasList(f, feriaCounterFecha);
   renderFeriaConteoProductos(f, feriaCounterFecha);
   document.getElementById('feriaDownloadWrap').style.display = feriaTerminadaCompleta(f) ? '' : 'none';
 }
@@ -592,32 +590,6 @@ function renderFeriaVentaLoteOptions(f, fecha) {
   }).join('');
 }
 
-function renderFeriaVentasList(f, fecha) {
-  const list = document.getElementById('feriaVentasList');
-  f.ventas = f.ventas || [];
-  const ventasHoy = f.ventas.filter(v => v.fecha === fecha);
-  if (!ventasHoy.length) {
-    list.innerHTML = '<div class="obs-empty">Aún sin ventas registradas hoy</div>';
-    return;
-  }
-  list.innerHTML = ventasHoy.map(v => {
-    const globalIdx = f.ventas.indexOf(v);
-    return `
-      <div class="obs-item">
-        <div class="obs-text">${esc(v.recetaNombre)}${v.loteId ? ` — Lote ${esc(v.loteId)}` : ''} × ${v.cantidad}</div>
-        <div class="obs-date">${fmtDate(v.createdAt)} <button class="mgmt-item-del" data-del-venta="${globalIdx}" style="float:right">✕</button></div>
-      </div>`;
-  }).join('');
-  list.querySelectorAll('[data-del-venta]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const idx = +btn.dataset.delVenta;
-      f.ventas.splice(idx, 1);
-      renderFeriaCounterDay();
-      try { await updateFeria(f); } catch (e) { console.warn('Error al eliminar venta:', e.message); }
-    });
-  });
-}
-
 function closeFeriaVentaModal() {
   document.getElementById('feriaVentaOverlay').classList.remove('open');
 }
@@ -647,22 +619,6 @@ document.getElementById('btnAddFeriaVenta').addEventListener('click', async () =
   closeFeriaVentaModal();
   try { await updateFeria(f); } catch (e) { console.warn('Error guardando venta:', e.message); }
 });
-
-function renderFeriaObsDiariasList(f, fecha) {
-  const list = document.getElementById('feriaObsDiariasList');
-  f.observacionesDiarias = f.observacionesDiarias || [];
-  const obsHoy = f.observacionesDiarias.filter(o => o.fecha === fecha);
-  if (!obsHoy.length) {
-    list.innerHTML = '<div class="obs-empty">Aún sin observaciones hoy</div>';
-    return;
-  }
-  list.innerHTML = obsHoy.map(o => `
-    <div class="obs-item">
-      <div class="obs-text">${esc(o.text)}</div>
-      <div class="obs-date">${fmtDate(o.createdAt)}</div>
-    </div>`).join('');
-  list.scrollTop = list.scrollHeight;
-}
 
 function closeFeriaObsModal() {
   document.getElementById('feriaObsOverlay').classList.remove('open');
