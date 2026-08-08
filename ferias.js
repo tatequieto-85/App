@@ -513,6 +513,11 @@ function openFeriaCounter(feriaId) {
   document.getElementById('feriaCounterTitle').textContent = f.empresa;
   document.getElementById('feriaCounterDateLabel').textContent = fmtDateShortEs(feriaCounterFecha);
 
+  document.getElementById('feriaVentaFormWrap').style.display = 'none';
+  document.getElementById('btnToggleFeriaVenta').style.display = '';
+  document.getElementById('feriaObsFormWrap').style.display = 'none';
+  document.getElementById('btnToggleFeriaObs').style.display = '';
+
   renderFeriaCounterValues(f);
   renderFeriaCounterDay();
   document.getElementById('feriaCounterOverlay').classList.add('open');
@@ -615,6 +620,11 @@ function renderFeriaVentasList(f, fecha) {
   });
 }
 
+document.getElementById('btnToggleFeriaVenta').addEventListener('click', () => {
+  document.getElementById('feriaVentaFormWrap').style.display = '';
+  document.getElementById('btnToggleFeriaVenta').style.display = 'none';
+});
+
 document.getElementById('btnAddFeriaVenta').addEventListener('click', async () => {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
@@ -648,6 +658,11 @@ function renderFeriaObsDiariasList(f, fecha) {
     </div>`).join('');
   list.scrollTop = list.scrollHeight;
 }
+
+document.getElementById('btnToggleFeriaObs').addEventListener('click', () => {
+  document.getElementById('feriaObsFormWrap').style.display = '';
+  document.getElementById('btnToggleFeriaObs').style.display = 'none';
+});
 
 document.getElementById('btnAddFeriaObsDiaria').addEventListener('click', async () => {
   const f = ferias.find(x => x.id === feriaCounterId);

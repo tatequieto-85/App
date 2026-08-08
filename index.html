@@ -982,7 +982,8 @@
         <div class="feria-section">
           <h4 class="feria-section-title">Ventas del día</h4>
           <div id="feriaVentasList" class="obs-list"></div>
-          <div class="feria-venta-add-row">
+          <button class="btn-outline btn-sm" type="button" id="btnToggleFeriaVenta">+ Registrar venta</button>
+          <div class="feria-venta-add-row" id="feriaVentaFormWrap" style="display:none">
             <select class="field-input" id="feriaVentaLote"></select>
             <input class="field-input" id="feriaVentaCantidad" type="number" min="1" step="1" placeholder="Cant." />
             <button class="btn-outline btn-sm" id="btnAddFeriaVenta">Agregar</button>
@@ -992,7 +993,8 @@
         <div class="feria-section">
           <h4 class="feria-section-title">Observaciones del día</h4>
           <div id="feriaObsDiariasList" class="obs-list"></div>
-          <div class="obs-input-wrap">
+          <button class="btn-outline btn-sm" type="button" id="btnToggleFeriaObs">+ Registrar observación</button>
+          <div class="obs-input-wrap" id="feriaObsFormWrap" style="display:none">
             <textarea class="field-textarea obs-textarea" id="feriaObsDiariaInput" rows="2" placeholder="Escribe una observación de hoy…"></textarea>
             <button type="button" class="btn-outline obs-btn" id="btnAddFeriaObsDiaria">Agregar</button>
           </div>

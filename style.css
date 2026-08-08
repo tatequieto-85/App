@@ -1420,6 +1420,7 @@ body {
 .feria-counter-actions .btn-outline,
 .feria-counter-actions .feria-counter-plus {
   flex: 1; max-width: 130px; padding: 14px; font-size: 16px; font-weight: 700;
+  width: auto; margin: 0; /* .btn-primary trae width:100%/margin-top:20px que hay que anular */
 }
 .feria-counter-groups { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .feria-counter-group { flex: 1 1 105px; max-width: 160px; }
