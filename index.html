@@ -943,29 +943,35 @@
     <div class="modal" style="max-width:560px">
       <div class="modal-header">
         <h2 id="feriaCounterTitle">Feria en curso</h2>
+        <span class="feria-counter-date-label" id="feriaCounterDateLabel"></span>
         <button class="btn-icon" id="btnCloseFeriaCounter"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body modal-body-scroll">
-        <label class="field-label" for="feriaCounterDaySelect" style="margin-top:0">Día</label>
-        <select class="field-input" id="feriaCounterDaySelect"></select>
-
         <div style="text-align:center;margin:18px 0 8px">
           <p class="mgmt-note" style="margin-bottom:8px">Personas que probaron TateQuieto</p>
           <div class="feria-counter-groups">
             <div class="feria-counter-group">
-              <span class="feria-counter-group-label">Menores de 50</span>
-              <div class="feria-counter-value" id="feriaCounterValueMenores">0</div>
+              <span class="feria-counter-group-label">Menores de 30</span>
+              <div class="feria-counter-value" id="feriaCounterValueMenores30">0</div>
               <div class="feria-counter-actions">
-                <button class="btn-outline" id="btnFeriaCounterMinusMenores">−1</button>
-                <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlusMenores">+1</button>
+                <button class="btn-outline" id="btnFeriaCounterMinusMenores30">−1</button>
+                <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlusMenores30">+1</button>
               </div>
             </div>
             <div class="feria-counter-group">
-              <span class="feria-counter-group-label">Mayores de 50</span>
-              <div class="feria-counter-value" id="feriaCounterValueMayores">0</div>
+              <span class="feria-counter-group-label">Entre 30 y 55</span>
+              <div class="feria-counter-value" id="feriaCounterValueEntre30y55">0</div>
               <div class="feria-counter-actions">
-                <button class="btn-outline" id="btnFeriaCounterMinusMayores">−1</button>
-                <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlusMayores">+1</button>
+                <button class="btn-outline" id="btnFeriaCounterMinusEntre30y55">−1</button>
+                <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlusEntre30y55">+1</button>
+              </div>
+            </div>
+            <div class="feria-counter-group">
+              <span class="feria-counter-group-label">55 en adelante</span>
+              <div class="feria-counter-value" id="feriaCounterValueMayores55">0</div>
+              <div class="feria-counter-actions">
+                <button class="btn-outline" id="btnFeriaCounterMinusMayores55">−1</button>
+                <button class="btn-primary feria-counter-plus" id="btnFeriaCounterPlusMayores55">+1</button>
               </div>
             </div>
           </div>

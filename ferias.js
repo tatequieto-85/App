@@ -10,6 +10,7 @@ let feriasSheetId        = null;
 let feriaEditId          = null;
 let feriaAlineacion      = 0;
 let feriaCounterId       = null;
+let feriaCounterFecha    = null; // día fijo del contador (siempre "hoy", ver getFeriaDefaultDay)
 let feriaCounterSaveTimer = null;
 let feriaStockPendingId  = null;
 let lastTapTime          = {}; // para detección de doble-toque en móvil
@@ -18,7 +19,7 @@ let lastTapTime          = {}; // para detección de doble-toque en móvil
 
 // Nota: las columnas A–L mantienen el orden original de este módulo
 // (antes de agregar horario/stock/ventas) para no desalinear filas ya
-// guardadas. Los campos nuevos siempre se agregan al final (M–R, luego S–T).
+// guardadas. Los campos nuevos siempre se agregan al final (M–R, luego S–U).
 // ConteoPersonas (K) queda congelada como respaldo histórico de ferias
 // anteriores al conteo por rango etario — ver feriaConteoTotal().
 export async function initFeriasSheet() {
@@ -28,7 +29,7 @@ export async function initFeriasSheet() {
 
   if (hasF) {
     feriasSheetId = hasF.properties.sheetId;
-    const headerData = await sheetsReq('/values/Ferias!A1:T1').catch(() => ({}));
+    const headerData = await sheetsReq('/values/Ferias!A1:U1').catch(() => ({}));
     const headerRow  = (headerData.values || [])[0] || [];
     if (headerRow.length < 18) {
       await sheetsReq('/values/Ferias!M1:R1?valueInputOption=RAW', {
@@ -38,10 +39,10 @@ export async function initFeriasSheet() {
         ]] })
       });
     }
-    if (headerRow.length < 20) {
-      await sheetsReq('/values/Ferias!S1:T1?valueInputOption=RAW', {
+    if (headerRow.length < 21) {
+      await sheetsReq('/values/Ferias!S1:U1?valueInputOption=RAW', {
         method: 'PUT',
-        body: JSON.stringify({ values: [[ 'ConteoMenores50', 'ConteoMayores50' ]] })
+        body: JSON.stringify({ values: [[ 'ConteoMenores30', 'ConteoEntre30y55', 'ConteoMayores55' ]] })
       });
     }
   } else {
@@ -57,7 +58,7 @@ export async function initFeriasSheet() {
         'ID','Empresa','FechaInicio','FechaFin','Precio','FechaImportante','Lugar',
         'Observaciones','Alineacion','Estado','ConteoPersonas','CreadoEn',
         'HoraInicio','HoraFin','PlanStock','Ventas','ObservacionesDiarias','ConteoProductos',
-        'ConteoMenores50','ConteoMayores50'
+        'ConteoMenores30','ConteoEntre30y55','ConteoMayores55'
       ]] })
     });
   }
@@ -65,7 +66,7 @@ export async function initFeriasSheet() {
 }
 
 export async function loadFerias() {
-  const data = await sheetsReq('/values/Ferias!A:T');
+  const data = await sheetsReq('/values/Ferias!A:U');
   const rows = (data.values || []).slice(1);
   ferias = rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0]  || '',
@@ -86,8 +87,9 @@ export async function loadFerias() {
     ventas:               safeParseJSON(r[15], []),
     observacionesDiarias: safeParseJSON(r[16], []),
     conteoProductos:      safeParseJSON(r[17], {}),
-    conteoMenores50:      parseInt(r[18]) || 0,
-    conteoMayores50:      parseInt(r[19]) || 0,
+    conteoMenores30:      parseInt(r[18]) || 0,
+    conteoEntre30y55:     parseInt(r[19]) || 0,
+    conteoMayores55:      parseInt(r[20]) || 0,
     rowIndex:             i + 2
   }));
 }
@@ -95,7 +97,7 @@ export async function loadFerias() {
 // Antes de esta función el conteo era un solo total sin rango etario; las
 // ferias anteriores a este cambio solo tienen ese dato en ConteoPersonas.
 export function feriaConteoTotal(f) {
-  const porRango = (f.conteoMenores50 || 0) + (f.conteoMayores50 || 0);
+  const porRango = (f.conteoMenores30 || 0) + (f.conteoEntre30y55 || 0) + (f.conteoMayores55 || 0);
   return porRango || (f.conteoPersonas || 0);
 }
 
@@ -106,19 +108,19 @@ function feriaRowValues(f) {
     f.creadoEn || new Date().toISOString(),
     f.horaInicio || '', f.horaFin || '', JSON.stringify(f.planStock || {}), JSON.stringify(f.ventas || []),
     JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {}),
-    f.conteoMenores50 || 0, f.conteoMayores50 || 0
+    f.conteoMenores30 || 0, f.conteoEntre30y55 || 0, f.conteoMayores55 || 0
   ];
 }
 
 async function appendFeria(f) {
-  await sheetsReq('/values/Ferias!A:T:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Ferias!A:U:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
 }
 
 async function updateFeria(f) {
-  await sheetsReq(`/values/Ferias!A${f.rowIndex}:T${f.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Ferias!A${f.rowIndex}:U${f.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
@@ -377,7 +379,7 @@ document.getElementById('btnSaveFeria').addEventListener('click', async () => {
         id: crypto.randomUUID(), empresa, fechaInicio, fechaFin, horaInicio, horaFin, precio, lugar, fechaImportante,
         observaciones, alineacion: feriaAlineacion, estado: 'confirmada', conteoPersonas: 0,
         planStock: {}, ventas: [], observacionesDiarias: [], conteoProductos: {},
-        conteoMenores50: 0, conteoMayores50: 0
+        conteoMenores30: 0, conteoEntre30y55: 0, conteoMayores55: 0
       });
     }
     await loadFerias();
@@ -506,14 +508,10 @@ document.getElementById('btnSaveFeriaStock').addEventListener('click', async () 
 function openFeriaCounter(feriaId) {
   const f = ferias.find(x => x.id === feriaId);
   if (!f) return;
-  feriaCounterId = feriaId;
+  feriaCounterId    = feriaId;
+  feriaCounterFecha = getFeriaDefaultDay(f);
   document.getElementById('feriaCounterTitle').textContent = f.empresa;
-
-  const dias = getFeriaDateList(f);
-  const defaultDay = getFeriaDefaultDay(f);
-  document.getElementById('feriaCounterDaySelect').innerHTML = dias
-    .map(d => `<option value="${d}" ${d === defaultDay ? 'selected' : ''}>${esc(fmtDateShortEs(d))}</option>`)
-    .join('');
+  document.getElementById('feriaCounterDateLabel').textContent = fmtDateShortEs(feriaCounterFecha);
 
   renderFeriaCounterValues(f);
   renderFeriaCounterDay();
@@ -521,23 +519,21 @@ function openFeriaCounter(feriaId) {
 }
 
 function renderFeriaCounterValues(f) {
-  document.getElementById('feriaCounterValueMenores').textContent = f.conteoMenores50 || 0;
-  document.getElementById('feriaCounterValueMayores').textContent = f.conteoMayores50 || 0;
+  document.getElementById('feriaCounterValueMenores30').textContent = f.conteoMenores30 || 0;
+  document.getElementById('feriaCounterValueEntre30y55').textContent = f.conteoEntre30y55 || 0;
+  document.getElementById('feriaCounterValueMayores55').textContent = f.conteoMayores55 || 0;
   document.getElementById('feriaCounterValueTotal').textContent   = feriaConteoTotal(f);
   const blockCounterEl = document.querySelector(`.feria-block[data-id="${CSS.escape(f.id)}"] .feria-block-counter`);
   if (blockCounterEl) blockCounterEl.textContent = `👥 ${feriaConteoTotal(f)}`;
 }
 
-document.getElementById('feriaCounterDaySelect').addEventListener('change', renderFeriaCounterDay);
-
 function renderFeriaCounterDay() {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
-  const fecha = document.getElementById('feriaCounterDaySelect').value;
-  renderFeriaVentaLoteOptions(f, fecha);
-  renderFeriaVentasList(f, fecha);
-  renderFeriaObsDiariasList(f, fecha);
-  renderFeriaConteoProductos(f, fecha);
+  renderFeriaVentaLoteOptions(f, feriaCounterFecha);
+  renderFeriaVentasList(f, feriaCounterFecha);
+  renderFeriaObsDiariasList(f, feriaCounterFecha);
+  renderFeriaConteoProductos(f, feriaCounterFecha);
   document.getElementById('feriaDownloadWrap').style.display = feriaTerminadaCompleta(f) ? '' : 'none';
 }
 
@@ -559,16 +555,19 @@ function adjustFeriaCounter(campo, delta) {
   scheduleFeriaCounterSave();
 }
 
-document.getElementById('btnFeriaCounterPlusMenores').addEventListener('click', () => adjustFeriaCounter('conteoMenores50', 1));
-document.getElementById('btnFeriaCounterMinusMenores').addEventListener('click', () => adjustFeriaCounter('conteoMenores50', -1));
-document.getElementById('btnFeriaCounterPlusMayores').addEventListener('click', () => adjustFeriaCounter('conteoMayores50', 1));
-document.getElementById('btnFeriaCounterMinusMayores').addEventListener('click', () => adjustFeriaCounter('conteoMayores50', -1));
+document.getElementById('btnFeriaCounterPlusMenores30').addEventListener('click', () => adjustFeriaCounter('conteoMenores30', 1));
+document.getElementById('btnFeriaCounterMinusMenores30').addEventListener('click', () => adjustFeriaCounter('conteoMenores30', -1));
+document.getElementById('btnFeriaCounterPlusEntre30y55').addEventListener('click', () => adjustFeriaCounter('conteoEntre30y55', 1));
+document.getElementById('btnFeriaCounterMinusEntre30y55').addEventListener('click', () => adjustFeriaCounter('conteoEntre30y55', -1));
+document.getElementById('btnFeriaCounterPlusMayores55').addEventListener('click', () => adjustFeriaCounter('conteoMayores55', 1));
+document.getElementById('btnFeriaCounterMinusMayores55').addEventListener('click', () => adjustFeriaCounter('conteoMayores55', -1));
 document.getElementById('btnFeriaCounterReset').addEventListener('click', () => {
   if (!confirm('¿Reiniciar el conteo a 0?')) return;
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
-  f.conteoMenores50 = 0;
-  f.conteoMayores50 = 0;
+  f.conteoMenores30 = 0;
+  f.conteoEntre30y55 = 0;
+  f.conteoMayores55 = 0;
   renderFeriaCounterValues(f);
   scheduleFeriaCounterSave();
 });
@@ -619,7 +618,7 @@ function renderFeriaVentasList(f, fecha) {
 document.getElementById('btnAddFeriaVenta').addEventListener('click', async () => {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
-  const fecha       = document.getElementById('feriaCounterDaySelect').value;
+  const fecha       = feriaCounterFecha;
   const ejecucionId = document.getElementById('feriaVentaLote').value;
   const cantidad    = parseInt(document.getElementById('feriaVentaCantidad').value) || 0;
   if (!ejecucionId || cantidad <= 0) return;
@@ -653,7 +652,7 @@ function renderFeriaObsDiariasList(f, fecha) {
 document.getElementById('btnAddFeriaObsDiaria').addEventListener('click', async () => {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
-  const fecha = document.getElementById('feriaCounterDaySelect').value;
+  const fecha = feriaCounterFecha;
   const input = document.getElementById('feriaObsDiariaInput');
   const text  = input.value.trim();
   if (!text) return;
@@ -751,8 +750,9 @@ function feriaToText(f) {
   lines.push(`Alineación con TateQuieto: ${f.alineacion || 0}/5`);
   if (f.observaciones) lines.push(`Observaciones generales: ${f.observaciones}`);
   lines.push('', `Personas que probaron TateQuieto (total): ${feriaConteoTotal(f)}`);
-  lines.push(`  • Menores de 50: ${f.conteoMenores50 || 0}`);
-  lines.push(`  • Mayores de 50: ${f.conteoMayores50 || 0}`);
+  lines.push(`  • Menores de 30: ${f.conteoMenores30 || 0}`);
+  lines.push(`  • Entre 30 y 55: ${f.conteoEntre30y55 || 0}`);
+  lines.push(`  • Mayores de 55: ${f.conteoMayores55 || 0}`);
 
   getFeriaDateList(f).forEach(fecha => {
     lines.push('', `── DÍA ${fecha} ─────────────────────────────────────────`);

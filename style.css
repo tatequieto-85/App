@@ -1421,20 +1421,25 @@ body {
 .feria-counter-actions .feria-counter-plus {
   flex: 1; max-width: 130px; padding: 14px; font-size: 16px; font-weight: 700;
 }
-.feria-counter-groups { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-.feria-counter-group { flex: 1 1 140px; max-width: 200px; }
+.feria-counter-groups { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.feria-counter-group { flex: 1 1 105px; max-width: 160px; }
 .feria-counter-group-label {
-  font-size: 11.5px; font-weight: 700; color: var(--text-sub);
-  text-transform: uppercase; letter-spacing: .04em;
+  font-size: 10.5px; font-weight: 700; color: var(--text-sub);
+  text-transform: uppercase; letter-spacing: .03em;
 }
-.feria-counter-group .feria-counter-value { font-size: 38px; margin: 6px 0; }
-.feria-counter-group .feria-counter-actions { gap: 6px; }
+.feria-counter-group .feria-counter-value { font-size: 30px; margin: 6px 0; }
+.feria-counter-group .feria-counter-actions { gap: 5px; }
 .feria-counter-group .feria-counter-actions .btn-outline,
 .feria-counter-group .feria-counter-actions .feria-counter-plus {
-  max-width: 90px; padding: 10px; font-size: 14px;
+  max-width: 70px; padding: 8px; font-size: 13px;
 }
 .feria-counter-total { margin-top: 14px; font-size: 14px; color: var(--text-sub); }
 .feria-counter-total strong { color: var(--text); font-size: 19px; font-variant-numeric: tabular-nums; }
+.feria-counter-date-label {
+  margin-left: auto; margin-right: 10px;
+  font-size: 10.5px; font-weight: 600; color: var(--text-sub);
+  text-transform: uppercase; letter-spacing: .03em; white-space: nowrap;
+}
 .receta-card-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; align-items: center; }
 
 /* ── Menú "⋯" reutilizable (recetas, ferias) ──────────────────────────────── */
