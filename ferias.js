@@ -533,7 +533,7 @@ function renderFeriaCounterValues(f) {
 function renderFeriaCounterDay() {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
-  renderFeriaVentaLoteOptions(f, feriaCounterFecha);
+  renderFeriaVentaRows(f, feriaCounterFecha);
   renderFeriaConteoProductos(f, feriaCounterFecha);
   document.getElementById('feriaDownloadWrap').style.display = feriaTerminadaCompleta(f) ? '' : 'none';
 }
@@ -573,21 +573,59 @@ document.getElementById('btnFeriaCounterReset').addEventListener('click', () => 
   scheduleFeriaCounterSave();
 });
 
-function renderFeriaVentaLoteOptions(f, fecha) {
-  const sel     = document.getElementById('feriaVentaLote');
+// Una fila por lote que se llevó hoy a la feria (planStock del día) y que
+// todavía tiene stock disponible (llevado - ya vendido hoy > 0).
+function renderFeriaVentaRows(f, fecha) {
+  const wrap    = document.getElementById('feriaVentaRows');
   const planHoy = f.planStock[fecha] || {};
-  const ids     = Object.keys(planHoy).filter(id => planHoy[id] > 0);
-  if (!ids.length) {
-    sel.innerHTML = '<option value="">Sin stock planeado hoy</option>';
-    sel.disabled  = true;
+  const vendidoHoy = {};
+  (f.ventas || []).filter(v => v.fecha === fecha).forEach(v => {
+    vendidoHoy[v.ejecucionId] = (vendidoHoy[v.ejecucionId] || 0) + v.cantidad;
+  });
+  const filas = Object.keys(planHoy)
+    .map(id => ({ id, disponible: (planHoy[id] || 0) - (vendidoHoy[id] || 0) }))
+    .filter(row => row.disponible > 0);
+
+  if (!filas.length) {
+    wrap.innerHTML = '<div class="obs-empty">No hay lotes con stock disponible para vender hoy.</div>';
     return;
   }
-  sel.disabled = false;
-  sel.innerHTML = ids.map(id => {
-    const ej = ejecuciones.find(x => x.id === id);
-    const label = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
-    return `<option value="${esc(id)}">${esc(label)} (llevados: ${planHoy[id]})</option>`;
+
+  wrap.innerHTML = filas.map(row => {
+    const ej     = ejecuciones.find(x => x.id === row.id);
+    const nombre = ej ? `${esc(ej.nombreReceta)} — Lote ${esc(ej.loteId || row.id.slice(0, 8))}` : esc(row.id);
+    return `
+      <div class="feria-venta-row">
+        <div class="feria-venta-row-info">
+          <span class="feria-venta-row-nombre">${nombre}</span>
+          <span class="feria-venta-row-disp">Disponible: ${row.disponible}</span>
+        </div>
+        <input class="field-input feria-venta-row-qty" type="number" min="1" max="${row.disponible}" step="1" placeholder="Cant." data-lote="${esc(row.id)}" />
+        <button class="btn-outline btn-sm feria-venta-row-add" data-lote="${esc(row.id)}">Agregar</button>
+      </div>`;
   }).join('');
+
+  wrap.querySelectorAll('.feria-venta-row-add').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const loteId  = btn.dataset.lote;
+      const input   = wrap.querySelector(`.feria-venta-row-qty[data-lote="${CSS.escape(loteId)}"]`);
+      const cantidad = parseInt(input.value) || 0;
+      const fila    = filas.find(r => r.id === loteId);
+      if (!fila || cantidad <= 0) return;
+      if (cantidad > fila.disponible) { alert('La cantidad supera el stock disponible de este lote.'); return; }
+
+      const f2 = ferias.find(x => x.id === feriaCounterId);
+      if (!f2) return;
+      const ej = ejecuciones.find(x => x.id === loteId);
+      f2.ventas = f2.ventas || [];
+      f2.ventas.push({
+        fecha, ejecucionId: loteId, loteId: ej?.loteId || '', recetaId: ej?.recetaId || '',
+        recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString()
+      });
+      renderFeriaCounterDay();
+      try { await updateFeria(f2); } catch (e) { console.warn('Error guardando venta:', e.message); }
+    });
+  });
 }
 
 function closeFeriaVentaModal() {
@@ -599,25 +637,6 @@ document.getElementById('btnOpenFeriaVenta').addEventListener('click', () => {
 document.getElementById('btnCloseFeriaVenta').addEventListener('click', closeFeriaVentaModal);
 document.getElementById('feriaVentaOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('feriaVentaOverlay')) closeFeriaVentaModal();
-});
-
-document.getElementById('btnAddFeriaVenta').addEventListener('click', async () => {
-  const f = ferias.find(x => x.id === feriaCounterId);
-  if (!f) return;
-  const fecha       = feriaCounterFecha;
-  const ejecucionId = document.getElementById('feriaVentaLote').value;
-  const cantidad    = parseInt(document.getElementById('feriaVentaCantidad').value) || 0;
-  if (!ejecucionId || cantidad <= 0) return;
-  const ej = ejecuciones.find(x => x.id === ejecucionId);
-  f.ventas = f.ventas || [];
-  f.ventas.push({
-    fecha, ejecucionId, loteId: ej?.loteId || '', recetaId: ej?.recetaId || '',
-    recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString()
-  });
-  document.getElementById('feriaVentaCantidad').value = '';
-  renderFeriaCounterDay();
-  closeFeriaVentaModal();
-  try { await updateFeria(f); } catch (e) { console.warn('Error guardando venta:', e.message); }
 });
 
 function closeFeriaObsModal() {
