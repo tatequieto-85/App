@@ -1,5 +1,5 @@
 import { sheetsReq, uploadToDrive, deleteDriveFile, downloadDriveFile, thumbUrl } from './auth.js';
-import { esc, setFb, fmtDate, delay, confirmCloseIfDirty, ICON_FILM, ICON_IMAGE, ICON_FOLDER, ICON_DOWNLOAD, ICON_CHECK, ICON_CALENDAR, ICON_TRASH, ICON_EDIT, ICON_SPINNER } from './utils.js';
+import { esc, setFb, fmtDate, delay, confirmCloseIfDirty, safeLoad, todayISOBogota, ICON_FILM, ICON_IMAGE, ICON_FOLDER, ICON_DOWNLOAD, ICON_CHECK, ICON_CALENDAR, ICON_TRASH, ICON_EDIT, ICON_SPINNER } from './utils.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const dropzone      = document.getElementById('dropzone');
@@ -90,7 +90,7 @@ function parseArr(val) {
 }
 
 export async function loadStories() {
-  try {
+  await safeLoad(async () => {
     const data = await sheetsReq('/values/Stories!A:K');
     const rows = (data.values || []).slice(1);
 
@@ -114,9 +114,7 @@ export async function loadStories() {
       .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
 
     renderStories(stories);
-  } catch (e) {
-    console.error('loadStories:', e);
-  }
+  }, storiesList);
 }
 
 async function appendStory(story) {
@@ -192,7 +190,7 @@ async function sendDailyReminder(hour) {
     if (!cfg.phone || !cfg.apikey) return;
 
     const opts  = { timeZone: 'America/Bogota' };
-    const today = new Date().toLocaleDateString('en-CA', opts);
+    const today = todayISOBogota();
 
     let todayStories = [];
     try {
@@ -375,9 +373,8 @@ btnAdd.addEventListener('click', async () => {
 
 function isToday(isoDate) {
   if (!isoDate) return false;
-  const opts  = { timeZone: 'America/Bogota' };
-  const toDay = d => new Date(d).toLocaleDateString('en-CA', opts);
-  return toDay(isoDate) === toDay(new Date());
+  const toDay = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  return toDay(isoDate) === todayISOBogota();
 }
 
 // ── Render stories ────────────────────────────────────────────────────────────

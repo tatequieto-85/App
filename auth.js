@@ -8,19 +8,22 @@ const CRED_KEY    = 'ss_credId';
 const USER_KEY    = 'ss_userInfo';
 const TOKEN_KEY   = 'ss_token';
 const EXPIRY_KEY  = 'ss_tokenExpiry';
-const REFRESH_KEY = 'ss_refreshToken';
+const SESSION_KEY = 'ss_sessionToken';
 
 export let accessToken = null;
 export let tokenExpiry = null;
-let tokenClient = null; // flujo implícito (fallback si no hay TOKEN_PROXY_URL configurado)
+let tokenClient = null; // flujo implícito (fallback si no hay WORKER_URL configurado)
 let codeClient  = null; // flujo authorization-code + refresh_token (sesiones largas)
 
-// Con TOKEN_PROXY_URL configurado, la renovación de sesión pasa por el Apps
-// Script del usuario (que guarda el Client Secret) en vez de depender de la
-// cookie de sesión de Google en el navegador — eso es lo que falla en PWAs
-// instaladas en iPhone (Safari aísla esas cookies) y obligaba a reingresar
-// cada ~1 hora, que es la vida máxima de un access_token normal de Google.
-const useRefreshFlow = () => !!(CONFIG.TOKEN_PROXY_URL && CONFIG.TOKEN_PROXY_URL.trim());
+// Con WORKER_URL configurado, la renovación de sesión pasa por un Cloudflare
+// Worker propio (que guarda el Client Secret y el refresh_token — nunca el
+// navegador, ver worker/README.md) en vez de depender de la cookie de sesión
+// de Google en el navegador — eso es lo que falla en PWAs instaladas en
+// iPhone (Safari aísla esas cookies) y obligaba a reingresar cada ~1 hora,
+// que es la vida máxima de un access_token normal de Google. El navegador
+// solo guarda un sessionToken (JWT) propio del Worker; el refresh_token real
+// de Google no sale nunca del backend.
+const useRefreshFlow = () => !!(CONFIG.WORKER_URL && CONFIG.WORKER_URL.trim());
 
 // ── WebAuthn / Biometric ──────────────────────────────────────────────────────
 
@@ -73,22 +76,24 @@ function saveToken(token, expiresIn) {
   localStorage.setItem(EXPIRY_KEY, tokenExpiry.toString());
 }
 
-function saveRefreshToken(rt) {
-  if (rt) localStorage.setItem(REFRESH_KEY, rt);
+function saveSessionToken(st) {
+  if (st) localStorage.setItem(SESSION_KEY, st);
 }
 
-function getRefreshToken() {
-  return localStorage.getItem(REFRESH_KEY);
+function getSessionToken() {
+  return localStorage.getItem(SESSION_KEY);
 }
 
-// Pide un access_token nuevo al proxy de Apps Script usando el refresh_token
-// guardado. Es una llamada HTTPS directa (sin iframe ni cookies de Google),
-// así que funciona igual en una PWA instalada en iPhone que en el navegador.
-async function tryRefreshViaProxy() {
-  const rt = getRefreshToken();
-  if (!rt) return false;
+// Pide un access_token nuevo al Worker usando el sessionToken guardado (el
+// refresh_token real de Google vive únicamente en el Worker, ver
+// worker/src/index.js). Es una llamada HTTPS directa (sin iframe ni cookies
+// de Google), así que funciona igual en una PWA instalada en iPhone que en
+// el navegador.
+async function tryRefreshViaWorker() {
+  const st = getSessionToken();
+  if (!st) return false;
   try {
-    const resp = await fetch(`${CONFIG.TOKEN_PROXY_URL}?action=refresh&refresh_token=${encodeURIComponent(rt)}`)
+    const resp = await fetch(`${CONFIG.WORKER_URL}/token?session=${encodeURIComponent(st)}`)
       .then(r => r.json());
     if (resp.error || !resp.access_token) return false;
     saveToken(resp.access_token, resp.expires_in || 3600);
@@ -100,11 +105,11 @@ async function tryRefreshViaProxy() {
 
 async function exchangeCodeForTokens(code) {
   try {
-    const resp = await fetch(`${CONFIG.TOKEN_PROXY_URL}?action=exchange&code=${encodeURIComponent(code)}`)
+    const resp = await fetch(`${CONFIG.WORKER_URL}/oauth/callback?code=${encodeURIComponent(code)}`)
       .then(r => r.json());
     if (resp.error || !resp.access_token) { console.error('Token exchange error:', resp.error); return false; }
     saveToken(resp.access_token, resp.expires_in || 3600);
-    saveRefreshToken(resp.refresh_token);
+    saveSessionToken(resp.sessionToken);
     return true;
   } catch (e) {
     console.error('Token exchange failed:', e.message);
@@ -124,7 +129,7 @@ export function loadSavedToken() {
 }
 
 export async function trySilentGoogleAuth() {
-  if (useRefreshFlow()) return tryRefreshViaProxy();
+  if (useRefreshFlow()) return tryRefreshViaWorker();
   if (!tokenClient) return false;
   return new Promise(resolve => {
     const timeout = setTimeout(() => resolve(false), 8000);
@@ -181,6 +186,11 @@ export function requestSignIn() {
   else tokenClient.requestAccessToken({ prompt: '' });
 }
 
+// Nota: esto NO revoca el refresh_token guardado en el Worker (Cloudflare
+// KV) — solo limpia el estado local de este dispositivo/navegador. Mismo
+// riesgo aceptado que ya existía con el proxy de Apps Script: para negarle
+// acceso de verdad a un dispositivo hay que borrar su entrada en KV a mano
+// (ver worker/README.md).
 export function signOut(onDone) {
   google.accounts.oauth2.revoke(accessToken, () => {
     accessToken = null;
@@ -188,7 +198,7 @@ export function signOut(onDone) {
     localStorage.removeItem(USER_KEY);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(EXPIRY_KEY);
-    localStorage.removeItem(REFRESH_KEY);
+    localStorage.removeItem(SESSION_KEY);
     if (onDone) onDone();
   });
 }
@@ -197,7 +207,7 @@ export async function ensureToken(force) {
   if (!force && accessToken && Date.now() < tokenExpiry - 60000) return;
   if (!force && loadSavedToken()) return;
   if (useRefreshFlow()) {
-    const ok = await tryRefreshViaProxy();
+    const ok = await tryRefreshViaWorker();
     if (ok) return;
     throw new Error('No se pudo renovar la sesión');
   }

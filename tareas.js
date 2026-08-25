@@ -1,12 +1,13 @@
 import { sheetsReq, uploadToDrive, deleteDriveFile, thumbUrl } from './auth.js';
 import {
-  esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeParseJSON,
+  esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeParseJSON, safeLoad,
   fmtDate, fmtDateShortEs, fmtDuration, fmtSeconds, parseISODate, toISODate, addDays, diffDays,
   ICON_EDIT, ICON_TRASH
 } from './utils.js';
 import { pushUndo } from './undo.js';
 import { wasAccidentalTouch } from './input-guard.js';
 import { navigateTo } from './main.js';
+import { dbEpoch } from './db-state.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 export let kanbanTasks  = [];
@@ -31,6 +32,7 @@ let ganttZoom              = 'week'; // 'day' | 'week' | 'month'
 let ganttCollapsedAreas    = new Set();
 
 let currentSubTab = 'kanban';
+let tareasLoadedEpoch = -1; // dbEpoch al que corresponde lo que hay cargado en memoria
 
 let calendarMonth = (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; })();
 
@@ -88,8 +90,20 @@ export async function switchSubTab(subtab) {
   document.getElementById('calendarToolbar').style.display  = subtab === 'calendario' ? '' : 'none';
   document.getElementById('btnManageBoard').style.display   = (subtab === 'gantt' || subtab === 'calendario') ? 'none' : '';
 
-  await loadKanbanConfig();
-  await loadKanbanTasks();
+  // Kanban/Lista/Gantt/Calendario comparten los mismos kanbanTasks/columnas —
+  // recargar todo de Sheets en cada click de sub-pestaña era puro desperdicio
+  // (los guardados/ediciones ya refrescan kanbanTasks por su cuenta llamando
+  // a loadKanbanTasks() directo). Solo se vuelve a pedir si cambió la base
+  // activa (dbEpoch) desde la última carga.
+  if (tareasLoadedEpoch !== dbEpoch) {
+    const subtabWrapId = 'subTab' + subtab[0].toUpperCase() + subtab.slice(1); // la sub-pestaña visible ahora mismo
+    const ok = await safeLoad(async () => {
+      await loadKanbanConfig();
+      await loadKanbanTasks();
+    }, subtabWrapId);
+    if (!ok) return;
+    tareasLoadedEpoch = dbEpoch;
+  }
   populateAreaSelects();
   populateStatusSelects();
   if (subtab === 'gantt' && !ganttProjectsLoaded) await loadGanttProjects();
@@ -2573,28 +2587,15 @@ document.getElementById('subtasksList')?.addEventListener('input', () => {
 });
 
 // ── Entrada a la vista Tareas desde navigateTo() (main.js) ───────────────────
-// Encapsula el reseteo a la pestaña Kanban para no exponer currentSubTab
-// como binding reasignable fuera de este módulo.
+// Reentra en la misma sub-pestaña en la que estaba (Kanban/Lista/Gantt/
+// Calendario) en vez de forzar siempre Kanban — antes, ir a Home y volver a
+// Tareas perdía en qué vista estabas, a diferencia de Procesos/Stock que sí
+// recuerdan su sub-pestaña.
 export function enterTareasView() {
-  currentSubTab = 'kanban';
-  document.querySelectorAll('.sub-tab-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.subtab === 'kanban');
-  });
-  document.getElementById('subTabKanban').style.display     = '';
-  document.getElementById('subTabLista').style.display      = 'none';
-  document.getElementById('subTabGantt').style.display      = 'none';
-  document.getElementById('subTabCalendario').style.display = 'none';
-  document.getElementById('kanbanToolbar').style.display    = '';
-  document.getElementById('ganttToolbar').style.display     = 'none';
-  document.getElementById('calendarToolbar').style.display  = 'none';
-  document.getElementById('btnManageBoard').style.display   = '';
-
-  document.getElementById('kanbanBoard').innerHTML =
-    '<div class="loading-state" style="padding:48px 0">Cargando…</div>';
-  loadKanbanConfig().then(() => loadKanbanTasks()).then(() => {
-    populateAreaSelects();
-    populateStatusSelects();
-    renderKanban();
-  });
+  if (currentSubTab === 'kanban') {
+    document.getElementById('kanbanBoard').innerHTML =
+      '<div class="loading-state" style="padding:48px 0">Cargando…</div>';
+  }
+  switchSubTab(currentSubTab);
 }
 

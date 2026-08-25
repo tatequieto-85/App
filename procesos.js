@@ -1,8 +1,8 @@
 import { sheetsReq } from './auth.js';
 import {
-  esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeParseJSON,
+  esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeParseJSON, safeLoad,
   fmtDate, fmtDateShortEs, fmtDuration, fmtCOP, fmtSeconds, parseISODate, toISODate, addDays, diffDays,
-  normalizeObsList, ICON_COPY, ICON_EDIT, ICON_TRASH, ICON_DOWNLOAD, ICON_CHECK, ICON_MORE,
+  normalizeObsList, todayISOBogota, ICON_COPY, ICON_EDIT, ICON_TRASH, ICON_DOWNLOAD, ICON_CHECK, ICON_MORE,
   initCardMenus
 } from './utils.js';
 import { wasAccidentalTouch } from './input-guard.js';
@@ -34,6 +34,8 @@ let evalObsRows          = []; // { text, createdAt } rows for Fase 1 observacio
 let ejecucionDetailId    = null;
 let draggedInstrRow      = null; // for instruction row drag-reorder
 let draggedInstrList     = null;
+let armedDragRow         = null; // fila con draggable=true mientras se sostiene el handle
+let instrDragMouseupWired = false;
 let recetaDetailId       = null; // for recipe detail view
 let evalClockInterval    = null; // clock in evaluation modal
 let fase2EvalEjId        = null; // ejecucion being evaluated (fase2)
@@ -454,15 +456,12 @@ async function updateEjecucion(ej) {
 // ── Procesos: Render ──────────────────────────────────────────────────────────
 
 export async function loadProcesos() {
-  try {
+  const ok = await safeLoad(async () => {
     await loadRecetasData();
     await loadRecetaBlocks();
     await loadEjecucionesData();
-    renderRecetasList();
-    renderEjecucionesList();
-  } catch (e) {
-    console.error('loadProcesos:', e);
-  }
+  }, 'recetasList');
+  if (ok) { renderRecetasList(); renderEjecucionesList(); }
 }
 
 function recetaCardHTML(r) {
@@ -1373,9 +1372,17 @@ function buildInstruccionRow(text, tipo = 'paso') {
   // ── Drag to reorder within the same instrucciones-list ──────────────────
   const handle = row.querySelector('.instr-drag-handle');
 
-  // Only make row draggable while pressing the handle
-  handle.addEventListener('mousedown', () => { row.draggable = true; });
-  document.addEventListener('mouseup', () => { row.draggable = false; }, { passive: true });
+  // Only make row draggable while pressing the handle. Un solo listener de
+  // document (wired una sola vez, no uno por fila) — antes se agregaba un
+  // document.addEventListener('mouseup', ...) nuevo cada vez que se creaba
+  // una fila y nunca se removía: un leak real en recetas con varios pasos.
+  handle.addEventListener('mousedown', () => { row.draggable = true; armedDragRow = row; });
+  if (!instrDragMouseupWired) {
+    instrDragMouseupWired = true;
+    document.addEventListener('mouseup', () => {
+      if (armedDragRow) { armedDragRow.draggable = false; armedDragRow = null; }
+    }, { passive: true });
+  }
 
   row.addEventListener('dragstart', e => {
     draggedInstrRow  = row;
@@ -1520,9 +1527,8 @@ document.addEventListener('keydown', e => {
 function generateLotId(recipeName) {
   const now  = new Date();
   const abbr = (recipeName || 'LOT').replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() || 'LOT';
-  const opts = { timeZone: 'America/Bogota' };
-  const date = now.toLocaleDateString('en-CA', opts).replace(/-/g, '');
-  const time = now.toLocaleTimeString('es-CO', { ...opts, hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '');
+  const date = todayISOBogota().replace(/-/g, '');
+  const time = now.toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '');
   return `TQ-${abbr}-${date}-${time}`;
 }
 

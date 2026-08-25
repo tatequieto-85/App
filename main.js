@@ -2,7 +2,7 @@ import './input-guard.js'; // sistema anti-clics involuntarios: debe cargar ante
 import './undo.js'; // Ctrl+Z global
 
 import { accessToken, initAuth, requestSignIn, signOut, verifyBiometric, loadSavedToken, trySilentGoogleAuth } from './auth.js';
-import { esc } from './utils.js';
+import { esc, safeLoad } from './utils.js';
 import { activeBaseModulos } from './db-state.js';
 import { initBasesSheet, bases, connectToDatabase, showDbPicker } from './bases.js';
 import { loadStories } from './contenido.js';
@@ -37,8 +37,16 @@ const userMenu       = document.getElementById('userMenu');
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
+const VALID_VIEWS = ['home', 'contenido', 'tareas', 'procesos', 'compras', 'ferias', 'stock', 'informes', 'qr', 'ideas'];
+let handlingPopState = false; // evita pushear un history entry nuevo al responder a atrás/adelante
+
 export function navigateTo(view) {
   currentView = view;
+
+  if (!handlingPopState) {
+    const hash = view === 'home' ? '' : '#' + view;
+    if (hash !== location.hash) history.pushState({ view }, '', hash || location.pathname + location.search);
+  }
 
   document.getElementById('viewHome').style.display      = view === 'home'      ? '' : 'none';
   document.getElementById('viewContenido').style.display = view === 'contenido' ? '' : 'none';
@@ -59,28 +67,40 @@ export function navigateTo(view) {
     loadProcesos();
   }
   if (view === 'compras') {
-    loadCompras().then(() => renderComprasList());
+    safeLoad(loadCompras, 'comprasList').then(ok => { if (ok) renderComprasList(); });
   }
   if (view === 'ferias') {
-    Promise.all([loadFerias(), loadRecetasData(), loadEjecucionesData()])
-      .then(() => { renderFerias(); openTodaysFeriaCounterIfAny(); });
+    safeLoad(() => Promise.all([loadFerias(), loadRecetasData(), loadEjecucionesData()]), 'feriasList')
+      .then(ok => { if (ok) { renderFerias(); openTodaysFeriaCounterIfAny(); } });
   }
   if (view === 'stock') {
-    Promise.all([loadRecetasData(), loadEjecucionesData(), loadFerias(), loadStockTestigos(), loadStockMovimientos()])
-      .then(() => { renderStockResumen(); renderStockTrazabilidad(); renderStockTestigoList(); });
+    safeLoad(() => Promise.all([loadRecetasData(), loadEjecucionesData(), loadFerias(), loadStockTestigos(), loadStockMovimientos()]), 'stockResumenList')
+      .then(ok => { if (ok) { renderStockResumen(); renderStockTrazabilidad(); renderStockTestigoList(); } });
   }
   if (view === 'informes') {
     renderInformes();
   }
   if (view === 'qr') {
-    loadQRs().then(() => renderQRList());
+    safeLoad(loadQRs, 'qrList').then(ok => { if (ok) renderQRList(); });
   }
   if (view === 'ideas') {
-    loadIdeas().then(() => renderIdeasList());
+    safeLoad(loadIdeas, 'ideasList').then(ok => { if (ok) renderIdeasList(); });
   }
 
   window.scrollTo(0, 0);
 }
+
+// Le da función real al botón atrás/adelante del navegador (y al botón físico
+// "atrás" de Android, que dispara lo mismo en una PWA instalada): sin esto,
+// navegar entre módulos nunca tocaba el historial y ese botón no hacía nada
+// útil dentro de la app.
+window.addEventListener('popstate', e => {
+  const view = (e.state && e.state.view) || (location.hash ? location.hash.slice(1) : 'home');
+  if (!VALID_VIEWS.includes(view) || (view !== 'home' && !activeBaseModulos.includes(view))) return;
+  handlingPopState = true;
+  navigateTo(view);
+  handlingPopState = false;
+});
 
 // ── PWA install prompt (aparece una sola vez por dispositivo) ────────────────
 
@@ -223,8 +243,22 @@ async function onAuthSuccess() {
 
   if (bases.length === 1) {
     await connectToDatabase(bases[0]);
+    restoreViewFromHash();
   } else {
     showDbPicker();
+  }
+}
+
+// Si la URL ya tenía un módulo en el hash (recarga de página, o el ícono de
+// iOS/Android reabriendo en la última pestaña), entra ahí directo en vez de
+// forzar Home siempre. Sin esto, recargar a mitad de Tareas/Ferias perdía
+// dónde estabas.
+function restoreViewFromHash() {
+  const view = location.hash.slice(1);
+  if (view && VALID_VIEWS.includes(view) && activeBaseModulos.includes(view)) {
+    handlingPopState = true; // ya está en la URL, no hace falta pushear de nuevo
+    navigateTo(view);
+    handlingPopState = false;
   }
 }
 
@@ -303,6 +337,7 @@ const COMMAND_PALETTE_ITEMS = [
   { label: 'Tareas · Kanban',        module: 'tareas',    action: () => { navigateTo('tareas'); switchSubTab('kanban'); } },
   { label: 'Tareas · Lista',         module: 'tareas',    action: () => { navigateTo('tareas'); switchSubTab('lista'); } },
   { label: 'Tareas · Gantt',         module: 'tareas',    action: () => { navigateTo('tareas'); switchSubTab('gantt'); } },
+  { label: 'Tareas · Calendario',    module: 'tareas',    action: () => { navigateTo('tareas'); switchSubTab('calendario'); } },
   { label: 'Procesos · Recetas',     module: 'procesos',  action: () => { navigateTo('procesos'); document.querySelector('[data-procesostab="recetas"]')?.click(); } },
   { label: 'Procesos · Ejecuciones', module: 'procesos',  action: () => { navigateTo('procesos'); document.querySelector('[data-procesostab="ejecuciones"]')?.click(); } },
   { label: 'Compras',                module: 'compras',   action: () => navigateTo('compras') },
@@ -318,6 +353,7 @@ const COMMAND_PALETTE_ITEMS = [
   { label: '+ Nueva receta',         module: 'procesos',  action: () => { navigateTo('procesos'); document.getElementById('btnNewReceta')?.click(); } },
   { label: '+ Registrar compra',     module: 'compras',   action: () => { navigateTo('compras'); document.getElementById('btnNewCompra')?.click(); } },
   { label: '+ Nueva feria',          module: 'ferias',    action: () => { navigateTo('ferias'); document.getElementById('btnNewFeria')?.click(); } },
+  { label: 'Abrir contador de hoy',  module: 'ferias',    action: () => { navigateTo('ferias'); openTodaysFeriaCounterIfAny(); } },
   { label: '+ Ajuste de stock',      module: 'stock',     action: () => { navigateTo('stock'); document.querySelector('[data-stocktab="resumen"]')?.click(); document.getElementById('btnNewStockAjuste')?.click(); } },
   { label: '+ Generar QR',           module: 'qr',        action: () => { navigateTo('qr'); document.getElementById('qrNombre')?.focus(); } },
   { label: '+ Nueva idea',           module: 'ideas',     action: () => { navigateTo('ideas'); openIdeaModal(null); } },
@@ -341,7 +377,19 @@ function renderCommandPaletteList() {
   ).join('');
   list.querySelectorAll('.command-palette-item').forEach(el => {
     el.addEventListener('click', () => runCommandPaletteItem(+el.dataset.idx));
-    el.addEventListener('mouseenter', () => { commandPaletteIndex = +el.dataset.idx; renderCommandPaletteList(); });
+    // Solo mueve el resaltado (toggle de clase) en vez de volver a llamar a
+    // renderCommandPaletteList(): reconstruir el innerHTML de toda la lista
+    // en cada mouseenter reemplazaba el nodo justo debajo del cursor a mitad
+    // de un click (mousedown/mouseup ya no encontraban el mismo elemento),
+    // por lo que un click real (mouse) podía perder el gesto y no navegar a
+    // ningún lado — el teclado (Enter) no se veía afectado porque no pasa
+    // por hover.
+    el.addEventListener('mouseenter', () => {
+      commandPaletteIndex = +el.dataset.idx;
+      list.querySelectorAll('.command-palette-item').forEach(item =>
+        item.classList.toggle('active', +item.dataset.idx === commandPaletteIndex)
+      );
+    });
   });
 }
 
@@ -423,6 +471,27 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').then(reg => {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+
+    // Búsqueda manual de actualización (a diferencia del chequeo automático de
+    // arriba, que solo pasa al volver a la pestaña): si sw.js detecta una
+    // versión nueva, se activa sola (skipWaiting + clients.claim) y dispara el
+    // 'controllerchange' de arriba, que muestra "Sincronizar" — este botón
+    // solo fuerza ese chequeo ahora mismo y avisa si no había nada nuevo.
+    const btnCheck = document.getElementById('btnCheckUpdate');
+    btnCheck.addEventListener('click', async () => {
+      btnCheck.disabled = true;
+      btnCheck.textContent = 'Buscando…';
+      try { await reg.update(); } catch {}
+      setTimeout(() => {
+        if (document.getElementById('btnSyncVersion').style.display === 'none') {
+          btnCheck.textContent = '✅ Al día';
+          setTimeout(() => { btnCheck.textContent = '🔍 Buscar'; btnCheck.disabled = false; }, 2500);
+        } else {
+          btnCheck.textContent = '🔍 Buscar';
+          btnCheck.disabled = false;
+        }
+      }, 1500);
     });
   }).catch(err => console.warn('SW:', err));
 

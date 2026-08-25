@@ -1,0 +1,25 @@
+# Config del Worker que reemplaza al proxy de Apps Script (ver auth.js y
+# worker/README.md). Desplegar con `wrangler deploy` desde esta carpeta.
+
+name = "tateapp-token"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# Namespace propio de TATEAPP — OJO: la cuenta de Cloudflare ya tenía uno
+# llamado "REFRESH_TOKENS" (es del otro proyecto, Finanzas Hogar); por eso
+# este se creó como "TATEAPP_REFRESH_TOKENS" para no compartir claves entre
+# las dos apps (ambas guardarían el refresh_token bajo el mismo email).
+kv_namespaces = [
+  { binding = "REFRESH_TOKENS", id = "9fbd7fa1743c423292a51cbe56d4f27e" }
+]
+
+[vars]
+# Client ID de Google Cloud Console — es público, va también en config.js.
+GOOGLE_CLIENT_ID = "633677226751-t83hr59m0itju3j44s7l357r5l4tgsm7.apps.googleusercontent.com"
+# Origin exacto (sin path) desde donde se sirve la PWA. El Worker solo
+# responde con headers CORS a este origin.
+ALLOWED_ORIGIN = "https://tatequieto-85.github.io"
+
+# Secretos — NUNCA acá, se cargan aparte y quedan cifrados del lado de Cloudflare:
+#   wrangler secret put GOOGLE_CLIENT_SECRET
+#   wrangler secret put JWT_SECRET

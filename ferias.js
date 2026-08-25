@@ -1,5 +1,5 @@
 import { sheetsReq } from './auth.js';
-import { esc, setFb, setFieldError, clearFieldErrors, safeParseJSON, fmtDate, fmtDateShortEs, fmtCOP, parseISODate, toISODate, addDays, ICON_EDIT, ICON_TRASH, ICON_MORE, initCardMenus } from './utils.js';
+import { esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeParseJSON, fmtDate, fmtDateShortEs, fmtCOP, parseISODate, toISODate, addDays, ICON_EDIT, ICON_TRASH, ICON_MORE, initCardMenus } from './utils.js';
 import { wasAccidentalTouch } from './input-guard.js';
 import { openCalendarPopover } from './tareas.js';
 import { ejecuciones, getStockProducido } from './procesos.js';
@@ -337,8 +337,14 @@ function openFeriaModal(editId) {
   setTimeout(() => document.getElementById('feriaEmpresa').focus(), 100);
 }
 
+function isFeriaFormDirty() {
+  return !!document.getElementById('feriaEmpresa')?.value.trim()
+    || !!document.getElementById('feriaLugar')?.value.trim()
+    || !!document.getElementById('feriaObservaciones')?.value.trim();
+}
+
 function closeFeriaModal() {
-  document.getElementById('feriaOverlay').classList.remove('open');
+  confirmCloseIfDirty('feriaOverlay', isFeriaFormDirty);
 }
 document.getElementById('btnCloseFeria').addEventListener('click', closeFeriaModal);
 document.getElementById('feriaOverlay').addEventListener('click', e => {
@@ -628,8 +634,12 @@ function renderFeriaVentaRows(f, fecha) {
   });
 }
 
+function isFeriaVentaFormDirty() {
+  return Array.from(document.querySelectorAll('.feria-venta-row-qty')).some(input => input.value.trim());
+}
+
 function closeFeriaVentaModal() {
-  document.getElementById('feriaVentaOverlay').classList.remove('open');
+  confirmCloseIfDirty('feriaVentaOverlay', isFeriaVentaFormDirty);
 }
 document.getElementById('btnOpenFeriaVenta').addEventListener('click', () => {
   document.getElementById('feriaVentaOverlay').classList.add('open');
@@ -639,8 +649,12 @@ document.getElementById('feriaVentaOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('feriaVentaOverlay')) closeFeriaVentaModal();
 });
 
+function isFeriaObsFormDirty() {
+  return !!document.getElementById('feriaObsDiariaInput')?.value.trim();
+}
+
 function closeFeriaObsModal() {
-  document.getElementById('feriaObsOverlay').classList.remove('open');
+  confirmCloseIfDirty('feriaObsOverlay', isFeriaObsFormDirty);
 }
 document.getElementById('btnOpenFeriaObs').addEventListener('click', () => {
   document.getElementById('feriaObsOverlay').classList.add('open');

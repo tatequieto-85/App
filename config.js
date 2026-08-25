@@ -13,10 +13,11 @@ const CONFIG = {
   // No cambiar esto
   SCOPES: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
 
-  // Paso 3 (opcional, evita que te pida entrar cada ~1 hora): URL del Web App
-  // de Apps Script que renueva el token sin depender de cookies del navegador.
-  // Déjalo vacío ('') si todavía no lo configuraste — la app sigue funcionando
-  // igual que antes, solo sin este beneficio.
-  TOKEN_PROXY_URL: 'https://script.google.com/macros/s/AKfycbwD6wY-HJIDAoOZZp_mRYS-FiuKuMWZePs_NEUERzH7tcsjXtSZMp3nwo7Bl4StYKaVnQ/exec'
+  // Paso 3 (opcional, evita que te pida entrar cada ~1 hora): URL del
+  // Cloudflare Worker que renueva el token sin depender de cookies del
+  // navegador (ver worker/README.md para desplegarlo). Déjalo vacío ('') si
+  // todavía no lo configuraste — la app sigue funcionando igual que antes,
+  // solo sin este beneficio.
+  WORKER_URL: 'https://tateapp-token.byco85.workers.dev'
 
 };

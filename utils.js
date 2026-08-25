@@ -86,6 +86,24 @@ export function normalizeObsList(obs) {
 
 export function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// Envuelve la carga inicial de una vista (Compras, Ferias, QR, Ideas, Stock,
+// etc.): antes, si sheetsReq fallaba acá (token vencido, sin internet, error
+// de Sheets), la vista se quedaba colgada en silencio — sin excepción visible
+// para el usuario, solo un console.error. Si falla, muestra el error dentro
+// del contenedor de la lista en vez de dejarlo así. No reemplaza a setFb en
+// los formularios de guardar/editar, que ya tienen su propio feedback.
+export async function safeLoad(loadFn, container) {
+  try {
+    await loadFn();
+    return true;
+  } catch (e) {
+    console.error(e);
+    const el = typeof container === 'string' ? document.getElementById(container) : container;
+    if (el) el.innerHTML = `<div class="empty-state">No se pudo cargar: ${esc(e.message)}</div>`;
+    return false;
+  }
+}
+
 export function safeParseJSON(val, fallback) {
   if (!val) return fallback;
   try { return JSON.parse(val); } catch { return fallback; }
@@ -113,6 +131,10 @@ export function fmtDuration(ms) {
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
+}
+
+export function todayISOBogota() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 }
 
 export function fmtDateShortEs(iso) {
