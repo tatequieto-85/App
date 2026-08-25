@@ -15,7 +15,7 @@ kv_namespaces = [
 
 [vars]
 # Client ID de Google Cloud Console — es público, va también en config.js.
-GOOGLE_CLIENT_ID = "633677226751-t83hr59m0itju3j44s7l357r5l4tgsm7.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = "633677226751-7nutb18pa7sbp2e5n0l01iophh43qf32.apps.googleusercontent.com"
 # Origin exacto (sin path) desde donde se sirve la PWA. El Worker solo
 # responde con headers CORS a este origin.
 ALLOWED_ORIGIN = "https://tatequieto-85.github.io"
