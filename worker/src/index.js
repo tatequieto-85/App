@@ -112,9 +112,10 @@ async function refreshWithGoogle(refreshToken, env) {
   return resp.json();
 }
 
-// Identifica al usuario (para la clave de KV) sin depender de scopes extra:
-// funciona con cualquier access_token válido, sin pedirle 'email'/'profile'
-// a CONFIG.SCOPES en el frontend (que hoy solo tiene spreadsheets+drive.file).
+// Identifica al usuario (para la clave de KV). Necesita que el access_token
+// tenga scope de identidad (userinfo.email/profile en CONFIG.SCOPES) — sin
+// eso este endpoint responde "invalid_request / Invalid Credentials" aunque
+// el token sea válido para Sheets/Drive.
 async function fetchUserKey(accessToken) {
   try {
     const resp = await fetch(GOOGLE_USERINFO_URL, { headers: { Authorization: `Bearer ${accessToken}` } });

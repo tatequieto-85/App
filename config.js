@@ -10,8 +10,11 @@ const CONFIG = {
   // URL ejemplo: https://docs.google.com/spreadsheets/d/ESTE_PARTE/edit
   SHEET_ID: '1kAEaWY1B7bpKbLRbW0sZFITTLYpK_amvTfXPde4AbNE',
 
-  // No cambiar esto
-  SCOPES: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
+  // No cambiar esto — email/profile hacen falta para que
+  // oauth2.googleapis.com/userinfo identifique al usuario (lo usan el Worker,
+  // para la clave de KV, y main.js para el saludo). Sin ellos ese endpoint
+  // responde "Invalid Credentials" aunque el access_token sea válido.
+  SCOPES: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
 
   // Paso 3 (opcional, evita que te pida entrar cada ~1 hora): URL del
   // Cloudflare Worker que renueva el token sin depender de cookies del
