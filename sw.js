@@ -1,4 +1,4 @@
-const CACHE = 'ss-v61';
+const CACHE = 'ss-v66';
 const ASSETS = [
   './', './index.html', './style.css', './config.js', './vendor-qrcode.js',
   './utils.js', './input-guard.js', './db-state.js', './undo.js', './auth.js',
@@ -26,6 +26,11 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  // Todo lo cross-origin (Sheets, Drive, el Worker de sesión en auth.js, etc.)
+  // queda sin manejar acá a propósito: nunca se cachea, siempre va directo a
+  // la red. NO sacar este chequeo — sin él, la primera respuesta del Worker
+  // de sesión (un access_token) quedaría cacheada para siempre y ningún
+  // intento de renovación posterior volvería a tocar la red de verdad.
   if (!e.request.url.startsWith(self.location.origin)) return;
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
