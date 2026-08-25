@@ -39,8 +39,12 @@ npx wrangler secret put GOOGLE_CLIENT_SECRET
 npx wrangler secret put JWT_SECRET
 # (pegar cualquier cadena larga y random — ej: `openssl rand -hex 32`)
 
-# 4. Revisar wrangler.toml: GOOGLE_CLIENT_ID y ALLOWED_ORIGIN ya están
-#    completados con los valores de este proyecto; ajustar solo si cambian.
+# 4. Revisar wrangler.toml: GOOGLE_CLIENT_ID, ALLOWED_ORIGIN y REDIRECT_URI
+#    ya están completados con los valores de este proyecto; ajustar solo si
+#    cambian. REDIRECT_URI tiene que estar además cargado, byte a byte igual,
+#    como "URI de redireccionamiento autorizada" del Client ID en Google
+#    Cloud Console (Credenciales → tu OAuth Client → esa sección) — si no,
+#    Google rechaza el login con redirect_uri_mismatch.
 
 # 5. Deploy
 npx wrangler deploy

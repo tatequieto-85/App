@@ -19,6 +19,9 @@ GOOGLE_CLIENT_ID = "633677226751-7nutb18pa7sbp2e5n0l01iophh43qf32.apps.googleuse
 # Origin exacto (sin path) desde donde se sirve la PWA. El Worker solo
 # responde con headers CORS a este origin.
 ALLOWED_ORIGIN = "https://tatequieto-85.github.io"
+# Debe coincidir byte a byte con CONFIG.REDIRECT_URI (config.js) y con una
+# "URI de redireccionamiento autorizada" del Client ID en Google Cloud Console.
+REDIRECT_URI = "https://tatequieto-85.github.io/App/"
 
 # Secretos — NUNCA acá, se cargan aparte y quedan cifrados del lado de Cloudflare:
 #   wrangler secret put GOOGLE_CLIENT_SECRET

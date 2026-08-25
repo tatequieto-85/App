@@ -103,6 +103,21 @@ async function tryRefreshViaWorker() {
   }
 }
 
+// Con ux_mode:'redirect', Google vuelve a REDIRECT_URI con ?code=... (o
+// ?error=...) en vez de invocar un callback en memoria — hay que levantarlo
+// de la URL al cargar la página y limpiarlo para no reprocesarlo en un
+// refresh posterior (eso es lo que antes disparaba el "¿reenviar
+// formulario?" de Safari con el flujo de popup).
+function consumeCodeFromUrl() {
+  const params = new URLSearchParams(location.search);
+  if (!params.has('code') && !params.has('error')) return null;
+  const code = params.get('code');
+  ['code', 'scope', 'authuser', 'prompt', 'error'].forEach(k => params.delete(k));
+  const clean = location.pathname + (params.toString() ? `?${params}` : '') + location.hash;
+  history.replaceState({}, '', clean);
+  return code;
+}
+
 async function exchangeCodeForTokens(code) {
   try {
     const resp = await fetch(`${CONFIG.WORKER_URL}/oauth/callback?code=${encodeURIComponent(code)}`)
@@ -154,15 +169,17 @@ export async function initAuth(onSuccess, onNeedSignIn) {
     codeClient = google.accounts.oauth2.initCodeClient({
       client_id: CONFIG.CLIENT_ID,
       scope: CONFIG.SCOPES,
-      ux_mode: 'popup',
+      ux_mode: 'redirect',
+      redirect_uri: CONFIG.REDIRECT_URI,
       access_type: 'offline',
-      prompt: 'consent', // fuerza que Google entregue refresh_token también en re-logins
-      callback: async (resp) => {
-        if (resp.error || !resp.code) return console.error('Auth error:', resp.error);
-        const ok = await exchangeCodeForTokens(resp.code);
-        if (ok) await onSuccess();
-      }
+      prompt: 'consent' // fuerza que Google entregue refresh_token también en re-logins
     });
+
+    const returnedCode = consumeCodeFromUrl();
+    if (returnedCode) {
+      const ok = await exchangeCodeForTokens(returnedCode);
+      if (ok) { await onSuccess(); return; }
+    }
   } else {
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CONFIG.CLIENT_ID,

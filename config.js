@@ -21,6 +21,12 @@ const CONFIG = {
   // navegador (ver worker/README.md para desplegarlo). Déjalo vacío ('') si
   // todavía no lo configuraste — la app sigue funcionando igual que antes,
   // solo sin este beneficio.
-  WORKER_URL: 'https://tateapp-token.byco85.workers.dev'
+  WORKER_URL: 'https://tateapp-token.byco85.workers.dev',
+
+  // Debe coincidir EXACTO con una "URI de redireccionamiento autorizada" del
+  // Client ID de arriba en Google Cloud Console — el login usa ux_mode:
+  // 'redirect' (en vez de popup) porque Safari/WebKit en iOS rompe el flujo
+  // de popup+postMessage tanto en pestaña normal como instalado a pantalla.
+  REDIRECT_URI: 'https://tatequieto-85.github.io/App/'
 
 };

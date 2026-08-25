@@ -89,9 +89,9 @@ async function exchangeCodeWithGoogle(code, env) {
       code,
       client_id: env.GOOGLE_CLIENT_ID,
       client_secret: env.GOOGLE_CLIENT_SECRET,
-      // Google Identity Services con ux_mode:'popup' (auth.js) no usa un
-      // redirect real — 'postmessage' es el valor exacto que Google espera acá.
-      redirect_uri: 'postmessage',
+      // Debe ser byte a byte el mismo redirect_uri que mandó el frontend al
+      // pedir el code (ux_mode:'redirect' en auth.js) — Google lo exige.
+      redirect_uri: env.REDIRECT_URI,
       grant_type: 'authorization_code'
     })
   });
