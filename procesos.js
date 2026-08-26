@@ -20,6 +20,8 @@ let recetaBlocksSheetId  = null;
 let recetaBlocksLoaded   = false;
 let draggedBlockId       = null;
 let currentRecetaGroupId = null; // null = galería de grupos; blockId ('' = sin bloque) = dentro de un grupo
+let creatingNewGroup     = false; // true = mostrar el mini-formulario in-place de "nueva agrupación" en la galería
+let newRecetaBlockId     = ''; // a qué grupo pertenece la próxima receta nueva (se crea siempre desde dentro de un grupo)
 let currentProcesosTab   = 'recetas';
 let editRecetaId         = null;
 let recetaFixedFirst     = null; // etapa fija de inicio (oculta en el editor)
@@ -513,14 +515,19 @@ function recetaGroupSections() {
 }
 
 // Pantalla principal de Recetas: una tarjeta por agrupación (galería, como
-// Ferias/Ideas) en vez de todas las recetas apiladas. Tocar una tarjeta
-// entra al grupo (ver renderRecetaGroupDetail); la última tarjeta es un
-// "+" que arma un mini-formulario in-place para crear un grupo nuevo. Mantener
-// presionada una tarjeta muestra Editar/Borrar montados sobre ella (ver
-// wireRecetaGroupCardPress más abajo) — Editar reemplaza la tarjeta por el
-// mismo tipo de mini-formulario in-place, ya prellenado.
+// Ferias/Ideas) en vez de todas las recetas apiladas. "Sin bloque" no se
+// muestra acá — ya no se puede crear una receta sin grupo (ver
+// btnNewReceta/btnNewRecetaGroup en renderRecetasList), así que ese
+// pseudo-grupo solo importa para lookups internos (recetaGroupSections
+// lo sigue incluyendo). Tocar una tarjeta entra al grupo (ver
+// renderRecetaGroupDetail). Mantener presionada una tarjeta muestra
+// Editar/Borrar montados sobre ella (ver wireRecetaGroupCardPress más
+// abajo) — Editar reemplaza la tarjeta por un mini-formulario in-place,
+// ya prellenado. El botón flotante "+" (btnNewRecetaGroup, wired en
+// renderRecetasList) arma el mismo tipo de mini-formulario para crear un
+// grupo nuevo, agregado al principio de la grilla.
 function renderRecetaGroupsGallery(container) {
-  const sections = recetaGroupSections();
+  const sections = recetaGroupSections().filter(sec => sec.id);
   const cardsHTML = sections.map((sec, idx) => {
     // Colores muy pasteles (14% de relleno) para separar visualmente cada
     // grupo; "Sin bloque" queda neutro por no ser un grupo real. Si el
@@ -544,14 +551,53 @@ function renderRecetaGroupsGallery(container) {
       </div>`;
   }).join('');
 
-  container.innerHTML = `
-    <div class="receta-groups-grid">
-      ${cardsHTML}
-      <div class="receta-group-card receta-group-card--new" id="btnNewRecetaGroup">
-        <div class="receta-group-card-plus">+</div>
-        <div class="receta-group-card-name">Nueva agrupación</div>
+  const newFormHTML = creatingNewGroup ? `
+    <div class="receta-group-card receta-group-card--form" data-new-group-form>
+      <div class="receta-group-new-row">
+        <input type="text" class="receta-group-new-icon" placeholder="🍯" maxlength="4" />
+        <input type="text" class="receta-group-new-name" placeholder="Nombre del grupo…" maxlength="40" />
       </div>
-    </div>`;
+      <input type="color" class="receta-group-new-color" value="#714B67" />
+      <div class="receta-group-new-actions">
+        <button type="button" class="btn-primary btn-sm" data-confirm-new-group>Crear</button>
+        <button type="button" class="btn-outline btn-sm" data-cancel-new-group>Cancelar</button>
+      </div>
+      <div class="feedback" data-new-group-feedback></div>
+    </div>` : '';
+
+  container.innerHTML = `<div class="receta-groups-grid">${newFormHTML}${cardsHTML}</div>`;
+
+  if (creatingNewGroup) {
+    const formEl    = container.querySelector('[data-new-group-form]');
+    const nameInput = formEl.querySelector('.receta-group-new-name');
+    nameInput.focus();
+    formEl.querySelector('[data-cancel-new-group]').addEventListener('click', () => {
+      creatingNewGroup = false;
+      renderRecetasList();
+    });
+    const confirmNewGroup = async () => {
+      const nombre = nameInput.value.trim();
+      const icono  = formEl.querySelector('.receta-group-new-icon').value.trim();
+      const color  = formEl.querySelector('.receta-group-new-color').value;
+      const fb     = formEl.querySelector('[data-new-group-feedback]');
+      if (!nombre) return setFb(fb, 'Ponele un nombre al grupo.', 'err');
+      if (recetaBlocks.find(b => b.nombre.toLowerCase() === nombre.toLowerCase()))
+        return setFb(fb, 'Ya existe un grupo con ese nombre.', 'err');
+      const btn = formEl.querySelector('[data-confirm-new-group]');
+      btn.disabled = true;
+      try {
+        await appendRecetaBlock({ id: crypto.randomUUID(), nombre, color, icono, creadoEn: new Date().toISOString() });
+        await loadRecetaBlocks();
+        creatingNewGroup = false;
+        renderRecetasList();
+      } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); btn.disabled = false; }
+    };
+    formEl.querySelector('[data-confirm-new-group]').addEventListener('click', confirmNewGroup);
+    nameInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); confirmNewGroup(); }
+      if (e.key === 'Escape') { e.preventDefault(); creatingNewGroup = false; renderRecetasList(); }
+    });
+  }
 
   container.querySelectorAll('[data-del-group]').forEach(btn => {
     btn.addEventListener('click', async e => {
@@ -652,45 +698,6 @@ function renderRecetaGroupsGallery(container) {
     });
   });
 
-  document.getElementById('btnNewRecetaGroup').addEventListener('click', function () {
-    this.outerHTML = `
-      <div class="receta-group-card receta-group-card--form">
-        <div class="receta-group-new-row">
-          <input type="text" class="receta-group-new-icon" placeholder="🍯" maxlength="4" />
-          <input type="text" class="receta-group-new-name" placeholder="Nombre del grupo…" maxlength="40" />
-        </div>
-        <input type="color" class="receta-group-new-color" value="#714B67" />
-        <div class="receta-group-new-actions">
-          <button type="button" class="btn-primary btn-sm" id="btnConfirmRecetaGroup">Crear</button>
-          <button type="button" class="btn-outline btn-sm" id="btnCancelRecetaGroup">Cancelar</button>
-        </div>
-        <div class="feedback" id="recetaGroupInlineFeedback"></div>
-      </div>`;
-    const nameInput = container.querySelector('.receta-group-new-name');
-    nameInput.focus();
-    container.querySelector('#btnCancelRecetaGroup').addEventListener('click', () => renderRecetasList());
-    const confirmNewGroup = async () => {
-      const nombre = nameInput.value.trim();
-      const icono  = container.querySelector('.receta-group-new-icon').value.trim();
-      const color  = container.querySelector('.receta-group-new-color').value;
-      const fb     = document.getElementById('recetaGroupInlineFeedback');
-      if (!nombre) return setFb(fb, 'Ponele un nombre al grupo.', 'err');
-      if (recetaBlocks.find(b => b.nombre.toLowerCase() === nombre.toLowerCase()))
-        return setFb(fb, 'Ya existe un grupo con ese nombre.', 'err');
-      const btn = document.getElementById('btnConfirmRecetaGroup');
-      btn.disabled = true;
-      try {
-        await appendRecetaBlock({ id: crypto.randomUUID(), nombre, color, icono, creadoEn: new Date().toISOString() });
-        await loadRecetaBlocks();
-        renderRecetasList();
-      } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); btn.disabled = false; }
-    };
-    container.querySelector('#btnConfirmRecetaGroup').addEventListener('click', confirmNewGroup);
-    nameInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter')  { e.preventDefault(); confirmNewGroup(); }
-      if (e.key === 'Escape') { e.preventDefault(); renderRecetasList(); }
-    });
-  });
 }
 
 // Mantener presionada una tarjeta de grupo (mouse o dedo) muestra el panel
@@ -769,13 +776,16 @@ function renderRecetasList() {
   const container = document.getElementById('recetasList');
   if (!container) return;
 
-  if (!recetas.length) {
-    container.innerHTML = '<div class="empty-state">No hay recetas. Crea la primera con "+ Nueva receta".</div>';
-    return;
-  }
-
+  // Ya no hay "+ Nueva receta" fuera de un grupo (una receta siempre nace
+  // dentro de un grupo) — por eso la galería se muestra igual aunque no
+  // haya recetas todavía; ahí está el "+" para crear el primer grupo.
   if (currentRecetaGroupId == null) renderRecetaGroupsGallery(container);
   else renderRecetaGroupDetail(container);
+
+  const btnNuevaReceta = document.getElementById('btnNewReceta');
+  const btnNuevoGrupo  = document.getElementById('btnNewRecetaGroup');
+  if (btnNuevaReceta) btnNuevaReceta.style.display = currentRecetaGroupId != null ? '' : 'none';
+  if (btnNuevoGrupo)  btnNuevoGrupo.style.display  = currentRecetaGroupId == null ? '' : 'none';
 }
 
 function wireRecetaCardEvents(container) {
@@ -1238,8 +1248,9 @@ document.querySelectorAll('[data-procesostab]').forEach(btn => {
     document.querySelectorAll('[data-procesostab]').forEach(b =>
       b.classList.toggle('active', b.dataset.procesostab === currentProcesosTab)
     );
-    // btnNewReceta y btnManageIngredientes viven dentro de #subTabRecetas
-    // ahora, así que se muestran/ocultan solos con ese contenedor.
+    // btnNewReceta y btnNewRecetaGroup viven dentro de #subTabRecetas, así
+    // que se ocultan solos con ese contenedor al cambiar de sub-pestaña;
+    // renderRecetasList() decide cuál de los dos mostrar (ver ahí).
     document.getElementById('subTabRecetas').style.display     = currentProcesosTab === 'recetas'     ? '' : 'none';
     document.getElementById('subTabEjecuciones').style.display = currentProcesosTab === 'ejecuciones' ? '' : 'none';
   });
@@ -1306,8 +1317,9 @@ function collectIngredientesMaestros() {
 
 // ── Procesos: Receta modal (crear / editar) ───────────────────────────────────
 
-function openRecetaModal(editId) {
+function openRecetaModal(editId, defaultBlockId) {
   editRecetaId = editId || null;
+  newRecetaBlockId = editId ? '' : (defaultBlockId || '');
   const overlay = document.getElementById('recetaOverlay');
   document.getElementById('recetaFeedback').textContent = '';
 
@@ -1585,7 +1597,7 @@ document.getElementById('btnSaveReceta').addEventListener('click', async () => {
     } else {
       await appendReceta({
         id: crypto.randomUUID(), nombre, descripcion: '', etapas,
-        ingredientesMaestros,
+        ingredientesMaestros, blockId: newRecetaBlockId,
         creadoEn: new Date().toISOString()
       });
     }
@@ -1600,7 +1612,15 @@ document.getElementById('btnSaveReceta').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('btnNewReceta').addEventListener('click', () => openRecetaModal(null));
+document.getElementById('btnNewReceta').addEventListener('click', () => openRecetaModal(null, currentRecetaGroupId));
+
+// Mismo mini-formulario in-place que usan "Editar grupo" y el que se
+// mostraba antes en la tarjeta punteada — ahora vive detrás de este botón
+// flotante, solo visible en la galería (ver renderRecetasList).
+document.getElementById('btnNewRecetaGroup').addEventListener('click', () => {
+  creatingNewGroup = true;
+  renderRecetasList();
+});
 
 // ── Escape key closes any open modal ─────────────────────────────────────────
 document.addEventListener('keydown', e => {

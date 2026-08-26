@@ -1580,7 +1580,7 @@ input, textarea, [contenteditable], [contenteditable] * {
 .receta-group-card {
   position: relative; overflow: hidden;
   border: 1.5px solid var(--border); border-radius: var(--radius);
-  padding: 16px; background: var(--surface); cursor: pointer;
+  padding: 16px 16px 0; background: var(--surface); cursor: pointer;
   aspect-ratio: 4 / 5; box-sizing: border-box;
   display: flex; flex-direction: column; justify-content: center; gap: 6px;
   transition: box-shadow .2s, border-color .2s;
@@ -1589,15 +1589,15 @@ input, textarea, [contenteditable], [contenteditable] * {
 .receta-group-card.dragging { opacity: .4; }
 .receta-group-card.block-drag-over { outline: 2px dashed var(--brand); outline-offset: 2px; }
 .receta-group-card-icon { font-size: 32px; line-height: 1; }
-.receta-group-card-name { font-size: 14.5px; font-weight: 700; color: var(--text); }
+.receta-group-card-name { font-size: 14.5px; font-weight: 700; color: var(--text); padding-bottom: 16px; }
 
 /* Panel Editar/Borrar montado sobre la tarjeta al mantenerla presionada —
-   los márgenes negativos cancelan el padding del card para que quede al
-   ras del borde inferior (overflow:hidden en .receta-group-card recorta
-   las puntas para que sigan la misma curva). */
+   el card no tiene padding abajo (ver arriba) justamente para que este
+   panel llegue al ras del borde inferior sin recurrir a márgenes
+   negativos; overflow:hidden en .receta-group-card recorta las puntas
+   para que sigan la misma curva del borde. */
 .receta-group-card-actions {
   display: none; position: absolute; left: 0; right: 0; bottom: 0;
-  margin: 0 -16px -16px -16px;
   border-top: 1px solid var(--border);
 }
 .receta-group-card-actions.open { display: flex; }
@@ -1623,13 +1623,7 @@ input, textarea, [contenteditable], [contenteditable] * {
 }
 .btn-fab:hover  { background: var(--brand-hover); }
 .btn-fab:active { transform: scale(.95); }
-.receta-group-card--new {
-  border-style: dashed; align-items: center; justify-content: center; text-align: center;
-  color: var(--text-sub);
-}
-.receta-group-card--new:hover { border-color: var(--brand); color: var(--brand); }
-.receta-group-card-plus { font-size: 22px; font-weight: 700; line-height: 1; }
-.receta-group-card--form { cursor: default; align-items: stretch; gap: 8px; }
+.receta-group-card--form { cursor: default; align-items: stretch; gap: 8px; padding-bottom: 16px; }
 .receta-group-card--form:hover { box-shadow: none; }
 .receta-group-new-row { display: flex; gap: 6px; }
 .receta-group-new-icon, .receta-group-new-name, .receta-group-new-color {
