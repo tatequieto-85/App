@@ -1,4 +1,4 @@
-const CACHE = 'ss-v108';
+const CACHE = 'ss-v109';
 const ASSETS = [
   './', './index.html', './style.css', './config.js', './vendor-qrcode.js',
   './utils.js', './input-guard.js', './db-state.js', './undo.js', './auth.js',
@@ -16,10 +16,24 @@ self.addEventListener('install', e => {
   // max-age=600) — si el archivo ya estaba en la caché HTTP del celular de
   // los últimos 10 minutos, la versión nueva del SW terminaba guardando bytes
   // viejos igual, aunque el nombre de CACHE ya fuera el correcto.
+  //
+  // Sin .catch() acá a propósito: si UN solo archivo falla (hipo de red,
+  // 404 por un ASSETS desactualizado, etc.), todo el install tiene que
+  // fallar y quedarse con la versión vieja — que sigue andando — en vez de
+  // "activarse" con esa versión nueva incompleta. Antes se ignoraba el
+  // error de cada archivo por separado: la versión nueva quedaba con un
+  // módulo faltante Y de paso borraba (en 'activate') la caché vieja que sí
+  // lo tenía completo — la app quedaba rota sin forma de recuperarse sola
+  // (típico síntoma: se traba en la pantalla de "Continuar con Google"
+  // porque auth.js u otro módulo del que depende el arranque no cargó
+  // bien). El navegador reintenta el install solo más adelante.
   e.waitUntil(
     caches.open(CACHE).then(c =>
       Promise.all(ASSETS.map(url =>
-        fetch(url, { cache: 'reload' }).then(res => c.put(url, res)).catch(() => {})
+        fetch(url, { cache: 'reload' }).then(res => {
+          if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+          return c.put(url, res);
+        })
       ))
     )
   );
