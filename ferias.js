@@ -224,10 +224,12 @@ function feriaEsFutura(f) {
   return !!f.fechaInicio && toISODate(new Date()) < f.fechaInicio;
 }
 
-// Ya pasó por calendario o se cerró a mano — mismo criterio que hace que
-// handleAbrirFeria caiga en el resumen (ver más abajo).
+// Solo por calendario (ya pasó la fecha de fin) — a propósito no mira
+// f.cerrada: una feria cerrada a mano mientras sigue en fechas (cierre
+// manual anticipado) no debería bajar al grupo de terminadas ni pintarse
+// gris, aunque el doble clic ya le muestre el resumen en vez del contador.
 function feriaHaTerminado(f) {
-  return !feriaEstaEnCurso(f) && !feriaEsFutura(f);
+  return !!f.fechaFin && toISODate(new Date()) > f.fechaFin;
 }
 
 // Punto de entrada único del botón "Registrar conteo"/"Ver resumen" y del
@@ -399,6 +401,9 @@ function openFeriaModal(editId) {
     document.getElementById('feriaPrecio').value               = f.precio || '';
     document.getElementById('feriaLugar').value                = f.lugar || '';
     document.getElementById('feriaObservaciones').value        = f.observaciones || '';
+    // Solo cuando se cerró a mano ("Terminar feria"): si simplemente ya
+    // pasó por calendario, no hay nada que "reabrir".
+    document.getElementById('feriaReabrirWrap').style.display = f.cerrada ? '' : 'none';
   } else {
     document.getElementById('feriaModalTitle').textContent    = 'Nueva feria';
     document.getElementById('feriaEmpresa').value             = '';
@@ -407,6 +412,7 @@ function openFeriaModal(editId) {
     document.getElementById('feriaPrecio').value               = '';
     document.getElementById('feriaLugar').value                = '';
     document.getElementById('feriaObservaciones').value        = '';
+    document.getElementById('feriaReabrirWrap').style.display = 'none';
   }
   updateFeriaFechasTrigger();
   document.getElementById('feriaOverlay').classList.add('open');
@@ -414,6 +420,23 @@ function openFeriaModal(editId) {
 }
 document.getElementById('btnFeriaStockFromEdit').addEventListener('click', () => {
   if (feriaEditId) openFeriaStockModal(feriaEditId);
+});
+document.getElementById('btnFeriaReabrir').addEventListener('click', async () => {
+  const f = ferias.find(x => x.id === feriaEditId);
+  if (!f) return;
+  const btn = document.getElementById('btnFeriaReabrir');
+  btn.disabled = true;
+  try {
+    f.cerrada = false;
+    await updateFeria(f);
+    document.getElementById('feriaReabrirWrap').style.display = 'none';
+    renderFerias();
+  } catch (e) {
+    f.cerrada = true;
+    alert('Error al reabrir la feria: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 function isFeriaFormDirty() {
