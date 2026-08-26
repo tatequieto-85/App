@@ -558,6 +558,11 @@ function renderRecetaGroupsGallery(container) {
   container.querySelectorAll('.receta-group-card[data-group-id]').forEach(card => {
     card.addEventListener('click', () => {
       currentRecetaGroupId = card.dataset.groupId;
+      // Sin botón "Volver" en pantalla — se sale del grupo con el gesto
+      // nativo de deslizar desde el borde izquierdo (o el botón atrás),
+      // que en iOS/Android navega el historial. Sin este pushState ese
+      // gesto no tendría a dónde volver (ver popstate más abajo).
+      history.pushState({ view: 'procesos', recetaDrill: true }, '', location.hash || '#procesos');
       renderRecetasList();
     });
   });
@@ -640,22 +645,23 @@ function renderRecetaGroupDetail(container) {
   const sec = recetaGroupSections().find(s => s.id === currentRecetaGroupId);
   if (!sec) { currentRecetaGroupId = null; renderRecetasList(); return; }
 
-  container.innerHTML = `
-    <div class="receta-group-detail-header">
-      <button type="button" class="btn-outline btn-sm" id="btnBackRecetaGroups">← Grupos</button>
-      <span class="receta-group-detail-name">${esc(sec.nombre)}</span>
-      <span class="receta-block-count">${sec.items.length}</span>
-    </div>
-    ${sec.items.length ? `<div class="receta-cards-grid">${sec.items.map(recetaCardHTML).join('')}</div>` : '<div class="receta-block-empty">No hay recetas en este grupo todavía.</div>'}
-  `;
-
-  document.getElementById('btnBackRecetaGroups').addEventListener('click', () => {
-    currentRecetaGroupId = null;
-    renderRecetasList();
-  });
+  container.innerHTML = sec.items.length
+    ? `<div class="receta-cards-grid">${sec.items.map(recetaCardHTML).join('')}</div>`
+    : '<div class="receta-block-empty">No hay recetas en este grupo todavía.</div>';
 
   wireRecetaCardEvents(container);
 }
+
+// Sin botón "Volver" en pantalla: salir de un grupo depende del gesto
+// nativo de deslizar/atrás del navegador, que dispara esto — deshace el
+// pushState de arriba volviendo a la galería. Si el popstate no viene de
+// ese pushState (el usuario ya no está en un grupo), no hace nada.
+window.addEventListener('popstate', () => {
+  if (currentRecetaGroupId != null) {
+    currentRecetaGroupId = null;
+    renderRecetasList();
+  }
+});
 
 function renderRecetasList() {
   const container = document.getElementById('recetasList');

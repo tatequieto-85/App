@@ -1566,39 +1566,6 @@ input, textarea, [contenteditable], [contenteditable] * {
 .card-menu-list button:hover { background: rgba(0,0,0,.07); }
 
 /* ── Procesos: Bloques de recetas ─────────────────────────────────────────── */
-.receta-block-section {
-  margin-bottom: 22px; padding: 12px 12px 4px; border-radius: var(--radius);
-  transition: background .15s, outline .15s;
-}
-.receta-block-section:last-child { margin-bottom: 0; }
-.receta-block-section.dragging { opacity: .4; }
-.receta-block-section.block-drag-over { outline: 2px dashed var(--brand); outline-offset: 2px; }
-.receta-block-header {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 8px;
-}
-.receta-block-header[draggable="true"] { cursor: grab; }
-.receta-block-header[draggable="true"]:active { cursor: grabbing; }
-.receta-block-drag-handle { color: var(--text-sub); font-size: 13px; flex-shrink: 0; }
-.receta-block-collapse-btn {
-  background: none; border: none; cursor: pointer; color: var(--text-sub);
-  font-size: 10px; padding: 2px; flex-shrink: 0; line-height: 1;
-}
-.receta-block-collapse-btn:hover { color: var(--brand); }
-.receta-block-title {
-  font-size: 11px; font-weight: 700; color: var(--text-sub);
-  text-transform: uppercase; letter-spacing: .06em;
-}
-.receta-block-count {
-  background: var(--gray-200); color: var(--text-sub);
-  font-size: 11px; font-weight: 700;
-  padding: 1px 7px; border-radius: 999px;
-}
-.receta-block-body {
-  min-height: 54px; border-radius: var(--radius);
-  transition: background .15s;
-}
-.receta-block-body.drag-over { background: rgba(113,75,103,.07); outline: 1.5px dashed var(--brand); }
 .receta-block-empty {
   border: 1.5px dashed var(--border); border-radius: var(--radius);
   padding: 14px; text-align: center;
@@ -1658,12 +1625,6 @@ input, textarea, [contenteditable], [contenteditable] * {
 .receta-group-new-color { padding: 2px; height: 30px; }
 .receta-group-new-actions { display: flex; gap: 6px; }
 .receta-group-new-actions button { flex: 1; margin: 0; padding: 6px 8px; }
-
-/* ── Procesos: dentro de un grupo (drill-down) ────────────────────────────── */
-.receta-group-detail-header {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
-}
-.receta-group-detail-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; color: var(--text); }
 
 /* Selector "Mover a" dentro del menú "⋯" de cada receta */
 .card-menu-move { padding: 4px 10px 6px; }
