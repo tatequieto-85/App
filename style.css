@@ -1603,6 +1603,56 @@ input, textarea, [contenteditable], [contenteditable] * {
   font-size: 12px; color: var(--text-sub);
 }
 
+/* ── Procesos: galería de grupos (pantalla principal de Recetas) ─────────── */
+.receta-groups-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+.receta-group-card {
+  position: relative; border: 1.5px solid var(--border); border-radius: var(--radius);
+  padding: 16px; background: var(--surface); cursor: pointer; min-height: 92px;
+  display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  transition: box-shadow .2s, border-color .2s;
+}
+.receta-group-card:hover { box-shadow: var(--shadow); }
+.receta-group-card.dragging { opacity: .4; }
+.receta-group-card.block-drag-over { outline: 2px dashed var(--brand); outline-offset: 2px; }
+.receta-group-card-dot { width: 10px; height: 10px; border-radius: 50%; }
+.receta-group-card-name { font-size: 14.5px; font-weight: 700; color: var(--text); }
+.receta-group-card-count { font-size: 11.5px; color: var(--text-sub); }
+.receta-group-card--new {
+  border-style: dashed; align-items: center; justify-content: center; text-align: center;
+  color: var(--text-sub);
+}
+.receta-group-card--new:hover { border-color: var(--brand); color: var(--brand); }
+.receta-group-card-plus { font-size: 22px; font-weight: 700; line-height: 1; }
+.receta-group-card--form { cursor: default; align-items: stretch; gap: 8px; }
+.receta-group-card--form:hover { box-shadow: none; }
+.receta-group-new-name, .receta-group-new-color {
+  width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 8px; font-size: 13px; font-family: inherit;
+}
+.receta-group-new-color { padding: 2px; height: 30px; }
+.receta-group-new-actions { display: flex; gap: 6px; }
+.receta-group-new-actions button { flex: 1; margin: 0; padding: 6px 8px; }
+
+/* ── Procesos: dentro de un grupo (drill-down) ────────────────────────────── */
+.receta-group-detail-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+}
+.receta-group-detail-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; color: var(--text); }
+
+/* Selector "Mover a" dentro del menú "⋯" de cada receta */
+.card-menu-move { padding: 4px 10px 6px; }
+.card-menu-move label {
+  display: block; font-size: 10px; font-weight: 700; color: var(--text-sub);
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px;
+}
+.card-menu-move select {
+  width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 5px 6px; font-size: 12.5px; font-family: inherit; background: var(--surface); color: var(--text);
+}
+
 /* ── Ideas: tablero de bloques por área (4 columnas, con filas que crecen) ── */
 .idea-board-header {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;

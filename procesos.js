@@ -18,9 +18,8 @@ let ejecucionesSheetId   = null;
 let recetaBlocks         = [];
 let recetaBlocksSheetId  = null;
 let recetaBlocksLoaded   = false;
-let draggedRecetaId      = null;
 let draggedBlockId       = null;
-let collapsedRecetaBlocks = new Set();
+let currentRecetaGroupId = null; // null = galería de grupos; blockId ('' = sin bloque) = dentro de un grupo
 let currentProcesosTab   = 'recetas';
 let editRecetaId         = null;
 let recetaFixedFirst     = null; // etapa fija de inicio (oculta en el editor)
@@ -465,8 +464,12 @@ export async function loadProcesos() {
 }
 
 function recetaCardHTML(r) {
+  const moveOptions = [
+    `<option value=""${!r.blockId ? ' selected' : ''}>Sin bloque</option>`,
+    ...recetaBlocks.map(b => `<option value="${esc(b.id)}"${r.blockId === b.id ? ' selected' : ''}>${esc(b.nombre)}</option>`)
+  ].join('');
   return `
-    <div class="receta-card" data-id="${esc(r.id)}" draggable="true">
+    <div class="receta-card" data-id="${esc(r.id)}">
       <div class="receta-card-body">
         <div class="receta-card-title">${esc(r.nombre)}</div>
         <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''}</div>
@@ -479,11 +482,166 @@ function recetaCardHTML(r) {
           <div class="card-menu-list">
             <button type="button" data-dup-receta="${esc(r.id)}">${ICON_COPY} Duplicar</button>
             <button type="button" data-edit-receta="${esc(r.id)}">${ICON_EDIT} Editar</button>
+            <div class="card-menu-move">
+              <label>Mover a</label>
+              <select data-move-receta="${esc(r.id)}">${moveOptions}</select>
+            </div>
             <button type="button" data-del-receta="${esc(r.id)}" data-row="${r.rowIndex}">${ICON_TRASH} Eliminar</button>
           </div>
         </div>
       </div>
     </div>`;
+}
+
+// Un pseudo-grupo "Sin bloque" siempre al final, para las recetas que
+// todavía no se asignaron a ninguna agrupación (o cuyo bloque se borró).
+function recetaGroupSections() {
+  const sections = recetaBlocks.map(b => ({
+    id: b.id, nombre: b.nombre, color: b.color, items: recetas.filter(r => r.blockId === b.id)
+  }));
+  sections.push({
+    id: '', nombre: 'Sin bloque', color: null,
+    items: recetas.filter(r => !r.blockId || !recetaBlocks.find(b => b.id === r.blockId))
+  });
+  return sections;
+}
+
+// Pantalla principal de Recetas: una tarjeta por agrupación (galería, como
+// Ferias/Ideas) en vez de todas las recetas apiladas. Tocar una tarjeta
+// entra al grupo (ver renderRecetaGroupDetail); la última tarjeta es un
+// "+" que arma un mini-formulario in-place para crear un grupo nuevo sin
+// pasar por el modal de Gestionar.
+function renderRecetaGroupsGallery(container) {
+  const sections = recetaGroupSections();
+  const cardsHTML = sections.map((sec, idx) => {
+    // Colores muy pasteles (14% de relleno) para separar visualmente cada
+    // grupo; "Sin bloque" queda neutro por no ser un grupo real. Si el
+    // usuario eligió un color propio para el bloque, se usa ese en vez
+    // del tono automático.
+    const customBg = sec.id && sec.color ? hexToRgba(sec.color, .14) : null;
+    const hue    = (!customBg && sec.id) ? RECETA_BLOCK_HUES[idx % RECETA_BLOCK_HUES.length] : null;
+    const bg     = customBg || (hue != null ? `hsl(${hue} 70% 55% / .12)` : null);
+    const accent = sec.color || (hue != null ? `hsl(${hue} 70% 45%)` : 'var(--text-sub)');
+    // El borde necesita su propio valor con transparencia — no se le puede
+    // pegar un sufijo hex a un hsl()/var(), por eso no reutiliza `accent` tal cual.
+    const borderColor = sec.color ? `${sec.color}55` : (hue != null ? `hsl(${hue} 70% 45% / .35)` : 'var(--border)');
+    return `
+      <div class="receta-group-card" data-group-id="${esc(sec.id)}" ${sec.id ? 'draggable="true"' : ''} style="${bg ? `background:${bg};` : ''}border-color:${borderColor}">
+        <div class="receta-group-card-dot" style="background:${accent}"></div>
+        <div class="receta-group-card-name">${esc(sec.nombre)}</div>
+        <div class="receta-group-card-count">${sec.items.length} receta${sec.items.length !== 1 ? 's' : ''}</div>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="receta-groups-grid">
+      ${cardsHTML}
+      <div class="receta-group-card receta-group-card--new" id="btnNewRecetaGroup">
+        <div class="receta-group-card-plus">+</div>
+        <div class="receta-group-card-name">Nueva agrupación</div>
+      </div>
+    </div>`;
+
+  container.querySelectorAll('.receta-group-card[data-group-id]').forEach(card => {
+    card.addEventListener('click', () => {
+      currentRecetaGroupId = card.dataset.groupId;
+      renderRecetasList();
+    });
+  });
+
+  // Reordenar grupos arrastrando las tarjetas — mismo criterio que antes con
+  // los headers de sección (sortOrder guardado en RecetaBlocks).
+  container.querySelectorAll('.receta-group-card[draggable="true"]').forEach(card => {
+    const blockId = card.dataset.groupId;
+    card.addEventListener('dragstart', e => {
+      draggedBlockId = blockId;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      container.querySelectorAll('.receta-group-card.block-drag-over').forEach(el => el.classList.remove('block-drag-over'));
+      draggedBlockId = null;
+    });
+    card.addEventListener('dragover', e => {
+      if (!draggedBlockId || draggedBlockId === blockId) return;
+      e.preventDefault();
+      card.classList.add('block-drag-over');
+    });
+    card.addEventListener('dragleave', () => card.classList.remove('block-drag-over'));
+    card.addEventListener('drop', async e => {
+      if (!draggedBlockId || draggedBlockId === blockId) return;
+      e.preventDefault();
+      card.classList.remove('block-drag-over');
+      const fromIdx = recetaBlocks.findIndex(b => b.id === draggedBlockId);
+      const toIdx   = recetaBlocks.findIndex(b => b.id === blockId);
+      if (fromIdx === -1 || toIdx === -1) return;
+      const [moved] = recetaBlocks.splice(fromIdx, 1);
+      recetaBlocks.splice(toIdx, 0, moved);
+      recetaBlocks.forEach((b, i) => { b.sortOrder = i; });
+      renderRecetasList();
+      try { await Promise.all(recetaBlocks.map(updateRecetaBlock)); }
+      catch (err) { alert('Error al guardar el orden: ' + err.message); await loadRecetaBlocks(); renderRecetasList(); }
+    });
+  });
+
+  document.getElementById('btnNewRecetaGroup').addEventListener('click', function () {
+    this.outerHTML = `
+      <div class="receta-group-card receta-group-card--form">
+        <input type="text" class="receta-group-new-name" placeholder="Nombre del grupo…" maxlength="40" />
+        <input type="color" class="receta-group-new-color" value="#714B67" />
+        <div class="receta-group-new-actions">
+          <button type="button" class="btn-primary btn-sm" id="btnConfirmRecetaGroup">Crear</button>
+          <button type="button" class="btn-outline btn-sm" id="btnCancelRecetaGroup">Cancelar</button>
+        </div>
+        <div class="feedback" id="recetaGroupInlineFeedback"></div>
+      </div>`;
+    const nameInput = container.querySelector('.receta-group-new-name');
+    nameInput.focus();
+    container.querySelector('#btnCancelRecetaGroup').addEventListener('click', () => renderRecetasList());
+    const confirmNewGroup = async () => {
+      const nombre = nameInput.value.trim();
+      const color  = container.querySelector('.receta-group-new-color').value;
+      const fb     = document.getElementById('recetaGroupInlineFeedback');
+      if (!nombre) return setFb(fb, 'Ponele un nombre al grupo.', 'err');
+      if (recetaBlocks.find(b => b.nombre.toLowerCase() === nombre.toLowerCase()))
+        return setFb(fb, 'Ya existe un grupo con ese nombre.', 'err');
+      const btn = document.getElementById('btnConfirmRecetaGroup');
+      btn.disabled = true;
+      try {
+        await appendRecetaBlock({ id: crypto.randomUUID(), nombre, color, creadoEn: new Date().toISOString() });
+        await loadRecetaBlocks();
+        renderRecetasList();
+      } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); btn.disabled = false; }
+    };
+    container.querySelector('#btnConfirmRecetaGroup').addEventListener('click', confirmNewGroup);
+    nameInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); confirmNewGroup(); }
+      if (e.key === 'Escape') { e.preventDefault(); renderRecetasList(); }
+    });
+  });
+}
+
+// Recetas de un solo grupo — se llega tocando su tarjeta en la galería.
+function renderRecetaGroupDetail(container) {
+  const sec = recetaGroupSections().find(s => s.id === currentRecetaGroupId);
+  if (!sec) { currentRecetaGroupId = null; renderRecetasList(); return; }
+
+  container.innerHTML = `
+    <div class="receta-group-detail-header">
+      <button type="button" class="btn-outline btn-sm" id="btnBackRecetaGroups">← Grupos</button>
+      <span class="receta-group-detail-name">${esc(sec.nombre)}</span>
+      <span class="receta-block-count">${sec.items.length}</span>
+    </div>
+    ${sec.items.length ? sec.items.map(recetaCardHTML).join('') : '<div class="receta-block-empty">No hay recetas en este grupo todavía.</div>'}
+  `;
+
+  document.getElementById('btnBackRecetaGroups').addEventListener('click', () => {
+    currentRecetaGroupId = null;
+    renderRecetasList();
+  });
+
+  wireRecetaCardEvents(container);
 }
 
 function renderRecetasList() {
@@ -495,137 +653,22 @@ function renderRecetasList() {
     return;
   }
 
-  if (!recetaBlocks.length) {
-    container.innerHTML = recetas.map(recetaCardHTML).join('');
-  } else {
-    const sections = recetaBlocks.map(b => ({
-      id: b.id, nombre: b.nombre, color: b.color, items: recetas.filter(r => r.blockId === b.id)
-    }));
-    sections.push({
-      id: '', nombre: 'Sin bloque',
-      items: recetas.filter(r => !r.blockId || !recetaBlocks.find(b => b.id === r.blockId))
-    });
+  if (currentRecetaGroupId == null) renderRecetaGroupsGallery(container);
+  else renderRecetaGroupDetail(container);
+}
 
-    container.innerHTML = sections.map((sec, idx) => {
-      const toggleKey  = sec.id || '__sinbloque__';
-      const collapsed  = collapsedRecetaBlocks.has(toggleKey);
-      const draggable  = !!sec.id;
-      // Colores muy pasteles (10% de relleno) para separar visualmente cada
-      // bloque; "Sin bloque" queda neutro por no ser un grupo real. Si el
-      // usuario eligió un color propio para el bloque, se usa ese en vez
-      // del tono automático.
-      const customBg = sec.id ? hexToRgba(sec.color, .12) : null;
-      const hue = (!customBg && sec.id) ? RECETA_BLOCK_HUES[idx % RECETA_BLOCK_HUES.length] : null;
-      const bgStyle = customBg ? ` style="background:${customBg}"` : (hue != null ? ` style="background:hsl(${hue} 70% 55% / .1)"` : '');
-      return `
-      <div class="receta-block-section"${bgStyle}>
-        <div class="receta-block-header" data-block-id="${esc(sec.id)}" ${draggable ? 'draggable="true"' : ''}>
-          ${draggable ? '<span class="receta-block-drag-handle" title="Arrastra para reordenar bloque">⠿</span>' : ''}
-          <button type="button" class="receta-block-collapse-btn" data-block-toggle="${esc(toggleKey)}" title="Colapsar/Expandir">${collapsed ? '▸' : '▾'}</button>
-          <span class="receta-block-title">${esc(sec.nombre)}</span>
-          <span class="receta-block-count">${sec.items.length}</span>
-        </div>
-        <div class="receta-block-body" data-block-drop="${esc(sec.id)}" style="${collapsed ? 'display:none' : ''}">
-          ${sec.items.length ? sec.items.map(recetaCardHTML).join('') : '<div class="receta-block-empty">Arrastra una receta aquí</div>'}
-        </div>
-      </div>
-    `;
-    }).join('');
-
-    container.querySelectorAll('.receta-block-body').forEach(zone => {
-      zone.addEventListener('dragover', e => {
-        if (!draggedRecetaId) return;
-        e.preventDefault();
-        zone.classList.add('drag-over');
-      });
-      zone.addEventListener('dragleave', e => {
-        if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over');
-      });
-      zone.addEventListener('drop', async e => {
-        if (!draggedRecetaId) return;
-        e.preventDefault();
-        zone.classList.remove('drag-over');
-        const rec = recetas.find(r => r.id === draggedRecetaId);
-        if (!rec) return;
-        const newBlockId = zone.dataset.blockDrop;
-        if ((rec.blockId || '') === newBlockId) return;
-        rec.blockId = newBlockId;
-        renderRecetasList();
-        try { await updateReceta(rec); }
-        catch (err) { alert('Error al guardar: ' + err.message); await loadRecetasData(); renderRecetasList(); }
-      });
-    });
-
-    container.querySelectorAll('[data-block-toggle]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const key = btn.dataset.blockToggle;
-        if (collapsedRecetaBlocks.has(key)) collapsedRecetaBlocks.delete(key);
-        else collapsedRecetaBlocks.add(key);
-        renderRecetasList();
-      });
-    });
-
-    container.querySelectorAll('.receta-block-header[draggable="true"]').forEach(header => {
-      const blockId = header.dataset.blockId;
-      const section = header.closest('.receta-block-section');
-      header.addEventListener('dragstart', e => {
-        draggedBlockId = blockId;
-        section.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        e.stopPropagation();
-      });
-      header.addEventListener('dragend', () => {
-        section.classList.remove('dragging');
-        document.querySelectorAll('.receta-block-section.block-drag-over').forEach(el => el.classList.remove('block-drag-over'));
-        draggedBlockId = null;
-      });
-      section.addEventListener('dragover', e => {
-        if (!draggedBlockId || draggedBlockId === blockId) return;
-        e.preventDefault();
-        section.classList.add('block-drag-over');
-      });
-      section.addEventListener('dragleave', e => {
-        if (!section.contains(e.relatedTarget)) section.classList.remove('block-drag-over');
-      });
-      section.addEventListener('drop', async e => {
-        if (!draggedBlockId || draggedBlockId === blockId) return;
-        e.preventDefault();
-        e.stopPropagation();
-        section.classList.remove('block-drag-over');
-        const fromIdx = recetaBlocks.findIndex(b => b.id === draggedBlockId);
-        const toIdx   = recetaBlocks.findIndex(b => b.id === blockId);
-        if (fromIdx === -1 || toIdx === -1) return;
-        const [moved] = recetaBlocks.splice(fromIdx, 1);
-        recetaBlocks.splice(toIdx, 0, moved);
-        recetaBlocks.forEach((b, i) => { b.sortOrder = i; });
-        renderRecetasList();
-        try { await Promise.all(recetaBlocks.map(updateRecetaBlock)); }
-        catch (err) { alert('Error al guardar el orden: ' + err.message); await loadRecetaBlocks(); renderRecetasList(); }
-      });
-    });
-  }
-
+function wireRecetaCardEvents(container) {
   container.querySelectorAll('.receta-card[data-id]').forEach(card => {
     card.addEventListener('dblclick', e => {
-      if (e.target.closest('button')) return;
+      if (e.target.closest('button, select')) return;
       openRecetaDetail(card.dataset.id);
     });
     card.addEventListener('touchend', e => {
-      if (e.target.closest('button') || wasAccidentalTouch()) return;
+      if (e.target.closest('button, select') || wasAccidentalTouch()) return;
       const now = Date.now();
       const last = lastTapTime['rec_' + card.dataset.id] || 0;
       lastTapTime['rec_' + card.dataset.id] = now;
       if (now - last < 350) openRecetaDetail(card.dataset.id);
-    });
-    card.addEventListener('dragstart', e => {
-      draggedRecetaId = card.dataset.id;
-      card.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-    });
-    card.addEventListener('dragend', () => {
-      card.classList.remove('dragging');
-      document.querySelectorAll('.receta-block-body.drag-over').forEach(el => el.classList.remove('drag-over'));
-      draggedRecetaId = null;
     });
   });
   container.querySelectorAll('[data-ejecutar]').forEach(btn => {
@@ -657,6 +700,25 @@ function renderRecetasList() {
   });
   container.querySelectorAll('[data-edit-receta]').forEach(btn => {
     btn.addEventListener('click', () => openRecetaModal(btn.dataset.editReceta));
+  });
+  container.querySelectorAll('[data-move-receta]').forEach(sel => {
+    sel.addEventListener('click', e => e.stopPropagation());
+    sel.addEventListener('change', async () => {
+      const rec = recetas.find(r => r.id === sel.dataset.moveReceta);
+      if (!rec) return;
+      const newBlockId = sel.value;
+      if ((rec.blockId || '') === newBlockId) return;
+      rec.blockId = newBlockId;
+      sel.disabled = true;
+      try {
+        await updateReceta(rec);
+        renderRecetasList();
+      } catch (e) {
+        alert('Error al mover: ' + e.message);
+        await loadRecetasData();
+        renderRecetasList();
+      }
+    });
   });
   container.querySelectorAll('[data-del-receta]').forEach(btn => {
     btn.addEventListener('click', async () => {
