@@ -1169,7 +1169,11 @@ input, textarea, [contenteditable], [contenteditable] * {
   .sub-tab-btn { padding: 12px 14px; font-size: 13px; }
   .sub-tab-nav-inner { flex-wrap: wrap; }
   .sub-tab-actions { padding: 6px 0 10px; }
-  .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { display: none; }
+  /* :not(.compra-table) — en Compras la 3ra columna es "Precio unitario",
+     el dato principal de la tabla; esta regla existe para otras tablas
+     (Lista de tareas, Stock) donde la 3ra columna sí sobra en pantallas
+     chicas. */
+  .tasks-table:not(.compra-table) th:nth-child(3), .tasks-table:not(.compra-table) td:nth-child(3) { display: none; }
 
   /* ── Formularios mobile-first: evita el zoom automático de iOS (min. 16px)
      y garantiza áreas táctiles ≥44px, sin importar los tamaños compactos
