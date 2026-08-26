@@ -483,8 +483,8 @@ function openFeriaStockModal(feriaId) {
       return `
         <div class="feria-stock-item">
           <div class="feria-stock-sabor">${esc(ej.nombreReceta)}</div>
-          <div class="feria-stock-lote">Lote ${esc(ej.loteId || ej.id.slice(0, 8))} · Disponible: ${disponible}</div>
-          <input type="number" min="0" step="1" class="field-input feria-stock-input" data-lote="${esc(ej.id)}" value="${val}" placeholder="Cantidad a llevar" />
+          <div class="feria-stock-lote">${esc(ej.loteId || ej.id.slice(0, 8))} · Disp. ${disponible}</div>
+          <input type="number" min="0" step="1" class="field-input feria-stock-input" data-lote="${esc(ej.id)}" value="${val}" placeholder="Cantidad" />
         </div>`;
     }).join('');
     wrap.innerHTML = `<div class="feria-stock-list">${itemsHTML}</div>`;

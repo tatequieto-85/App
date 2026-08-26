@@ -1420,12 +1420,16 @@ input, textarea, [contenteditable], [contenteditable] * {
 }
 .feria-venta-row-add { flex-shrink: 0; margin: 0; }
 
-/* ── Ferias: plan de stock (lista vertical, sin scroll horizontal) ───────── */
+/* ── Ferias: plan de stock (grilla 2 columnas, sin scroll horizontal) ────── */
 .feria-stock-list { display: flex; flex-direction: column; }
-.feria-stock-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.feria-stock-item {
+  display: grid; grid-template-columns: 1fr auto; column-gap: 10px; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
 .feria-stock-item:last-child { border-bottom: none; }
-.feria-stock-sabor { font-size: 13.5px; font-weight: 700; color: var(--text); }
-.feria-stock-lote  { font-size: 11px; color: var(--text-sub); margin-top: 2px; margin-bottom: 8px; }
+.feria-stock-sabor { grid-column: 1; grid-row: 1; font-size: 13.5px; font-weight: 700; color: var(--text); }
+.feria-stock-lote  { grid-column: 1; grid-row: 2; font-size: 11px; color: var(--text-sub); margin-top: 2px; }
+.feria-stock-item .feria-stock-input { grid-column: 2; grid-row: 1 / span 2; width: 90px; }
 
 /* ── Ferias: bloques ──────────────────────────────────────────────────────── */
 .feria-blocks-grid {
