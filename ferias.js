@@ -390,7 +390,6 @@ function openFeriaModal(editId) {
   clearFieldErrors('feriaEmpresa');
   setFieldError('feriaFechas', '', 'feriaFechasTrigger');
   const today = toISODate(new Date());
-  document.getElementById('feriaStockLinkWrap').style.display = editId ? '' : 'none';
   if (editId) {
     const f = ferias.find(x => x.id === editId);
     if (!f) return;
@@ -418,9 +417,6 @@ function openFeriaModal(editId) {
   document.getElementById('feriaOverlay').classList.add('open');
   setTimeout(() => document.getElementById('feriaEmpresa').focus(), 100);
 }
-document.getElementById('btnFeriaStockFromEdit').addEventListener('click', () => {
-  if (feriaEditId) openFeriaStockModal(feriaEditId);
-});
 document.getElementById('btnFeriaReabrir').addEventListener('click', async () => {
   const f = ferias.find(x => x.id === feriaEditId);
   if (!f) return;
@@ -487,7 +483,11 @@ document.getElementById('btnSaveFeria').addEventListener('click', async () => {
     }
     await loadFerias();
     renderFerias();
-    closeFeriaModal();
+    // Cierre directo (no confirmCloseIfDirty): ya se guardó, así que
+    // "¿Salir sin guardar?" no corresponde acá — el formulario sigue con
+    // texto cargado y esa función solo mira si hay contenido, no si está
+    // guardado.
+    document.getElementById('feriaOverlay').classList.remove('open');
   } catch (e) {
     setFb(fb, 'Error: ' + e.message, 'err');
   } finally {
@@ -667,8 +667,12 @@ document.getElementById('btnFeriaCounterReset').addEventListener('click', () => 
 
 // Una fila por lote planeado para la feria (planStock, ya no por día) que
 // todavía tiene stock disponible (llevado - ya vendido en toda la feria > 0).
+// Mismo estilo de grilla que el plan de stock: sabor / lote-disponible /
+// cantidad unificada, con un único botón "Guardar" al final (ver
+// btnSaveFeriaVenta) en vez de un botón "Agregar" por fila.
 function renderFeriaVentaRows(f, fecha) {
   const wrap = document.getElementById('feriaVentaRows');
+  document.getElementById('feriaVentaFeedback').textContent = '';
   const plan = f.planStock || {};
   const vendidoTotal = {};
   (f.ventas || []).forEach(v => {
@@ -679,51 +683,73 @@ function renderFeriaVentaRows(f, fecha) {
     .filter(row => row.disponible > 0);
 
   if (!filas.length) {
-    wrap.innerHTML = '<div class="obs-empty">No hay lotes con stock disponible para vender hoy.</div>';
+    wrap.innerHTML = '<div class="obs-empty">No hay lotes con stock disponible para vender.</div>';
     return;
   }
 
-  wrap.innerHTML = filas.map(row => {
+  const itemsHTML = filas.map(row => {
     const ej     = ejecuciones.find(x => x.id === row.id);
-    const nombre = ej ? `${esc(ej.nombreReceta)} — Lote ${esc(ej.loteId || row.id.slice(0, 8))}` : esc(row.id);
+    const nombre = ej ? esc(ej.nombreReceta) : esc(row.id);
+    const lote   = ej ? esc(ej.loteId || row.id.slice(0, 8)) : '';
     return `
-      <div class="feria-venta-row">
-        <div class="feria-venta-row-info">
-          <span class="feria-venta-row-nombre">${nombre}</span>
-          <span class="feria-venta-row-disp">Disponible: ${row.disponible}</span>
-        </div>
-        <input class="field-input feria-venta-row-qty" type="number" min="1" max="${row.disponible}" step="1" placeholder="Cant." data-lote="${esc(row.id)}" />
-        <button class="btn-outline btn-sm feria-venta-row-add" data-lote="${esc(row.id)}">Agregar</button>
+      <div class="feria-stock-item">
+        <div class="feria-stock-sabor">${nombre}</div>
+        <div class="feria-stock-lote">${lote} · Disp. ${row.disponible}</div>
+        <input type="number" min="0" max="${row.disponible}" step="1" class="field-input feria-stock-input" data-lote="${esc(row.id)}" placeholder="Cantidad" />
       </div>`;
   }).join('');
-
-  wrap.querySelectorAll('.feria-venta-row-add').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const loteId  = btn.dataset.lote;
-      const input   = wrap.querySelector(`.feria-venta-row-qty[data-lote="${CSS.escape(loteId)}"]`);
-      const cantidad = parseInt(input.value) || 0;
-      const fila    = filas.find(r => r.id === loteId);
-      if (!fila || cantidad <= 0) return;
-      if (cantidad > fila.disponible) { alert('La cantidad supera el stock disponible de este lote.'); return; }
-
-      const f2 = ferias.find(x => x.id === feriaCounterId);
-      if (!f2) return;
-      const ej = ejecuciones.find(x => x.id === loteId);
-      f2.ventas = f2.ventas || [];
-      f2.ventas.push({
-        fecha, ejecucionId: loteId, loteId: ej?.loteId || '', recetaId: ej?.recetaId || '',
-        recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString()
-      });
-      renderFeriaCounterDay();
-      const compradosEl = document.querySelector(`.feria-block[data-id="${CSS.escape(f2.id)}"] .feria-block-stat-comprados`);
-      if (compradosEl) compradosEl.textContent = `🛒 ${feriaTotalVendidos(f2)}`;
-      try { await updateFeria(f2); } catch (e) { console.warn('Error guardando venta:', e.message); }
-    });
-  });
+  wrap.innerHTML = `<div class="feria-stock-list">${itemsHTML}</div>`;
 }
 
+document.getElementById('btnSaveFeriaVenta').addEventListener('click', async () => {
+  const f  = ferias.find(x => x.id === feriaCounterId);
+  const fb = document.getElementById('feriaVentaFeedback');
+  if (!f) return;
+  const fecha = feriaCounterFecha;
+
+  const plan = f.planStock || {};
+  const vendidoTotal = {};
+  (f.ventas || []).forEach(v => { vendidoTotal[v.ejecucionId] = (vendidoTotal[v.ejecucionId] || 0) + v.cantidad; });
+
+  const nuevas  = [];
+  const excesos = [];
+  document.querySelectorAll('#feriaVentaRows .feria-stock-input').forEach(inp => {
+    const loteId   = inp.dataset.lote;
+    const cantidad = parseInt(inp.value) || 0;
+    if (cantidad <= 0) return;
+    const ej = ejecuciones.find(x => x.id === loteId);
+    const disponible = (plan[loteId] || 0) - (vendidoTotal[loteId] || 0);
+    if (cantidad > disponible) {
+      excesos.push(`${ej?.nombreReceta || loteId} (pediste ${cantidad}, disponible ${disponible})`);
+      return;
+    }
+    nuevas.push({
+      fecha, ejecucionId: loteId, loteId: ej?.loteId || '', recetaId: ej?.recetaId || '',
+      recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString()
+    });
+  });
+
+  if (excesos.length) return setFb(fb, `No hay stock suficiente: ${excesos.join('; ')}.`, 'err');
+  if (!nuevas.length) return setFb(fb, 'Ingresa al menos una cantidad.', 'err');
+
+  const btn = document.getElementById('btnSaveFeriaVenta');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    f.ventas = [...(f.ventas || []), ...nuevas];
+    await updateFeria(f);
+    const compradosEl = document.querySelector(`.feria-block[data-id="${CSS.escape(f.id)}"] .feria-block-stat-comprados`);
+    if (compradosEl) compradosEl.textContent = `🛒 ${feriaTotalVendidos(f)}`;
+    renderFeriaCounterDay();
+    document.getElementById('feriaVentaOverlay').classList.remove('open');
+  } catch (e) {
+    setFb(fb, 'Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar';
+  }
+});
+
 function isFeriaVentaFormDirty() {
-  return Array.from(document.querySelectorAll('.feria-venta-row-qty')).some(input => input.value.trim());
+  return Array.from(document.querySelectorAll('#feriaVentaRows .feria-stock-input')).some(input => input.value.trim());
 }
 
 function closeFeriaVentaModal() {

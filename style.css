@@ -1409,23 +1409,8 @@ input, textarea, [contenteditable], [contenteditable] * {
 .feria-counter-quickrow { display: flex; gap: 8px; margin: 16px 0; }
 .feria-counter-quickrow button { flex: 1; margin: 0; }
 
-/* ── Ferias: registrar venta — una fila por lote disponible ───────────────── */
-.feria-venta-rows { display: flex; flex-direction: column; gap: 8px; }
-.feria-venta-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-}
-.feria-venta-row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.feria-venta-row-nombre {
-  font-size: 13px; font-weight: 600; color: var(--text);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.feria-venta-row-disp { font-size: 11px; color: var(--text-sub); }
-.feria-venta-row-qty {
-  flex: 0 0 60px; width: 60px; min-height: 38px; margin: 0;
-  padding: 6px 4px; text-align: center;
-}
-.feria-venta-row-add { flex-shrink: 0; margin: 0; }
+/* Registrar venta (feria) reutiliza el mismo estilo de grilla que el plan
+   de stock (.feria-stock-list/.feria-stock-item, ver más abajo). */
 
 /* ── Ferias: plan de stock (grilla 2 columnas, sin scroll horizontal) ────── */
 .feria-stock-list { display: flex; flex-direction: column; }
