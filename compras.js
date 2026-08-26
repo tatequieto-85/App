@@ -3,7 +3,10 @@ import {
   esc, setFb, setFieldError, clearFieldErrors, fmtDate, fmtDateShortEs, fmtCOP, toISODate, parseISODate, liveValidate,
   attachThousandsInput, parseThousandsInput, formatThousandsValue, ICON_EDIT, ICON_TRASH
 } from './utils.js';
-import { ingredientes, findIngredienteDuplicate, getIngredienteUnidad, normalizeIngName, attachIngredienteAutocomplete } from './ingredientes.js';
+import {
+  ingredientes, findIngredienteDuplicate, getIngredienteUnidad, normalizeIngName, attachIngredienteAutocomplete,
+  appendIngrediente, loadIngredientes
+} from './ingredientes.js';
 import { openCalendarPopover } from './tareas.js';
 import { wasAccidentalTouch } from './input-guard.js';
 
@@ -303,8 +306,6 @@ document.getElementById('btnCloseCompra').addEventListener('click', closeCompraM
 document.getElementById('compraOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('compraOverlay')) closeCompraModal();
 });
-document.getElementById('btnNewCompra').addEventListener('click', () => openCompraModal(null));
-
 document.getElementById('btnSaveCompra').addEventListener('click', async () => {
   const ingInput     = document.getElementById('compraIngrediente');
   const nombre       = ingInput.value.trim();
@@ -390,6 +391,49 @@ document.getElementById('btnCloseCompraHistorial').addEventListener('click', () 
 document.getElementById('compraHistorialOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('compraHistorialOverlay')) {
     document.getElementById('compraHistorialOverlay').classList.remove('open');
+  }
+});
+
+// ── Registrar nuevo insumo (solo nombre + unidad, agrega al catálogo de
+// ingredientes) — la compra en sí (cantidad/precio) se registra después con
+// doble clic en la fila de ese ingrediente. ────────────────────────────────
+function closeInsumoModal() {
+  document.getElementById('insumoOverlay').classList.remove('open');
+}
+document.getElementById('btnNewInsumo').addEventListener('click', () => {
+  document.getElementById('insumoFeedback').textContent = '';
+  clearFieldErrors('insumoNombre', 'insumoUnidad');
+  document.getElementById('insumoNombre').value = '';
+  document.getElementById('insumoUnidad').value = '';
+  document.getElementById('insumoOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('insumoNombre').focus(), 100);
+});
+document.getElementById('btnCloseInsumo').addEventListener('click', closeInsumoModal);
+document.getElementById('insumoOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('insumoOverlay')) closeInsumoModal();
+});
+
+document.getElementById('btnSaveInsumo').addEventListener('click', async () => {
+  const nombre = document.getElementById('insumoNombre').value.trim();
+  const unidad = document.getElementById('insumoUnidad').value.trim();
+  const fb     = document.getElementById('insumoFeedback');
+
+  clearFieldErrors('insumoNombre', 'insumoUnidad');
+  if (!nombre) { setFieldError('insumoNombre', 'Indica el nombre.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
+  if (findIngredienteDuplicate(nombre)) { setFieldError('insumoNombre', 'Ya hay un ingrediente con ese nombre.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
+  if (!unidad) { setFieldError('insumoUnidad', 'Indica la unidad de medida.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
+
+  const btn = document.getElementById('btnSaveInsumo');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    await appendIngrediente(nombre, unidad);
+    await loadIngredientes();
+    renderComprasList();
+    closeInsumoModal();
+  } catch (e) {
+    setFb(fb, 'Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar insumo';
   }
 });
 

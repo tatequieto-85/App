@@ -381,7 +381,7 @@
             <section class="card">
               <div class="section-header">
                 <h2 class="section-title">Compras de ingredientes</h2>
-                <button class="btn-add-task" id="btnNewCompra">+ Registrar compra</button>
+                <button class="btn-add-task" id="btnNewInsumo">+ Registrar nuevo insumo</button>
               </div>
               <div id="comprasList"><div class="loading-state">Cargando…</div></div>
             </section>
@@ -825,6 +825,27 @@
         </div>
         <button class="btn-primary" id="btnSaveIdea" style="margin-top:14px">Guardar idea</button>
         <div class="feedback" id="ideaFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Registrar nuevo insumo (agrega el ingrediente al catálogo, sin
+       cantidad ni precio — eso se registra después con doble clic en su fila) -->
+  <div class="modal-overlay" id="insumoOverlay">
+    <div class="modal" style="max-width:380px">
+      <div class="modal-header">
+        <h2>Registrar nuevo insumo</h2>
+        <button class="btn-icon" id="btnCloseInsumo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <label class="field-label" for="insumoNombre">Nombre del ingrediente *</label>
+        <input class="field-input" id="insumoNombre" type="text" placeholder="Nombre del ingrediente…" autocomplete="off" />
+        <small class="field-error" id="insumoNombreErr"></small>
+        <label class="field-label" for="insumoUnidad">Unidad de medida *</label>
+        <input class="field-input" id="insumoUnidad" type="text" placeholder="g, kg, L, unidades…" autocomplete="off" />
+        <small class="field-error" id="insumoUnidadErr"></small>
+        <button class="btn-primary" id="btnSaveInsumo">Guardar insumo</button>
+        <div class="feedback" id="insumoFeedback"></div>
       </div>
     </div>
   </div>
