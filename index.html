@@ -963,12 +963,12 @@
             </div>
           </div>
           <div class="feria-counter-total" style="text-align:center">Total: <strong id="feriaCounterValueTotal">0</strong></div>
-          <button class="btn-outline btn-sm" id="btnFeriaCounterReset" style="margin-top:10px;display:block;margin-left:auto;margin-right:auto">Reiniciar conteo</button>
         </div>
 
         <div class="feria-counter-quickrow">
-          <button class="btn-primary" id="btnOpenFeriaVenta">Registrar venta</button>
-          <button class="btn-primary" id="btnOpenFeriaObs">Registrar observación</button>
+          <button class="btn-primary" id="btnOpenFeriaVenta">Venta</button>
+          <button class="btn-primary" id="btnOpenFeriaMuestra">Muestra</button>
+          <button class="btn-primary" id="btnOpenFeriaObs">Observación</button>
         </div>
 
         <button type="button" class="btn-outline btn-sm" id="btnTerminarFeria" style="margin-top:20px;display:block;margin-left:auto;margin-right:auto;opacity:.7">Terminar feria</button>
@@ -987,6 +987,21 @@
         <div id="feriaVentaRows"></div>
         <button class="btn-primary" id="btnSaveFeriaVenta" style="margin-top:14px">Guardar</button>
         <div class="feedback" id="feriaVentaFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Registrar muestra (feria) -->
+  <div class="modal-overlay" id="feriaMuestraOverlay">
+    <div class="modal" style="max-width:640px">
+      <div class="modal-header">
+        <h2>Registrar muestra</h2>
+        <button class="btn-icon" id="btnCloseFeriaMuestra"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <div id="feriaMuestraRows"></div>
+        <button class="btn-primary" id="btnSaveFeriaMuestra" style="margin-top:14px">Guardar</button>
+        <div class="feedback" id="feriaMuestraFeedback"></div>
       </div>
     </div>
   </div>

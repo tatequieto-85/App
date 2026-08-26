@@ -29,7 +29,7 @@ export async function initFeriasSheet() {
 
   if (hasF) {
     feriasSheetId = hasF.properties.sheetId;
-    const headerData = await sheetsReq('/values/Ferias!A1:V1').catch(() => ({}));
+    const headerData = await sheetsReq('/values/Ferias!A1:W1').catch(() => ({}));
     const headerRow  = (headerData.values || [])[0] || [];
     if (headerRow.length < 18) {
       await sheetsReq('/values/Ferias!M1:R1?valueInputOption=RAW', {
@@ -51,6 +51,12 @@ export async function initFeriasSheet() {
         body: JSON.stringify({ values: [[ 'Cerrada' ]] })
       });
     }
+    if (headerRow.length < 23) {
+      await sheetsReq('/values/Ferias!W1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [[ 'Muestras' ]] })
+      });
+    }
   } else {
     const res = await sheetsReq(':batchUpdate', {
       method: 'POST',
@@ -64,7 +70,7 @@ export async function initFeriasSheet() {
         'ID','Empresa','FechaInicio','FechaFin','Precio','FechaImportante','Lugar',
         'Observaciones','Alineacion','Estado','ConteoPersonas','CreadoEn',
         'HoraInicio','HoraFin','PlanStock','Ventas','ObservacionesDiarias','ConteoProductos',
-        'ConteoMenores30','ConteoEntre30y55','ConteoMayores55','Cerrada'
+        'ConteoMenores30','ConteoEntre30y55','ConteoMayores55','Cerrada','Muestras'
       ]] })
     });
   }
@@ -72,7 +78,7 @@ export async function initFeriasSheet() {
 }
 
 export async function loadFerias() {
-  const data = await sheetsReq('/values/Ferias!A:V');
+  const data = await sheetsReq('/values/Ferias!A:W');
   const rows = (data.values || []).slice(1);
   ferias = rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0]  || '',
@@ -97,6 +103,7 @@ export async function loadFerias() {
     conteoEntre30y55:     parseInt(r[19]) || 0,
     conteoMayores55:      parseInt(r[20]) || 0,
     cerrada:              r[21] === 'TRUE',
+    muestras:             safeParseJSON(r[22], []),
     rowIndex:             i + 2
   }));
 }
@@ -121,6 +128,17 @@ function feriaTotalVendidos(f) {
   return (f.ventas || []).reduce((sum, v) => sum + (v.cantidad || 0), 0);
 }
 
+// Ventas + muestras ya entregadas, por lote — ambas salen del mismo stock
+// físico llevado, así que la disponibilidad para registrar cualquiera de
+// las dos tiene que descontar las dos juntas (si no, se podría "vender"
+// stock que ya se regaló como muestra, o al revés).
+function getFeriaSalidaTotal(f) {
+  const total = {};
+  (f.ventas || []).forEach(v => { total[v.ejecucionId] = (total[v.ejecucionId] || 0) + v.cantidad; });
+  (f.muestras || []).forEach(m => { total[m.ejecucionId] = (total[m.ejecucionId] || 0) + m.cantidad; });
+  return total;
+}
+
 function feriaRowValues(f) {
   return [
     f.id, f.empresa, f.fechaInicio, f.fechaFin, f.precio, f.fechaImportante, f.lugar,
@@ -129,19 +147,19 @@ function feriaRowValues(f) {
     f.horaInicio || '', f.horaFin || '', JSON.stringify(f.planStock || {}), JSON.stringify(f.ventas || []),
     JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {}),
     f.conteoMenores30 || 0, f.conteoEntre30y55 || 0, f.conteoMayores55 || 0,
-    f.cerrada ? 'TRUE' : 'FALSE'
+    f.cerrada ? 'TRUE' : 'FALSE', JSON.stringify(f.muestras || [])
   ];
 }
 
 async function appendFeria(f) {
-  await sheetsReq('/values/Ferias!A:V:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Ferias!A:W:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
 }
 
 async function updateFeria(f) {
-  await sheetsReq(`/values/Ferias!A${f.rowIndex}:V${f.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Ferias!A${f.rowIndex}:W${f.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
@@ -478,7 +496,7 @@ document.getElementById('btnSaveFeria').addEventListener('click', async () => {
         id: crypto.randomUUID(), empresa, fechaInicio, fechaFin, horaInicio: '', horaFin: '', precio, lugar,
         fechaImportante: '', observaciones, alineacion: 0, estado: 'confirmada', conteoPersonas: 0,
         planStock: {}, ventas: [], observacionesDiarias: [], conteoProductos: null,
-        conteoMenores30: 0, conteoEntre30y55: 0, conteoMayores55: 0, cerrada: false
+        conteoMenores30: 0, conteoEntre30y55: 0, conteoMayores55: 0, cerrada: false, muestras: []
       });
     }
     await loadFerias();
@@ -611,7 +629,8 @@ function renderFeriaCounterValues(f) {
 function renderFeriaCounterDay() {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
-  renderFeriaVentaRows(f, feriaCounterFecha);
+  renderFeriaVentaRows(f);
+  renderFeriaMuestraRows(f);
 }
 
 document.getElementById('btnTerminarFeria').addEventListener('click', async () => {
@@ -654,36 +673,24 @@ document.getElementById('btnFeriaCounterPlusEntre30y55').addEventListener('click
 document.getElementById('btnFeriaCounterMinusEntre30y55').addEventListener('click', () => adjustFeriaCounter('conteoEntre30y55', -1));
 document.getElementById('btnFeriaCounterPlusMayores55').addEventListener('click', () => adjustFeriaCounter('conteoMayores55', 1));
 document.getElementById('btnFeriaCounterMinusMayores55').addEventListener('click', () => adjustFeriaCounter('conteoMayores55', -1));
-document.getElementById('btnFeriaCounterReset').addEventListener('click', () => {
-  if (!confirm('¿Reiniciar el conteo a 0?')) return;
-  const f = ferias.find(x => x.id === feriaCounterId);
-  if (!f) return;
-  f.conteoMenores30 = 0;
-  f.conteoEntre30y55 = 0;
-  f.conteoMayores55 = 0;
-  renderFeriaCounterValues(f);
-  scheduleFeriaCounterSave();
-});
 
 // Una fila por lote planeado para la feria (planStock, ya no por día) que
-// todavía tiene stock disponible (llevado - ya vendido en toda la feria > 0).
-// Mismo estilo de grilla que el plan de stock: sabor / lote-disponible /
-// cantidad unificada, con un único botón "Guardar" al final (ver
-// btnSaveFeriaVenta) en vez de un botón "Agregar" por fila.
-function renderFeriaVentaRows(f, fecha) {
-  const wrap = document.getElementById('feriaVentaRows');
-  document.getElementById('feriaVentaFeedback').textContent = '';
+// todavía tiene stock disponible (llevado - ya salido en ventas+muestras
+// de toda la feria > 0). Mismo componente para "Registrar venta" y
+// "Registrar muestra" — misma grilla que el plan de stock (sabor /
+// lote-disponible / cantidad con contador +/-), cada uno con su propio
+// botón "Guardar" que vuelca a f.ventas o f.muestras según corresponda.
+function renderFeriaSalidaRows(f, rowsId, feedbackId) {
+  const wrap = document.getElementById(rowsId);
+  document.getElementById(feedbackId).textContent = '';
   const plan = f.planStock || {};
-  const vendidoTotal = {};
-  (f.ventas || []).forEach(v => {
-    vendidoTotal[v.ejecucionId] = (vendidoTotal[v.ejecucionId] || 0) + v.cantidad;
-  });
+  const salidaTotal = getFeriaSalidaTotal(f);
   const filas = Object.keys(plan)
-    .map(id => ({ id, disponible: (plan[id] || 0) - (vendidoTotal[id] || 0) }))
+    .map(id => ({ id, disponible: (plan[id] || 0) - (salidaTotal[id] || 0) }))
     .filter(row => row.disponible > 0);
 
   if (!filas.length) {
-    wrap.innerHTML = '<div class="obs-empty">No hay lotes con stock disponible para vender.</div>';
+    wrap.innerHTML = '<div class="obs-empty">No hay lotes con stock disponible.</div>';
     return;
   }
 
@@ -717,71 +724,80 @@ function renderFeriaVentaRows(f, fecha) {
   });
 }
 
-document.getElementById('btnSaveFeriaVenta').addEventListener('click', async () => {
-  const f  = ferias.find(x => x.id === feriaCounterId);
-  const fb = document.getElementById('feriaVentaFeedback');
-  if (!f) return;
-  const fecha = feriaCounterFecha;
+function renderFeriaVentaRows(f)   { renderFeriaSalidaRows(f, 'feriaVentaRows', 'feriaVentaFeedback'); }
+function renderFeriaMuestraRows(f) { renderFeriaSalidaRows(f, 'feriaMuestraRows', 'feriaMuestraFeedback'); }
 
-  const plan = f.planStock || {};
-  const vendidoTotal = {};
-  (f.ventas || []).forEach(v => { vendidoTotal[v.ejecucionId] = (vendidoTotal[v.ejecucionId] || 0) + v.cantidad; });
+// arrField: 'ventas' o 'muestras' — a cuál de los dos arreglos se agregan
+// las cantidades cargadas en rowsId.
+function wireFeriaSalidaSave(btnId, rowsId, feedbackId, overlayId, arrField) {
+  document.getElementById(btnId).addEventListener('click', async () => {
+    const f  = ferias.find(x => x.id === feriaCounterId);
+    const fb = document.getElementById(feedbackId);
+    if (!f) return;
+    const fecha = feriaCounterFecha;
 
-  const nuevas  = [];
-  const excesos = [];
-  document.querySelectorAll('#feriaVentaRows .feria-venta-stepper').forEach(stepper => {
-    const loteId   = stepper.dataset.lote;
-    const cantidad = parseInt(stepper.querySelector('.feria-venta-stepper-value').textContent) || 0;
-    if (cantidad <= 0) return;
-    const ej = ejecuciones.find(x => x.id === loteId);
-    const disponible = (plan[loteId] || 0) - (vendidoTotal[loteId] || 0);
-    if (cantidad > disponible) {
-      excesos.push(`${ej?.nombreReceta || loteId} (pediste ${cantidad}, disponible ${disponible})`);
-      return;
-    }
-    nuevas.push({
-      fecha, ejecucionId: loteId, loteId: ej?.loteId || '', recetaId: ej?.recetaId || '',
-      recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString()
+    const plan = f.planStock || {};
+    const salidaTotal = getFeriaSalidaTotal(f);
+
+    const nuevas  = [];
+    const excesos = [];
+    document.querySelectorAll(`#${rowsId} .feria-venta-stepper`).forEach(stepper => {
+      const loteId   = stepper.dataset.lote;
+      const cantidad = parseInt(stepper.querySelector('.feria-venta-stepper-value').textContent) || 0;
+      if (cantidad <= 0) return;
+      const ej = ejecuciones.find(x => x.id === loteId);
+      const disponible = (plan[loteId] || 0) - (salidaTotal[loteId] || 0);
+      if (cantidad > disponible) {
+        excesos.push(`${ej?.nombreReceta || loteId} (pediste ${cantidad}, disponible ${disponible})`);
+        return;
+      }
+      nuevas.push({
+        fecha, ejecucionId: loteId, loteId: ej?.loteId || '', recetaId: ej?.recetaId || '',
+        recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString()
+      });
     });
+
+    if (excesos.length) return setFb(fb, `No hay stock suficiente: ${excesos.join('; ')}.`, 'err');
+    if (!nuevas.length) return setFb(fb, 'Ingresa al menos una cantidad.', 'err');
+
+    const btn = document.getElementById(btnId);
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    try {
+      f[arrField] = [...(f[arrField] || []), ...nuevas];
+      await updateFeria(f);
+      if (arrField === 'ventas') {
+        const compradosEl = document.querySelector(`.feria-block[data-id="${CSS.escape(f.id)}"] .feria-block-stat-comprados`);
+        if (compradosEl) compradosEl.textContent = `🛒 ${feriaTotalVendidos(f)}`;
+      }
+      renderFeriaCounterDay();
+      document.getElementById(overlayId).classList.remove('open');
+    } catch (e) {
+      setFb(fb, 'Error: ' + e.message, 'err');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Guardar';
+    }
   });
+}
+wireFeriaSalidaSave('btnSaveFeriaVenta', 'feriaVentaRows', 'feriaVentaFeedback', 'feriaVentaOverlay', 'ventas');
+wireFeriaSalidaSave('btnSaveFeriaMuestra', 'feriaMuestraRows', 'feriaMuestraFeedback', 'feriaMuestraOverlay', 'muestras');
 
-  if (excesos.length) return setFb(fb, `No hay stock suficiente: ${excesos.join('; ')}.`, 'err');
-  if (!nuevas.length) return setFb(fb, 'Ingresa al menos una cantidad.', 'err');
-
-  const btn = document.getElementById('btnSaveFeriaVenta');
-  btn.disabled = true; btn.textContent = 'Guardando…';
-  try {
-    f.ventas = [...(f.ventas || []), ...nuevas];
-    await updateFeria(f);
-    const compradosEl = document.querySelector(`.feria-block[data-id="${CSS.escape(f.id)}"] .feria-block-stat-comprados`);
-    if (compradosEl) compradosEl.textContent = `🛒 ${feriaTotalVendidos(f)}`;
+function wireFeriaSalidaModal(openBtnId, closeBtnId, overlayId, rowsId) {
+  const isDirty = () => Array.from(document.querySelectorAll(`#${rowsId} .feria-venta-stepper-value`)).some(v => (parseInt(v.textContent) || 0) > 0);
+  const closeModal = () => confirmCloseIfDirty(overlayId, isDirty);
+  document.getElementById(openBtnId).addEventListener('click', () => {
+    // Contadores siempre en 0 al abrir: cada venta/muestra se registra
+    // desde cero, sin arrastrar lo que haya quedado de una apertura
+    // anterior que se cerró sin guardar.
     renderFeriaCounterDay();
-    document.getElementById('feriaVentaOverlay').classList.remove('open');
-  } catch (e) {
-    setFb(fb, 'Error: ' + e.message, 'err');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Guardar';
-  }
-});
-
-function isFeriaVentaFormDirty() {
-  return Array.from(document.querySelectorAll('#feriaVentaRows .feria-venta-stepper-value')).some(v => (parseInt(v.textContent) || 0) > 0);
+    document.getElementById(overlayId).classList.add('open');
+  });
+  document.getElementById(closeBtnId).addEventListener('click', closeModal);
+  document.getElementById(overlayId).addEventListener('click', e => {
+    if (e.target === document.getElementById(overlayId)) closeModal();
+  });
 }
-
-function closeFeriaVentaModal() {
-  confirmCloseIfDirty('feriaVentaOverlay', isFeriaVentaFormDirty);
-}
-document.getElementById('btnOpenFeriaVenta').addEventListener('click', () => {
-  // Contadores siempre en 0 al abrir: cada venta se registra desde cero,
-  // sin arrastrar lo que haya quedado de una apertura anterior que se
-  // cerró sin guardar.
-  renderFeriaCounterDay();
-  document.getElementById('feriaVentaOverlay').classList.add('open');
-});
-document.getElementById('btnCloseFeriaVenta').addEventListener('click', closeFeriaVentaModal);
-document.getElementById('feriaVentaOverlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('feriaVentaOverlay')) closeFeriaVentaModal();
-});
+wireFeriaSalidaModal('btnOpenFeriaVenta', 'btnCloseFeriaVenta', 'feriaVentaOverlay', 'feriaVentaRows');
+wireFeriaSalidaModal('btnOpenFeriaMuestra', 'btnCloseFeriaMuestra', 'feriaMuestraOverlay', 'feriaMuestraRows');
 
 function isFeriaObsFormDirty() {
   return !!document.getElementById('feriaObsDiariaInput')?.value.trim();
