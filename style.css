@@ -370,6 +370,13 @@ input, textarea, [contenteditable], [contenteditable] * {
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border);
 }
+/* Sin caja blanca alrededor — para vistas donde el contenido ya tiene
+   sus propias tarjetas con borde (ferias, historias, recetas,
+   ejecuciones, producto testigo) y la caja extra solo restaba espacio
+   útil sin aportar nada visual. Las vistas con tabla (Compras, Stock →
+   Resumen/Trazabilidad, Lista de tareas) o filas sin borde propio (QR
+   guardados, Bases de datos) sí la necesitan como único borde visual. */
+.card--flat { background: none; border: none; box-shadow: none; padding: 0; }
 .section-title  { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 18px; }
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .section-header .section-title { margin-bottom: 0; }
