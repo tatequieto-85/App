@@ -1578,7 +1578,8 @@ input, textarea, [contenteditable], [contenteditable] * {
   gap: 14px;
 }
 .receta-group-card {
-  position: relative; border: 1.5px solid var(--border); border-radius: var(--radius);
+  position: relative; overflow: hidden;
+  border: 1.5px solid var(--border); border-radius: var(--radius);
   padding: 16px; background: var(--surface); cursor: pointer;
   aspect-ratio: 4 / 5; box-sizing: border-box;
   display: flex; flex-direction: column; justify-content: center; gap: 6px;
@@ -1587,15 +1588,27 @@ input, textarea, [contenteditable], [contenteditable] * {
 .receta-group-card:hover { box-shadow: var(--shadow); }
 .receta-group-card.dragging { opacity: .4; }
 .receta-group-card.block-drag-over { outline: 2px dashed var(--brand); outline-offset: 2px; }
-.receta-group-card-dot { width: 10px; height: 10px; border-radius: 50%; }
+.receta-group-card-icon { font-size: 32px; line-height: 1; }
 .receta-group-card-name { font-size: 14.5px; font-weight: 700; color: var(--text); }
-.receta-group-card-edit {
-  position: absolute; top: 8px; right: 8px; z-index: 1;
-  width: 26px; height: 26px; border: none; border-radius: 50%;
-  background: rgba(255,255,255,.75); color: var(--text-sub); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
+
+/* Panel Editar/Borrar montado sobre la tarjeta al mantenerla presionada —
+   los márgenes negativos cancelan el padding del card para que quede al
+   ras del borde inferior (overflow:hidden en .receta-group-card recorta
+   las puntas para que sigan la misma curva). */
+.receta-group-card-actions {
+  display: none; position: absolute; left: 0; right: 0; bottom: 0;
+  margin: 0 -16px -16px -16px;
+  border-top: 1px solid var(--border);
 }
-.receta-group-card-edit:hover { background: #fff; color: var(--brand); }
+.receta-group-card-actions.open { display: flex; }
+.receta-group-card-actions button {
+  flex: 1; border: none; background: var(--surface); cursor: pointer;
+  padding: 10px 8px; font-size: 12.5px; font-weight: 600; color: var(--text);
+}
+.receta-group-card-actions button:first-child { border-right: 1px solid var(--border); }
+.receta-group-card-actions button:hover { background: var(--bg); }
+.receta-group-card-actions button[data-del-group] { color: #C0392B; }
+.receta-group-card-actions button[data-del-group]:hover { background: #EF444414; }
 
 /* Botón flotante "+ Nueva receta" — reemplaza la barra de acciones que
    estaba arriba (Ingredientes/Bloques/Nueva receta); Ingredientes pasó al
@@ -1618,10 +1631,13 @@ input, textarea, [contenteditable], [contenteditable] * {
 .receta-group-card-plus { font-size: 22px; font-weight: 700; line-height: 1; }
 .receta-group-card--form { cursor: default; align-items: stretch; gap: 8px; }
 .receta-group-card--form:hover { box-shadow: none; }
-.receta-group-new-name, .receta-group-new-color {
+.receta-group-new-row { display: flex; gap: 6px; }
+.receta-group-new-icon, .receta-group-new-name, .receta-group-new-color {
   width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 6px 8px; font-size: 13px; font-family: inherit;
 }
+.receta-group-new-row .receta-group-new-icon { width: 44px; flex-shrink: 0; text-align: center; font-size: 16px; }
+.receta-group-new-row .receta-group-new-name { flex: 1; width: auto; min-width: 0; }
 .receta-group-new-color { padding: 2px; height: 30px; }
 .receta-group-new-actions { display: flex; gap: 6px; }
 .receta-group-new-actions button { flex: 1; margin: 0; padding: 6px 8px; }
