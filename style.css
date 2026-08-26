@@ -1386,7 +1386,7 @@ input, textarea, [contenteditable], [contenteditable] * {
   transition: box-shadow .2s, border-color .2s;
   cursor: pointer;
 }
-.receta-card:hover { border-color: rgba(113,75,103,.3); box-shadow: var(--shadow); }
+.receta-card:hover { box-shadow: var(--shadow); }
 .receta-card-body  { padding-bottom: 14px; }
 .receta-card-title { font-size: 15px; font-weight: 700; color: var(--text); }
 .receta-card-meta  { font-size: 11px; color: var(--text-sub); margin-top: 4px; }
@@ -1740,8 +1740,9 @@ input, textarea, [contenteditable], [contenteditable] * {
 
 /* ── Procesos: Ejecución cards ───────────────────────────────────────────── */
 .ejecucion-card {
+  position: relative; overflow: hidden;
   border: 1.5px solid var(--border); border-radius: var(--radius);
-  padding: 14px 16px; margin-bottom: 10px;
+  padding: 14px 16px 0; margin-bottom: 10px;
   background: var(--surface);
 }
 .ejecucion-card:last-child { margin-bottom: 0; }
@@ -1757,7 +1758,20 @@ input, textarea, [contenteditable], [contenteditable] * {
 .ejecucion-meta   { font-size: 12px; color: var(--text-sub); }
 .ejecucion-stars  { color: #F59E0B; letter-spacing: 1px; }
 .ejecucion-obs    { font-size: 12px; color: var(--text-sub); margin-top: 6px; font-style: italic; }
-.ejecucion-hint   { font-size: 11px; color: var(--text-sub); margin-top: 8px; opacity: .7; }
+.ejecucion-hint   { font-size: 11px; color: var(--text-sub); margin-top: 8px; padding-bottom: 14px; opacity: .7; }
+
+/* Panel Eliminar montado sobre la tarjeta al mantenerla presionada — mismo
+   patrón que .receta-card-actions/.receta-group-card-actions. */
+.ejecucion-card-actions {
+  display: none; position: absolute; left: 0; right: 0; bottom: 0;
+  border-top: 1px solid var(--border);
+}
+.ejecucion-card-actions.open { display: flex; }
+.ejecucion-card-actions button {
+  flex: 1; border: none; background: var(--surface); cursor: pointer;
+  padding: 10px 8px; font-size: 12.5px; font-weight: 600; color: #C0392B;
+}
+.ejecucion-card-actions button:hover { background: #EF444414; }
 
 /* Ejecucion detail – etapas */
 .detail-etapas-list { display: flex; flex-direction: column; gap: 10px; width: 100%; }
@@ -1931,6 +1945,10 @@ input, textarea, [contenteditable], [contenteditable] * {
    zoom automático de iOS al enfocar, botón con buen tamaño para el dedo) */
 .exec-obs-textarea { font-size: 16px !important; min-height: 90px !important; }
 .exec-obs-btn { min-height: 46px !important; font-size: 15px !important; }
+/* El campo va antes que la lista de ya agregadas (igual que en la
+   evaluación del lote) — sin borde arriba, que aquí no separa nada. */
+.exec-obs-section .obs-input-wrap { border-top: none; padding: 0; }
+.exec-obs-section .detail-etapa-obs-toggle { margin-top: 10px; }
 
 /* Barra inferior fija: Regresar siempre a la izquierda, Etapa siguiente
    siempre a la derecha, visible sin necesidad de hacer scroll */

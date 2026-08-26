@@ -278,6 +278,20 @@ async function updateEjecucion(ej) {
   });
 }
 
+async function deleteEjecucionRow(rowIndex) {
+  if (!ejecucionesSheetId) {
+    const info = await sheetsReq('');
+    const tab  = info.sheets.find(s => s.properties.title === 'RecetasEjecuciones');
+    if (tab) ejecucionesSheetId = tab.properties.sheetId;
+  }
+  await sheetsReq(':batchUpdate', {
+    method: 'POST',
+    body: JSON.stringify({ requests: [{ deleteDimension: {
+      range: { sheetId: ejecucionesSheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex }
+    }}]})
+  });
+}
+
 // ── Procesos: Render ──────────────────────────────────────────────────────────
 
 export async function loadProcesos() {
@@ -293,9 +307,10 @@ export async function loadProcesos() {
 // empezar ejecución, mantener presionado = panel Editar/Borrar montado
 // sobre la tarjeta (mismo patrón que las tarjetas de grupo, ver
 // wireRecetaCardEvents más abajo).
-function recetaCardHTML(r) {
+function recetaCardHTML(r, groupStyle) {
+  const { bg, borderColor } = groupStyle || {};
   return `
-    <div class="receta-card" data-id="${esc(r.id)}">
+    <div class="receta-card" data-id="${esc(r.id)}" style="${bg ? `background:${bg};` : ''}${borderColor ? `border-color:${borderColor}` : ''}">
       <div class="receta-card-body">
         <div class="receta-card-title">${esc(r.nombre)}</div>
         <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''}</div>
@@ -332,19 +347,25 @@ function recetaGroupSections() {
 // ya prellenado. El botón flotante "+" (btnNewRecetaGroup, wired en
 // renderRecetasList) arma el mismo tipo de mini-formulario para crear un
 // grupo nuevo, agregado al principio de la grilla.
+// Colores muy pasteles (14% de relleno) para separar visualmente cada
+// grupo; "Sin bloque" queda neutro por no ser un grupo real. Si el
+// usuario eligió un color propio para el bloque, se usa ese en vez del
+// tono automático. Se reutiliza tal cual para las tarjetas de receta
+// dentro del grupo, que heredan el mismo color de su tarjeta de grupo.
+function groupColorStyle(sec, idx) {
+  const customBg = sec.id && sec.color ? hexToRgba(sec.color, .14) : null;
+  const hue    = (!customBg && sec.id) ? RECETA_BLOCK_HUES[idx % RECETA_BLOCK_HUES.length] : null;
+  const bg     = customBg || (hue != null ? `hsl(${hue} 70% 55% / .12)` : null);
+  // El borde necesita su propio valor con transparencia — no se le puede
+  // pegar un sufijo hex a un hsl()/var(), por eso es un cálculo aparte.
+  const borderColor = sec.color ? `${sec.color}55` : (hue != null ? `hsl(${hue} 70% 45% / .35)` : 'var(--border)');
+  return { bg, borderColor };
+}
+
 function renderRecetaGroupsGallery(container) {
   const sections = recetaGroupSections().filter(sec => sec.id);
   const cardsHTML = sections.map((sec, idx) => {
-    // Colores muy pasteles (14% de relleno) para separar visualmente cada
-    // grupo; "Sin bloque" queda neutro por no ser un grupo real. Si el
-    // usuario eligió un color propio para el bloque, se usa ese en vez
-    // del tono automático.
-    const customBg = sec.id && sec.color ? hexToRgba(sec.color, .14) : null;
-    const hue    = (!customBg && sec.id) ? RECETA_BLOCK_HUES[idx % RECETA_BLOCK_HUES.length] : null;
-    const bg     = customBg || (hue != null ? `hsl(${hue} 70% 55% / .12)` : null);
-    // El borde necesita su propio valor con transparencia — no se le puede
-    // pegar un sufijo hex a un hsl()/var(), por eso es un cálculo aparte.
-    const borderColor = sec.color ? `${sec.color}55` : (hue != null ? `hsl(${hue} 70% 45% / .35)` : 'var(--border)');
+    const { bg, borderColor } = groupColorStyle(sec, idx);
     return `
       <div class="receta-group-card" data-group-id="${esc(sec.id)}" ${sec.id ? 'draggable="true"' : ''} style="${bg ? `background:${bg};` : ''}border-color:${borderColor}">
         <div class="receta-group-card-icon">${esc(sec.icono || '📁')}</div>
@@ -566,16 +587,21 @@ function wireRecetaGroupCardPress(container) {
 // vez a nivel de módulo (si fuera dentro de wireRecetaGroupCardPress
 // quedaría un listener nuevo apilado en cada re-render de la galería).
 document.addEventListener('click', () => {
-  document.querySelectorAll('.receta-group-card-actions.open, .receta-card-actions.open').forEach(a => a.classList.remove('open'));
+  document.querySelectorAll('.receta-group-card-actions.open, .receta-card-actions.open, .ejecucion-card-actions.open').forEach(a => a.classList.remove('open'));
 });
 
 // Recetas de un solo grupo — se llega tocando su tarjeta en la galería.
+// Heredan el mismo color que la tarjeta de ese grupo en la galería (mismo
+// índice, mismo groupColorStyle).
 function renderRecetaGroupDetail(container) {
-  const sec = recetaGroupSections().find(s => s.id === currentRecetaGroupId);
+  const allSections = recetaGroupSections().filter(s => s.id);
+  const idx = allSections.findIndex(s => s.id === currentRecetaGroupId);
+  const sec = allSections[idx] || recetaGroupSections().find(s => s.id === currentRecetaGroupId);
   if (!sec) { currentRecetaGroupId = null; renderRecetasList(); return; }
 
+  const groupStyle = idx >= 0 ? groupColorStyle(sec, idx) : null;
   container.innerHTML = sec.items.length
-    ? `<div class="receta-cards-grid">${sec.items.map(recetaCardHTML).join('')}</div>`
+    ? `<div class="receta-cards-grid">${sec.items.map(r => recetaCardHTML(r, groupStyle)).join('')}</div>`
     : '<div class="receta-block-empty">No hay recetas en este grupo todavía.</div>';
 
   wireRecetaCardEvents(container);
@@ -700,7 +726,7 @@ function renderEjecucionesList() {
     const durMin = ej.duracionTotal ? Math.round(+ej.duracionTotal / 60) + ' min' : '—';
 
     return `
-      <div class="ejecucion-card" data-ej-id="${esc(ej.id)}" style="cursor:pointer">
+      <div class="ejecucion-card" data-ej-id="${esc(ej.id)}" data-row="${ej.rowIndex}" style="cursor:pointer">
         <div class="ejecucion-card-header">
           <span class="ejecucion-lote">${esc(ej.loteId || 'Sin lote')}</span>
           <span class="ejecucion-estado estado-${ej.estado === 'Completada' ? 'ok' : 'prog'}">${esc(ej.estado)}</span>
@@ -711,20 +737,63 @@ function renderEjecucionesList() {
           ${ev.calificacion ? `&nbsp;·&nbsp; <span class="ejecucion-stars">${stars}</span>` : ''}
         </div>
         ${normalizeObsList(ev.observaciones).length ? `<div class="ejecucion-obs">${normalizeObsList(ev.observaciones).map(o => esc(o.text)).join(' · ')}</div>` : ''}
-        <div class="ejecucion-hint">doble clic = ver detalle</div>
+        <div class="ejecucion-hint">doble clic = ver detalle · mantener presionado = eliminar</div>
+        <div class="ejecucion-card-actions">
+          <button type="button" data-del-ejecucion="${esc(ej.id)}">Eliminar</button>
+        </div>
       </div>
     `;
   }).join('');
 
-  container.querySelectorAll('[data-ej-id]').forEach(card => {
+  // Mantener presionada la tarjeta muestra el botón Eliminar montado sobre
+  // ella — mismo patrón de press-and-hold que las tarjetas de receta/grupo.
+  container.querySelectorAll('.ejecucion-card[data-ej-id]').forEach(card => {
     const ejId = card.dataset.ejId;
-    card.addEventListener('dblclick', () => openEjecucionDetail(ejId));
-    card.addEventListener('touchend', () => {
-      if (wasAccidentalTouch()) return;
+    let pressTimer  = null;
+    let longPressed = false;
+
+    const openCardActions = () => {
+      container.querySelectorAll('.ejecucion-card-actions.open').forEach(a => a.classList.remove('open'));
+      card.querySelector('.ejecucion-card-actions')?.classList.add('open');
+    };
+    const startPress = e => {
+      if (e.target.closest('button')) return;
+      longPressed = false;
+      pressTimer = setTimeout(() => { longPressed = true; openCardActions(); }, 550);
+    };
+    const cancelPress = () => clearTimeout(pressTimer);
+
+    card.addEventListener('mousedown', startPress);
+    card.addEventListener('mouseup', cancelPress);
+    card.addEventListener('mouseleave', cancelPress);
+    card.addEventListener('touchstart', startPress, { passive: true });
+    card.addEventListener('touchmove', cancelPress, { passive: true });
+
+    card.addEventListener('dblclick', e => {
+      if (longPressed || e.target.closest('button')) return;
+      openEjecucionDetail(ejId);
+    });
+    card.addEventListener('touchend', e => {
+      if (longPressed) { longPressed = false; return; }
+      if (e.target.closest('button') || wasAccidentalTouch()) return;
       const now  = Date.now();
       const last = lastTapTime['ej_' + ejId] || 0;
       lastTapTime['ej_' + ejId] = now;
       if (now - last < 350) openEjecucionDetail(ejId);
+    });
+  });
+
+  container.querySelectorAll('[data-del-ejecucion]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      if (!confirm('¿Eliminar esta ejecución? Esta acción no se puede deshacer.')) return;
+      const card = btn.closest('.ejecucion-card');
+      btn.disabled = true;
+      try {
+        await deleteEjecucionRow(+card.dataset.row);
+        await loadEjecucionesData();
+        renderEjecucionesList();
+      } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
     });
   });
 }
@@ -1503,16 +1572,28 @@ function goBackStage() {
   renderExecutionStep();
 }
 
-function renderExecStageObsList() {
-  const list = document.getElementById('execStageObsList');
-  if (!list || !executionState) return;
+// Mismo patrón que las observaciones de etapa en el detalle de ejecución:
+// caja .obs-item, plegada por defecto detrás de un toggle "Observaciones
+// (N)". `open` fuerza que quede desplegada (justo después de agregar una,
+// para que el usuario vea de inmediato lo que acaba de escribir).
+function renderExecStageObsList(open) {
+  const toggle = document.getElementById('execStageObsToggle');
+  const list   = document.getElementById('execStageObsList');
+  if (!toggle || !list || !executionState) return;
   const rows = (executionState.stageObsDraft || {})[executionState.currentStageIndex] || [];
+
   if (!rows.length) {
-    list.innerHTML = '<div class="obs-empty">Aún sin observaciones</div>';
+    toggle.style.display = 'none';
+    list.style.display   = 'none';
     return;
   }
+
+  toggle.style.display = '';
+  toggle.innerHTML = `Observaciones (${rows.length}) <span class="detail-etapa-obs-arrow">▸</span>`;
+  toggle.classList.toggle('open', !!open);
+  list.style.display = open ? '' : 'none';
   list.innerHTML = rows.map(o => `<div class="obs-item"><div class="obs-text">${esc(o.text)}</div></div>`).join('');
-  list.scrollTop = list.scrollHeight;
+  if (open) list.scrollTop = list.scrollHeight;
 }
 
 function renderExecutionStep() {
@@ -1545,11 +1626,12 @@ function renderExecutionStep() {
 
     <div class="exec-obs-section">
       <h4 class="exec-insumos-title">Observaciones de esta etapa</h4>
-      <div id="execStageObsList" class="obs-list"></div>
       <div class="obs-input-wrap">
         <textarea class="field-textarea obs-textarea exec-obs-textarea" id="execStageObsInput" rows="3" placeholder="Escribe una observación…" autocapitalize="sentences" autocorrect="on" enterkeyhint="done"></textarea>
         <button type="button" class="btn-outline obs-btn exec-obs-btn" id="btnAddExecStageObs">Agregar</button>
       </div>
+      <div class="detail-etapa-obs-toggle" id="execStageObsToggle" style="display:none"></div>
+      <div id="execStageObsList" class="obs-list detail-etapa-obs-list" style="display:none"></div>
     </div>
 
     <div class="exec-nav-footer">
@@ -1565,6 +1647,10 @@ function renderExecutionStep() {
   window.scrollTo(0, 0);
 
   renderExecStageObsList();
+  document.getElementById('execStageObsToggle').addEventListener('click', () => {
+    const open = document.getElementById('execStageObsList').style.display === 'none';
+    renderExecStageObsList(open);
+  });
   document.getElementById('btnAddExecStageObs').addEventListener('click', () => {
     const input = document.getElementById('execStageObsInput');
     const text  = input.value.trim();
@@ -1574,7 +1660,7 @@ function renderExecutionStep() {
     executionState.stageObsDraft[idx] = executionState.stageObsDraft[idx] || [];
     executionState.stageObsDraft[idx].push({ text, createdAt: new Date().toISOString() });
     input.value = '';
-    renderExecStageObsList();
+    renderExecStageObsList(true);
     saveExecutionProgress();
   });
 

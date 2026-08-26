@@ -513,13 +513,32 @@ function getTasksByDueCategory(cat) {
     .sort((a, b) => (a.dueDate || '') < (b.dueDate || '') ? -1 : 1);
 }
 
+// Ícono de la app en la pantalla de inicio (PWA instalada): muestra el
+// número de tareas atrasadas + las de hoy, como un badge nativo de
+// notificaciones. Badging API — soportada en iOS 16.4+ (agregada a
+// pantalla de inicio) y en Chrome/Android; en navegadores sin soporte
+// esto simplemente no hace nada.
+function updateAppIconBadge(count) {
+  if (!('setAppBadge' in navigator)) return;
+  if (count > 0) navigator.setAppBadge(count).catch(() => {});
+  else navigator.clearAppBadge().catch(() => {});
+}
+
 function updateDueBadgeCounts() {
+  const hoyCount      = getTasksByDueCategory('hoy').length;
+  const atrasadoCount = getTasksByDueCategory('atrasado').length;
+
+  // El badge del ícono se actualiza sin importar en qué pestaña esté el
+  // usuario — a diferencia de los contadores de abajo, que solo existen
+  // en el DOM cuando la pantalla de Tareas está montada.
+  updateAppIconBadge(hoyCount + atrasadoCount);
+
   const hoyEl      = document.getElementById('dueCountHoy');
   const atrasadoEl = document.getElementById('dueCountAtrasado');
   const futuroEl   = document.getElementById('dueCountFuturo');
   if (!hoyEl || !atrasadoEl || !futuroEl) return;
-  hoyEl.textContent      = getTasksByDueCategory('hoy').length;
-  atrasadoEl.textContent = getTasksByDueCategory('atrasado').length;
+  hoyEl.textContent      = hoyCount;
+  atrasadoEl.textContent = atrasadoCount;
   futuroEl.textContent   = getTasksByDueCategory('futuro').length;
 }
 
