@@ -1,5 +1,6 @@
 import { sheetsReq, uploadToDrive, deleteDriveFile, downloadDriveFile, thumbUrl } from './auth.js';
 import { esc, setFb, fmtDate, delay, confirmCloseIfDirty, safeLoad, todayISOBogota, ICON_FILM, ICON_IMAGE, ICON_FOLDER, ICON_DOWNLOAD, ICON_CHECK, ICON_CALENDAR, ICON_TRASH, ICON_EDIT, ICON_SPINNER } from './utils.js';
+import { requestAppBadgePermission } from './tareas.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const dropzone      = document.getElementById('dropzone');
@@ -577,6 +578,17 @@ document.getElementById('btnTestWhatsApp').addEventListener('click', async () =>
     setFb(fb, '✅ Mensaje enviado (revisa WhatsApp en unos segundos).', 'ok');
   } catch (e) {
     setFb(fb, `Error: ${e.message}`, 'err');
+  }
+});
+document.getElementById('btnEnableAppBadge').addEventListener('click', async () => {
+  const btn = document.getElementById('btnEnableAppBadge');
+  const fb  = document.getElementById('appBadgeFeedback');
+  btn.disabled = true;
+  try {
+    const { ok, msg } = await requestAppBadgePermission();
+    setFb(fb, msg, ok ? 'ok' : 'err');
+  } finally {
+    btn.disabled = false;
   }
 });
 settingsOverlay.addEventListener('click', e => {

@@ -524,6 +524,30 @@ function updateAppIconBadge(count) {
   else navigator.clearAppBadge().catch(() => {});
 }
 
+// En iOS, el badge del ícono no aparece hasta que el usuario concede
+// permiso de notificaciones — sin eso, TATEAPP ni siquiera figura en
+// Ajustes > Notificaciones. El pedido de permiso tiene que salir de un
+// toque directo del usuario (un botón en Configuración), si se dispara
+// solo (p. ej. al cargar la app) Safari lo bloquea sin mostrar el diálogo.
+export async function requestAppBadgePermission() {
+  if (!('Notification' in window) || !('setAppBadge' in navigator)) {
+    return { ok: false, msg: 'Tu navegador no soporta el contador en el ícono.' };
+  }
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  if (!isStandalone) {
+    return { ok: false, msg: 'Abre TATEAPP desde el ícono de tu pantalla de inicio (no desde Safari) y vuelve a intentar.' };
+  }
+  if (Notification.permission === 'denied') {
+    return { ok: false, msg: 'Las notificaciones están bloqueadas para TATEAPP — actívalas en Ajustes del sistema > Notificaciones.' };
+  }
+  const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+  if (perm !== 'granted') {
+    return { ok: false, msg: 'No se activó el contador — permiso denegado.' };
+  }
+  updateDueBadgeCounts();
+  return { ok: true, msg: '✅ Contador activado en el ícono.' };
+}
+
 function updateDueBadgeCounts() {
   const hoyCount      = getTasksByDueCategory('hoy').length;
   const atrasadoCount = getTasksByDueCategory('atrasado').length;
