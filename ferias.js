@@ -13,6 +13,7 @@ let feriaCounterId       = null;
 let feriaCounterFecha    = null; // día fijo del contador (siempre "hoy", ver getFeriaDefaultDay)
 let feriaCounterSaveTimer = null;
 let feriaStockPendingId  = null;
+let feriaResumenId       = null;
 let lastTapTime          = {}; // para detección de doble-toque en móvil
 
 // ── Ferias: Sheets init + CRUD ──────────────────────────────────────────────────
@@ -193,10 +194,25 @@ export function openTodaysFeriaCounterIfAny() {
   if (activa) openFeriaCounter(activa.id);
 }
 
+function feriaEstaEnCurso(f) {
+  return getFeriaDateList(f).includes(toISODate(new Date()));
+}
+
+// Punto de entrada único del botón "Registrar conteo"/"Ver resumen" y del
+// doble clic/toque sobre la tarjeta: fuera de las fechas de la feria no tiene
+// sentido dejar cargar el conteo del día (no hay "hoy" válido que registrar).
+function handleAbrirFeria(feriaId) {
+  const f = ferias.find(x => x.id === feriaId);
+  if (!f) return;
+  if (feriaEstaEnCurso(f)) openFeriaCounter(feriaId);
+  else openFeriaResumen(feriaId);
+}
+
 // ── Ferias: UI ─────────────────────────────────────────────────────────────────
 
 function feriaBlockHTML(f) {
   const fechas = (f.fechaInicio && f.fechaFin) ? `${fmtDateShortEs(f.fechaInicio)} → ${fmtDateShortEs(f.fechaFin)}` : '—';
+  const enCurso = feriaEstaEnCurso(f);
   return `
     <div class="feria-block" data-id="${esc(f.id)}">
       <div class="feria-block-title">${esc(f.empresa)}</div>
@@ -204,7 +220,7 @@ function feriaBlockHTML(f) {
       <div class="feria-block-meta">📍 ${esc(f.lugar || '—')}</div>
       <div class="feria-block-counter">👥 ${feriaConteoTotal(f)}</div>
       <div class="feria-block-actions">
-        <button class="feria-confirm-btn" data-conteo-feria="${esc(f.id)}">👥 Registrar conteo</button>
+        <button class="feria-confirm-btn" data-conteo-feria="${esc(f.id)}">${enCurso ? '👥 Registrar conteo' : '📋 Ver resumen'}</button>
         <div class="card-menu">
           <button type="button" class="card-menu-btn" data-menu-btn title="Más acciones">${ICON_MORE}</button>
           <div class="card-menu-list">
@@ -249,19 +265,19 @@ export function renderFerias() {
     btn.addEventListener('click', e => { e.stopPropagation(); openFeriaStockModal(btn.dataset.planStockFeria); });
   });
   container.querySelectorAll('[data-conteo-feria]').forEach(btn => {
-    btn.addEventListener('click', e => { e.stopPropagation(); openFeriaCounter(btn.dataset.conteoFeria); });
+    btn.addEventListener('click', e => { e.stopPropagation(); handleAbrirFeria(btn.dataset.conteoFeria); });
   });
   container.querySelectorAll('.feria-block').forEach(block => {
     block.addEventListener('dblclick', e => {
       if (e.target.closest('button')) return;
-      openFeriaCounter(block.dataset.id);
+      handleAbrirFeria(block.dataset.id);
     });
     block.addEventListener('touchend', e => {
       if (e.target.closest('button') || wasAccidentalTouch()) return;
       const now  = Date.now();
       const last = lastTapTime['feria_' + block.dataset.id] || 0;
       lastTapTime['feria_' + block.dataset.id] = now;
-      if (now - last < 350) openFeriaCounter(block.dataset.id);
+      if (now - last < 350) handleAbrirFeria(block.dataset.id);
     });
   });
 }
@@ -809,15 +825,42 @@ function feriaToText(f) {
   return lines.join('\n');
 }
 
-document.getElementById('btnDownloadFeria').addEventListener('click', () => {
-  const f = ferias.find(x => x.id === feriaCounterId);
-  if (!f) return;
+function downloadFeriaTxt(f) {
   const text = feriaToText(f);
   const blob = new Blob([text], { type: 'text/plain' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a'); a.href = url;
   a.download = `feria-${(f.empresa || 'feria').replace(/[^a-z0-9]+/gi, '-')}.txt`;
   a.click(); URL.revokeObjectURL(url);
+}
+
+document.getElementById('btnDownloadFeria').addEventListener('click', () => {
+  const f = ferias.find(x => x.id === feriaCounterId);
+  if (f) downloadFeriaTxt(f);
+});
+
+// ── Ferias: resumen (fuera de las fechas de la feria, en vez del conteo) ────────
+
+function openFeriaResumen(feriaId) {
+  const f = ferias.find(x => x.id === feriaId);
+  if (!f) return;
+  feriaResumenId = feriaId;
+  document.getElementById('feriaResumenTitle').textContent   = f.empresa;
+  document.getElementById('feriaResumenContent').textContent = feriaToText(f);
+  document.getElementById('feriaResumenOverlay').classList.add('open');
+}
+
+function closeFeriaResumen() {
+  document.getElementById('feriaResumenOverlay').classList.remove('open');
+  feriaResumenId = null;
+}
+document.getElementById('btnCloseFeriaResumen').addEventListener('click', closeFeriaResumen);
+document.getElementById('feriaResumenOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('feriaResumenOverlay')) closeFeriaResumen();
+});
+document.getElementById('btnDownloadFeriaResumen').addEventListener('click', () => {
+  const f = ferias.find(x => x.id === feriaResumenId);
+  if (f) downloadFeriaTxt(f);
 });
 
 function closeFeriaCounter() {
