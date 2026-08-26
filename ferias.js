@@ -266,9 +266,6 @@ export function renderFerias() {
   container.innerHTML = `<div class="feria-blocks-grid">${ferias.map(feriaBlockHTML).join('')}</div>`;
   wireFeriaCardActions(container);
   container.querySelectorAll('.feria-block').forEach(block => {
-    // Evita el menú nativo (Copiar/Buscar/Traducir) que el navegador
-    // dispara al mantener presionado, que compite con nuestro propio menú.
-    block.addEventListener('contextmenu', e => e.preventDefault());
     let pressTimer  = null;
     let longPressed = false;
     const openCardMenu = () => {

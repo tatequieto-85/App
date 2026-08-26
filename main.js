@@ -140,6 +140,14 @@ function isStandalonePWA() {
   return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 }
 
+// Bloquea el menú nativo (Copiar/Buscar/Traducir) en toda la app — compite
+// con los menús propios de press-and-hold. Se deja pasar en campos de texto,
+// donde ese menú (cortar/copiar/pegar) sigue haciendo falta.
+document.addEventListener('contextmenu', e => {
+  if (e.target.closest('input, textarea, [contenteditable]')) return;
+  e.preventDefault();
+});
+
 if (isStandalonePWA()) {
   const viewportMeta = document.querySelector('meta[name="viewport"]');
   if (viewportMeta) {
