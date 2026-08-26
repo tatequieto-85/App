@@ -1605,12 +1605,13 @@ input, textarea, [contenteditable], [contenteditable] * {
 
 /* ── Procesos: galería de grupos (pantalla principal de Recetas) ─────────── */
 .receta-groups-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  display: grid; grid-template-columns: repeat(2, 1fr);
   gap: 14px;
 }
 .receta-group-card {
   position: relative; border: 1.5px solid var(--border); border-radius: var(--radius);
-  padding: 16px; background: var(--surface); cursor: pointer; min-height: 92px;
+  padding: 16px; background: var(--surface); cursor: pointer;
+  aspect-ratio: 4 / 5; box-sizing: border-box;
   display: flex; flex-direction: column; justify-content: center; gap: 6px;
   transition: box-shadow .2s, border-color .2s;
 }
