@@ -1623,7 +1623,14 @@ input, textarea, [contenteditable], [contenteditable] * {
 }
 .btn-fab:hover  { background: var(--brand-hover); }
 .btn-fab:active { transform: scale(.95); }
-.receta-group-card--form { cursor: default; align-items: stretch; gap: 8px; padding-bottom: 16px; }
+/* aspect-ratio:auto + overflow:visible: el formulario (ícono+nombre+color+
+   botones+feedback) no entra en la altura fija 4:5 de una tarjeta normal —
+   con overflow:hidden heredado de .receta-group-card, "Guardar"/"Crear"
+   quedaba recortado fuera de la vista. */
+.receta-group-card--form {
+  cursor: default; align-items: stretch; gap: 8px; padding-bottom: 16px;
+  aspect-ratio: auto; overflow: visible;
+}
 .receta-group-card--form:hover { box-shadow: none; }
 .receta-group-new-row { display: flex; gap: 6px; }
 .receta-group-new-icon, .receta-group-new-name, .receta-group-new-color {
