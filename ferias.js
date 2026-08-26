@@ -695,10 +695,26 @@ function renderFeriaVentaRows(f, fecha) {
       <div class="feria-stock-item">
         <div class="feria-stock-sabor">${nombre}</div>
         <div class="feria-stock-lote">${lote} · Disp. ${row.disponible}</div>
-        <input type="number" min="0" max="${row.disponible}" step="1" class="field-input feria-stock-input" data-lote="${esc(row.id)}" placeholder="Cantidad" />
+        <div class="feria-venta-stepper" data-lote="${esc(row.id)}" data-max="${row.disponible}">
+          <button type="button" class="feria-venta-stepper-btn" data-dir="-1" disabled>−</button>
+          <span class="feria-venta-stepper-value">0</span>
+          <button type="button" class="feria-venta-stepper-btn" data-dir="1">+</button>
+        </div>
       </div>`;
   }).join('');
   wrap.innerHTML = `<div class="feria-stock-list">${itemsHTML}</div>`;
+
+  wrap.querySelectorAll('.feria-venta-stepper-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const stepper = btn.closest('.feria-venta-stepper');
+      const max     = parseInt(stepper.dataset.max) || 0;
+      const valueEl = stepper.querySelector('.feria-venta-stepper-value');
+      const nuevo   = Math.max(0, Math.min(max, (parseInt(valueEl.textContent) || 0) + parseInt(btn.dataset.dir)));
+      valueEl.textContent = nuevo;
+      stepper.querySelector('[data-dir="-1"]').disabled = nuevo <= 0;
+      stepper.querySelector('[data-dir="1"]').disabled  = nuevo >= max;
+    });
+  });
 }
 
 document.getElementById('btnSaveFeriaVenta').addEventListener('click', async () => {
@@ -713,9 +729,9 @@ document.getElementById('btnSaveFeriaVenta').addEventListener('click', async () 
 
   const nuevas  = [];
   const excesos = [];
-  document.querySelectorAll('#feriaVentaRows .feria-stock-input').forEach(inp => {
-    const loteId   = inp.dataset.lote;
-    const cantidad = parseInt(inp.value) || 0;
+  document.querySelectorAll('#feriaVentaRows .feria-venta-stepper').forEach(stepper => {
+    const loteId   = stepper.dataset.lote;
+    const cantidad = parseInt(stepper.querySelector('.feria-venta-stepper-value').textContent) || 0;
     if (cantidad <= 0) return;
     const ej = ejecuciones.find(x => x.id === loteId);
     const disponible = (plan[loteId] || 0) - (vendidoTotal[loteId] || 0);
@@ -749,13 +765,17 @@ document.getElementById('btnSaveFeriaVenta').addEventListener('click', async () 
 });
 
 function isFeriaVentaFormDirty() {
-  return Array.from(document.querySelectorAll('#feriaVentaRows .feria-stock-input')).some(input => input.value.trim());
+  return Array.from(document.querySelectorAll('#feriaVentaRows .feria-venta-stepper-value')).some(v => (parseInt(v.textContent) || 0) > 0);
 }
 
 function closeFeriaVentaModal() {
   confirmCloseIfDirty('feriaVentaOverlay', isFeriaVentaFormDirty);
 }
 document.getElementById('btnOpenFeriaVenta').addEventListener('click', () => {
+  // Contadores siempre en 0 al abrir: cada venta se registra desde cero,
+  // sin arrastrar lo que haya quedado de una apertura anterior que se
+  // cerró sin guardar.
+  renderFeriaCounterDay();
   document.getElementById('feriaVentaOverlay').classList.add('open');
 });
 document.getElementById('btnCloseFeriaVenta').addEventListener('click', closeFeriaVentaModal);

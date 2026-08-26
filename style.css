@@ -1410,7 +1410,26 @@ input, textarea, [contenteditable], [contenteditable] * {
 .feria-counter-quickrow button { flex: 1; margin: 0; }
 
 /* Registrar venta (feria) reutiliza el mismo estilo de grilla que el plan
-   de stock (.feria-stock-list/.feria-stock-item, ver más abajo). */
+   de stock (.feria-stock-list/.feria-stock-item, ver más abajo), pero en
+   vez de un input numérico usa un contador +/-. */
+.feria-stock-item .feria-venta-stepper { grid-column: 2; grid-row: 1 / span 2; }
+.feria-venta-stepper {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  padding: 4px 6px; min-width: 108px;
+}
+.feria-venta-stepper-btn {
+  width: 28px; height: 28px; flex-shrink: 0; margin: 0; padding: 0;
+  border: none; border-radius: var(--radius-sm); background: var(--bg); color: var(--text);
+  font-size: 17px; font-weight: 700; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.feria-venta-stepper-btn:hover:not(:disabled) { background: var(--gray-200); }
+.feria-venta-stepper-btn:disabled { opacity: .35; cursor: default; }
+.feria-venta-stepper-value {
+  flex: 1; text-align: center; font-size: 15px; font-weight: 700; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── Ferias: plan de stock (grilla 2 columnas, sin scroll horizontal) ────── */
 .feria-stock-list { display: flex; flex-direction: column; }
