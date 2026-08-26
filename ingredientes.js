@@ -270,7 +270,10 @@ document.getElementById('ingredientesOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('ingredientesOverlay')) closeIngredientesModal();
 });
 
-document.getElementById('btnManageIngredientes').addEventListener('click', () => openIngredientesModal(false));
+// El botón que abría esto (junto a "Recetas disponibles" en Procesos) se
+// sacó de la pantalla a pedido del usuario — openIngredientesModal() queda
+// sin un disparador por ahora, pero el modal/CRUD sigue acá por si hace
+// falta reengancharlo más adelante.
 
 document.getElementById('btnAddIngrediente').addEventListener('click', async () => {
   const input       = document.getElementById('nuevoIngrediente');

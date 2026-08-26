@@ -530,7 +530,6 @@ function renderRecetaGroupsGallery(container) {
         ${sec.id ? `<button type="button" class="receta-group-card-edit" data-edit-group title="Editar grupo">${ICON_EDIT}</button>` : ''}
         <div class="receta-group-card-dot" style="background:${accent}"></div>
         <div class="receta-group-card-name">${esc(sec.nombre)}</div>
-        <div class="receta-group-card-count">${sec.items.length} receta${sec.items.length !== 1 ? 's' : ''}</div>
       </div>`;
   }).join('');
 

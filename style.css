@@ -1622,7 +1622,6 @@ input, textarea, [contenteditable], [contenteditable] * {
 .receta-group-card.block-drag-over { outline: 2px dashed var(--brand); outline-offset: 2px; }
 .receta-group-card-dot { width: 10px; height: 10px; border-radius: 50%; }
 .receta-group-card-name { font-size: 14.5px; font-weight: 700; color: var(--text); }
-.receta-group-card-count { font-size: 11.5px; color: var(--text-sub); }
 .receta-group-card-edit {
   position: absolute; top: 8px; right: 8px; z-index: 1;
   width: 26px; height: 26px; border: none; border-radius: 50%;
