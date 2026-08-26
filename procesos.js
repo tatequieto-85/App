@@ -527,6 +527,7 @@ function renderRecetaGroupsGallery(container) {
     const borderColor = sec.color ? `${sec.color}55` : (hue != null ? `hsl(${hue} 70% 45% / .35)` : 'var(--border)');
     return `
       <div class="receta-group-card" data-group-id="${esc(sec.id)}" ${sec.id ? 'draggable="true"' : ''} style="${bg ? `background:${bg};` : ''}border-color:${borderColor}">
+        ${sec.id ? `<button type="button" class="receta-group-card-edit" data-edit-group title="Editar grupo">${ICON_EDIT}</button>` : ''}
         <div class="receta-group-card-dot" style="background:${accent}"></div>
         <div class="receta-group-card-name">${esc(sec.nombre)}</div>
         <div class="receta-group-card-count">${sec.items.length} receta${sec.items.length !== 1 ? 's' : ''}</div>
@@ -541,6 +542,19 @@ function renderRecetaGroupsGallery(container) {
         <div class="receta-group-card-name">Nueva agrupación</div>
       </div>
     </div>`;
+
+  // El ícono de editar abre el mismo modal de siempre (Gestionar bloques,
+  // más abajo) — antes se llegaba por un botón fijo en la barra de arriba,
+  // ahora desde cualquier tarjeta de grupo.
+  container.querySelectorAll('[data-edit-group]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      if (!recetaBlocksLoaded) await loadRecetaBlocks();
+      renderRecetaBlocksList();
+      document.getElementById('recetaBlockFeedback').textContent = '';
+      document.getElementById('recetaBlockOverlay').classList.add('open');
+    });
+  });
 
   container.querySelectorAll('.receta-group-card[data-group-id]').forEach(card => {
     card.addEventListener('click', () => {
@@ -784,13 +798,6 @@ function renderRecetaBlocksList() {
     });
   });
 }
-
-document.getElementById('btnManageRecetaBlocks').addEventListener('click', async () => {
-  if (!recetaBlocksLoaded) await loadRecetaBlocks();
-  renderRecetaBlocksList();
-  document.getElementById('recetaBlockFeedback').textContent = '';
-  document.getElementById('recetaBlockOverlay').classList.add('open');
-});
 
 function isRecetaBlockFormDirty() {
   return !!document.getElementById('newRecetaBlockName')?.value.trim();
@@ -1209,10 +1216,10 @@ document.querySelectorAll('[data-procesostab]').forEach(btn => {
     document.querySelectorAll('[data-procesostab]').forEach(b =>
       b.classList.toggle('active', b.dataset.procesostab === currentProcesosTab)
     );
+    // btnNewReceta y btnManageIngredientes viven dentro de #subTabRecetas
+    // ahora, así que se muestran/ocultan solos con ese contenedor.
     document.getElementById('subTabRecetas').style.display     = currentProcesosTab === 'recetas'     ? '' : 'none';
     document.getElementById('subTabEjecuciones').style.display = currentProcesosTab === 'ejecuciones' ? '' : 'none';
-    document.getElementById('btnNewReceta').style.display      = currentProcesosTab === 'recetas'     ? '' : 'none';
-    document.getElementById('btnManageRecetaBlocks').style.display = currentProcesosTab === 'recetas' ? '' : 'none';
   });
 });
 
