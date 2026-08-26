@@ -108,8 +108,13 @@ export function feriaConteoTotal(f) {
   return porRango || (f.conteoPersonas || 0);
 }
 
+// Tolera ferias guardadas antes del cambio a plan sin desglose por día,
+// cuyo planStock quedó como {fecha: {loteId: qty}} en vez de {loteId: qty}.
 function feriaTotalLlevados(f) {
-  return Object.values(f.planStock || {}).reduce((sum, qty) => sum + (qty || 0), 0);
+  return Object.values(f.planStock || {}).reduce((sum, val) => {
+    if (val && typeof val === 'object') return sum + Object.values(val).reduce((s, q) => s + (q || 0), 0);
+    return sum + (val || 0);
+  }, 0);
 }
 
 function feriaTotalVendidos(f) {
