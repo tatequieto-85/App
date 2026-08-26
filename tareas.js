@@ -75,6 +75,18 @@ export function renderCurrentSubTab() {
   else renderKanbanList();
 }
 
+// Se marca en localStorage por sheetId apenas el usuario dispara el alta
+// (ver btnSyncCalendar más abajo) — no hay forma de confirmar desde acá que
+// la confirmación en Calendario/Google Calendar se completó de verdad (esa
+// parte pasa fuera de la app), así que se asume que sí y se saca el botón.
+function calendarSyncKey() {
+  return `ss_calendarSynced_${activeSheetId}`;
+}
+function updateSyncCalendarBtnVisibility() {
+  const btn = document.getElementById('btnSyncCalendar');
+  if (btn) btn.style.display = localStorage.getItem(calendarSyncKey()) ? 'none' : '';
+}
+
 export async function switchSubTab(subtab) {
   currentSubTab = subtab;
 
@@ -89,6 +101,7 @@ export async function switchSubTab(subtab) {
   document.getElementById('ganttToolbar').style.display     = subtab === 'gantt'      ? '' : 'none';
   document.getElementById('calendarToolbar').style.display  = subtab === 'calendario' ? '' : 'none';
   document.getElementById('btnManageBoard').style.display   = (subtab === 'gantt' || subtab === 'calendario') ? 'none' : '';
+  updateSyncCalendarBtnVisibility();
 
   // Kanban/Lista/Gantt/Calendario comparten los mismos kanbanTasks/columnas —
   // recargar todo de Sheets en cada click de sub-pestaña era puro desperdicio
@@ -2051,13 +2064,25 @@ function renderAreasList() {
   });
 }
 
+// En iPhone/iPad, "webcal://" hace que Safari entregue la suscripción
+// directo a la app nativa Calendario (con su propia pantalla de "Agregar
+// suscripción"), en vez de a Google Calendar — que es lo que tiene sentido
+// en el dispositivo objetivo real de esta app (ver memoria: TATEAPP termina
+// usándose como web app instalada en iPhone). En cualquier otro dispositivo
+// se manda a la pantalla de alta de Google Calendar.
+function isIOSDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS se identifica como Mac
+}
+
 // Suscripción con un clic: arma el link del feed (ver worker/src/index.js →
 // handleCalendar, con el sessionToken del Worker y el sheetId de la base
-// activa) y lo manda directo a la pantalla de Google Calendar que confirma
-// el alta ("¿Agregar este calendario?") — ese último clic de confirmación
-// no se puede saltar, es Google el que lo exige, no algo que dependa de acá.
-// El modal solo se muestra si algo falla o si el navegador bloqueó la
-// pestaña nueva, para no cortar el flujo de un clic en el caso normal.
+// activa) y lo manda directo a la pantalla de confirmación de alta del
+// calendario (iOS Calendario o Google Calendar según el dispositivo) — ese
+// último clic de confirmación no se puede saltar, lo exige el sistema/app
+// de calendario, no algo que dependa de acá. El modal solo se muestra si
+// algo falla o si el navegador bloqueó la pestaña nueva, para no cortar el
+// flujo de un clic en el caso normal.
 document.getElementById('btnSyncCalendar').addEventListener('click', () => {
   const fb       = document.getElementById('calendarSyncFeedback');
   const urlInput = document.getElementById('calendarSyncUrl');
@@ -2071,11 +2096,25 @@ document.getElementById('btnSyncCalendar').addEventListener('click', () => {
   }
   const icsUrl = `${CONFIG.WORKER_URL}/calendar.ics?session=${encodeURIComponent(session)}&sheet=${encodeURIComponent(activeSheetId)}`;
   urlInput.value = icsUrl;
+
+  if (isIOSDevice()) {
+    // Navegación directa (no window.open): en la PWA instalada standalone no
+    // hay "pestaña nueva" — así es como Safari/iOS entregan el webcal:// a
+    // Calendario sin depender de un popup que ahí ni existe.
+    localStorage.setItem(calendarSyncKey(), '1');
+    updateSyncCalendarBtnVisibility();
+    window.location.href = icsUrl.replace(/^https:\/\//, 'webcal://');
+    return;
+  }
+
   const addUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(icsUrl)}`;
   const win = window.open(addUrl, '_blank', 'noopener');
   if (!win) {
     setFb(fb, 'El navegador bloqueó la pestaña nueva — copiá el link de abajo y pegalo a mano en Google Calendar.', 'err');
     document.getElementById('calendarSyncOverlay').classList.add('open');
+  } else {
+    localStorage.setItem(calendarSyncKey(), '1');
+    updateSyncCalendarBtnVisibility();
   }
 });
 document.getElementById('btnCopyCalendarSync').addEventListener('click', async () => {
