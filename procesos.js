@@ -922,9 +922,16 @@ function openEjecucionDetail(ejId) {
           const insHTML = (et.insumosConfirmados || []).map(ins =>
             `<div class="detail-insumo-row">• ${esc(ins.nombre)}: <strong>${ins.cantidadReal} ${esc(ins.unidad)}</strong><span class="detail-insumo-planned"> (plan: ${ins.cantidadPlanificada})</span></div>`
           ).join('');
+          // Mismo estilo de caja (.obs-item) que "Observaciones adicionales"
+          // de la evaluación técnica del lote, pero plegado por defecto —
+          // con varias etapas cada una con sus observaciones, mostrarlas
+          // todas abiertas satura la vista de entrada.
           const stageObs = normalizeObsList(et.observaciones);
           const obsHTML = stageObs.length
-            ? `<div class="detail-etapa-obs-title">Observaciones:</div>${stageObs.map(o => `<div class="detail-insumo-row">• ${esc(o.text)}</div>`).join('')}`
+            ? `<div class="detail-etapa-obs-toggle" data-obs-toggle="${i}">Observaciones (${stageObs.length}) <span class="detail-etapa-obs-arrow">▸</span></div>
+               <div class="obs-list detail-etapa-obs-list" id="etapaObsList${i}" style="display:none">
+                 ${stageObs.map(o => `<div class="obs-item"><div class="obs-text">${esc(o.text)}</div></div>`).join('')}
+               </div>`
             : '';
           return `<div class="detail-etapa-item">
             <div class="detail-etapa-nombre">Etapa ${i + 1}: ${esc(et.nombre)}</div>
@@ -957,6 +964,15 @@ function openEjecucionDetail(ejId) {
   `;
 
   document.getElementById('btnDownloadEjecucionTxt')?.addEventListener('click', () => downloadSingleEjecucionTxt(ej));
+
+  document.querySelectorAll('[data-obs-toggle]').forEach(toggle => {
+    toggle.addEventListener('click', () => {
+      const list = document.getElementById('etapaObsList' + toggle.dataset.obsToggle);
+      const open = list.style.display === 'none';
+      list.style.display = open ? '' : 'none';
+      toggle.classList.toggle('open', open);
+    });
+  });
 
   renderEjecucionObsList(ej);
   document.getElementById('ejecucionObsInput').value = '';
@@ -1652,7 +1668,6 @@ function finishExecution() {
   document.getElementById('evalPHStatus').className   = 'eval-ph-status';
   evalObsRows = [];
   document.getElementById('evalObsInput').value = '';
-  renderEvalObsList();
   document.getElementById('evaluacionFeedback').textContent = '';
   setEvalStars(0);
 
@@ -1680,7 +1695,7 @@ function finishExecution() {
   document.getElementById('evalFrascos230').value = '';
   document.getElementById('evalFrascos180').value = '';
   document.getElementById('evalFrascosTotal').textContent = '—';
-  renderCostoRendimiento();
+  renderEvalObsList();
 
   document.getElementById('evaluacionOverlay').classList.add('open');
 }
@@ -1736,10 +1751,14 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
 
   try {
     const costo = computeCostoProduccion(evaluacionPendiente.etapasData);
+    const autoObsText = getCostoRendimientoObsText();
+    const observaciones = autoObsText
+      ? [{ text: autoObsText, createdAt: new Date().toISOString() }, ...evalObsRows]
+      : [...evalObsRows];
     evaluacionPendiente.loteId = loteId;
     evaluacionPendiente.evaluacion = {
       calificacion:       evalRating,
-      observaciones:      [...evalObsRows],
+      observaciones,
       ph:                 phVal,
       fechaElaboracion:   evaluacionPendiente.fechaFin.slice(0, 10),
       fechaVencimiento:   document.getElementById('evalFechaVencimiento').textContent.trim(),
@@ -1797,11 +1816,16 @@ document.getElementById('evalPH').addEventListener('input', function () {
 
 function renderEvalObsList() {
   const list = document.getElementById('evalObsList');
+  const autoText = getCostoRendimientoObsText();
+  const autoHTML = autoText
+    ? `<div class="obs-item obs-item--auto"><div class="obs-text">${esc(autoText)}</div></div>`
+    : '';
+
   if (!evalObsRows.length) {
-    list.innerHTML = '<div class="obs-empty">Aún sin observaciones</div>';
+    list.innerHTML = autoHTML || '<div class="obs-empty">Aún sin observaciones</div>';
     return;
   }
-  list.innerHTML = evalObsRows.map(o => `<div class="obs-item"><div class="obs-text">${esc(o.text)}</div></div>`).join('');
+  list.innerHTML = autoHTML + evalObsRows.map(o => `<div class="obs-item"><div class="obs-text">${esc(o.text)}</div></div>`).join('');
   list.scrollTop = list.scrollHeight;
 }
 
@@ -1816,12 +1840,11 @@ document.getElementById('btnAddEvalObs').addEventListener('click', () => {
 
 // ── Rendimiento & Frascos auto-calc ───────────────────────────────────────────
 
-// Costo de producción y rendimiento comparten un solo banner: el costo es
-// fijo (se calcula una vez al terminar la ejecución), el rendimiento se
-// recalcula en vivo a medida que se llenan los frascos.
-function renderCostoRendimiento() {
-  const costoEl = document.getElementById('evalCostoProduccion');
-  if (!evalCostoInfo) { costoEl.innerHTML = ''; return; }
+// Costo de producción y rendimiento ya no tienen su propio banner — se
+// insertan solos como la primera observación (ver renderEvalObsList), y
+// el rendimiento se recalcula en vivo a medida que se llenan los frascos.
+function getCostoRendimientoObsText() {
+  if (!evalCostoInfo) return '';
 
   const costoLine = evalCostoInfo.incompleto.length
     ? `Costo de producción: ${fmtCOP(evalCostoInfo.total)} (incompleto — sin compra registrada de: ${evalCostoInfo.incompleto.join(', ')})`
@@ -1834,12 +1857,10 @@ function renderCostoRendimiento() {
   let rendLine = '';
   if (totalMl > 0 && evaluacionTotalInsumosG > 0) {
     const pct = (totalMl / evaluacionTotalInsumosG * 100).toFixed(1);
-    const cls = parseFloat(pct) >= 70 ? 'ok' : 'warn';
-    rendLine = `<br><span class="eval-rendimiento-inline ${cls}">Rendimiento del lote: ${pct}%</span>`;
+    rendLine = ` · Rendimiento del lote: ${pct}%`;
   }
 
-  costoEl.innerHTML = costoLine + rendLine;
-  costoEl.classList.toggle('eval-costo-warn', evalCostoInfo.incompleto.length > 0);
+  return costoLine + rendLine;
 }
 
 function updateFrascosTotal() {
@@ -1853,7 +1874,7 @@ function updateFrascosTotal() {
     ? `${fTot} frasco${fTot !== 1 ? 's' : ''} · ${totalMl} ml total`
     : '—';
 
-  renderCostoRendimiento();
+  renderEvalObsList();
 }
 
 ['evalFrascos230', 'evalFrascos180'].forEach(id =>

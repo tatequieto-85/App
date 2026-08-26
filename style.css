@@ -1310,6 +1310,8 @@ input, textarea, [contenteditable], [contenteditable] * {
 .obs-date { font-size: 10px; color: var(--text-sub); margin-top: 4px; }
 .obs-empty { text-align: center; color: var(--text-sub); font-size: 12px; padding: 20px 0; }
 .obs-item--uploading { color: var(--text-sub); font-size: 12px; font-style: italic; text-align: center; }
+.obs-item--auto { background: var(--bg); }
+.obs-item--auto .obs-text { color: var(--text-sub); }
 
 .obs-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .obs-attachment {
@@ -1764,7 +1766,17 @@ input, textarea, [contenteditable], [contenteditable] * {
 .detail-etapa-dur    { font-size: 12px; color: var(--text-sub); margin-bottom: 5px; }
 .detail-insumo-row   { font-size: 12px; color: var(--text); padding: 2px 0; }
 .detail-insumo-planned { color: var(--text-sub); font-size: 11px; }
-.detail-etapa-obs-title { font-size: 11px; font-weight: 700; color: var(--text-sub); margin: 6px 0 2px; }
+
+/* Observaciones de etapa: mismas cajas (.obs-item) que "Observaciones
+   adicionales" de la evaluación técnica del lote, plegadas por defecto. */
+.detail-etapa-obs-toggle {
+  font-size: 11px; font-weight: 700; color: var(--text-sub);
+  margin: 6px 0 2px; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 4px;
+}
+.detail-etapa-obs-arrow { font-size: 9px; transition: transform .15s; display: inline-block; }
+.detail-etapa-obs-toggle.open .detail-etapa-obs-arrow { transform: rotate(90deg); }
+.detail-etapa-obs-list { flex: none; overflow: visible; padding: 6px 0 0; }
 
 /* ── Procesos: Receta modal – etapas ─────────────────────────────────────── */
 .etapas-list { display: flex; flex-direction: column; gap: 14px; }
@@ -2140,9 +2152,6 @@ input, textarea, [contenteditable], [contenteditable] * {
 }
 .eval-rendimiento-field { flex: 1; min-width: 120px; }
 .eval-rendimiento-arrow { font-size: 18px; color: var(--text-sub); padding-bottom: 6px; flex-shrink: 0; }
-.eval-rendimiento-inline      { font-weight: 700; }
-.eval-rendimiento-inline.ok   { color: #22C55E; }
-.eval-rendimiento-inline.warn { color: #F97316; }
 
 /* ── Eval frascos grid ───────────────────────────────────────────────────── */
 .eval-frascos-grid {
