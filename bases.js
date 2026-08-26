@@ -96,17 +96,25 @@ async function deleteBaseRow(rowIndex) {
 // Crea todas las pestañas de los 8 módulos en la base de datos actualmente
 // activa (activeSheetId). Las funciones init*Sheet ya son idempotentes:
 // sólo crean lo que falta, así que es seguro re-ejecutarlas en cada conexión.
+// En paralelo (Promise.all) en vez de una por una: cada módulo vive en su
+// propia pestaña del Sheet y no depende de que las otras ya estén listas, así
+// que encadenarlas con await solo sumaba el tiempo de ida y vuelta de cada
+// una en vez de superponerlas — con ~9 módulos eso eran varios segundos
+// muertos en cada apertura de la app. La única dependencia real es
+// Kanban→loadKanbanTasks (necesita que su pestaña ya exista), por eso esas
+// dos quedan encadenadas entre sí dentro de su propia rama.
 async function provisionAllTabs() {
-  await initSheet();
-  await initKanbanSheets();
-  await loadKanbanTasks();
-  await initRecetasSheets();
-  await initIngredientesSheet();
-  await initComprasSheet();
-  await initFeriasSheet();
-  await initStockSheets();
-  await initQRSheet();
-  await initIdeasSheet();
+  await Promise.all([
+    initSheet().then(loadStories),
+    initKanbanSheets().then(loadKanbanTasks),
+    initRecetasSheets(),
+    initIngredientesSheet(),
+    initComprasSheet(),
+    initFeriasSheet(),
+    initStockSheets(),
+    initQRSheet(),
+    initIdeasSheet()
+  ]);
 }
 
 // Conecta la app a una base de datos ya registrada: la deja activa, asegura
@@ -122,7 +130,6 @@ export async function connectToDatabase(base) {
 
   await provisionAllTabs();
   setDefaultDateTime();
-  await loadStories();
 
   screenDbPicker.style.display = 'none';
   screenApp.style.display = '';
