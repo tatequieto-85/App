@@ -8,7 +8,6 @@ import { stockTestigos } from './stock.js';
 export let ferias        = [];
 let feriasSheetId        = null;
 let feriaEditId          = null;
-let feriaAlineacion      = 0;
 let feriaCounterId       = null;
 let feriaCounterFecha    = null; // día fijo del contador (siempre "hoy", ver getFeriaDefaultDay)
 let feriaCounterSaveTimer = null;
@@ -30,7 +29,7 @@ export async function initFeriasSheet() {
 
   if (hasF) {
     feriasSheetId = hasF.properties.sheetId;
-    const headerData = await sheetsReq('/values/Ferias!A1:U1').catch(() => ({}));
+    const headerData = await sheetsReq('/values/Ferias!A1:V1').catch(() => ({}));
     const headerRow  = (headerData.values || [])[0] || [];
     if (headerRow.length < 18) {
       await sheetsReq('/values/Ferias!M1:R1?valueInputOption=RAW', {
@@ -46,6 +45,12 @@ export async function initFeriasSheet() {
         body: JSON.stringify({ values: [[ 'ConteoMenores30', 'ConteoEntre30y55', 'ConteoMayores55' ]] })
       });
     }
+    if (headerRow.length < 22) {
+      await sheetsReq('/values/Ferias!V1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [[ 'Cerrada' ]] })
+      });
+    }
   } else {
     const res = await sheetsReq(':batchUpdate', {
       method: 'POST',
@@ -59,7 +64,7 @@ export async function initFeriasSheet() {
         'ID','Empresa','FechaInicio','FechaFin','Precio','FechaImportante','Lugar',
         'Observaciones','Alineacion','Estado','ConteoPersonas','CreadoEn',
         'HoraInicio','HoraFin','PlanStock','Ventas','ObservacionesDiarias','ConteoProductos',
-        'ConteoMenores30','ConteoEntre30y55','ConteoMayores55'
+        'ConteoMenores30','ConteoEntre30y55','ConteoMayores55','Cerrada'
       ]] })
     });
   }
@@ -67,7 +72,7 @@ export async function initFeriasSheet() {
 }
 
 export async function loadFerias() {
-  const data = await sheetsReq('/values/Ferias!A:U');
+  const data = await sheetsReq('/values/Ferias!A:V');
   const rows = (data.values || []).slice(1);
   ferias = rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0]  || '',
@@ -91,6 +96,7 @@ export async function loadFerias() {
     conteoMenores30:      parseInt(r[18]) || 0,
     conteoEntre30y55:     parseInt(r[19]) || 0,
     conteoMayores55:      parseInt(r[20]) || 0,
+    cerrada:              r[21] === 'TRUE',
     rowIndex:             i + 2
   }));
 }
@@ -109,19 +115,20 @@ function feriaRowValues(f) {
     f.creadoEn || new Date().toISOString(),
     f.horaInicio || '', f.horaFin || '', JSON.stringify(f.planStock || {}), JSON.stringify(f.ventas || []),
     JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {}),
-    f.conteoMenores30 || 0, f.conteoEntre30y55 || 0, f.conteoMayores55 || 0
+    f.conteoMenores30 || 0, f.conteoEntre30y55 || 0, f.conteoMayores55 || 0,
+    f.cerrada ? 'TRUE' : 'FALSE'
   ];
 }
 
 async function appendFeria(f) {
-  await sheetsReq('/values/Ferias!A:U:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Ferias!A:V:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
 }
 
 async function updateFeria(f) {
-  await sheetsReq(`/values/Ferias!A${f.rowIndex}:U${f.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Ferias!A${f.rowIndex}:V${f.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
@@ -189,13 +196,16 @@ function getFeriaDateList(f) {
 // Si hoy cae dentro del rango de fechas de alguna feria, la primera vista
 // al entrar al módulo debe ser el conteo de personas, no la lista.
 export function openTodaysFeriaCounterIfAny() {
-  const today = toISODate(new Date());
-  const activa = ferias.find(f => getFeriaDateList(f).includes(today));
+  const activa = ferias.find(feriaEstaEnCurso);
   if (activa) openFeriaCounter(activa.id);
 }
 
+// "En curso" = hoy cae en sus fechas Y no se cerró a mano con "Terminar
+// feria" (botón dentro del contador) — ver respuesta guardada sobre el
+// cierre manual. Fuera de esto (todavía no empieza, ya pasó por calendario,
+// o se cerró a mano) se muestra el resumen en vez del contador.
 function feriaEstaEnCurso(f) {
-  return getFeriaDateList(f).includes(toISODate(new Date()));
+  return getFeriaDateList(f).includes(toISODate(new Date())) && !f.cerrada;
 }
 
 // Punto de entrada único del botón "Registrar conteo"/"Ver resumen" y del
@@ -224,7 +234,6 @@ function feriaBlockHTML(f) {
         <div class="card-menu">
           <button type="button" class="card-menu-btn" data-menu-btn title="Más acciones">${ICON_MORE}</button>
           <div class="card-menu-list">
-            <button type="button" data-plan-stock-feria="${esc(f.id)}">📦 Plan de stock por día</button>
             <button type="button" data-edit-feria="${esc(f.id)}">${ICON_EDIT} Editar</button>
             <button type="button" data-del-feria="${esc(f.id)}" data-row="${f.rowIndex}">${ICON_TRASH} Eliminar</button>
           </div>
@@ -261,18 +270,46 @@ export function renderFerias() {
   }
   container.innerHTML = `<div class="feria-blocks-grid">${ferias.map(feriaBlockHTML).join('')}</div>`;
   wireFeriaCardActions(container);
-  container.querySelectorAll('[data-plan-stock-feria]').forEach(btn => {
-    btn.addEventListener('click', e => { e.stopPropagation(); openFeriaStockModal(btn.dataset.planStockFeria); });
-  });
   container.querySelectorAll('[data-conteo-feria]').forEach(btn => {
     btn.addEventListener('click', e => { e.stopPropagation(); handleAbrirFeria(btn.dataset.conteoFeria); });
   });
   container.querySelectorAll('.feria-block').forEach(block => {
+    let pressTimer  = null;
+    let longPressed = false;
+    const openCardMenu = () => {
+      const list = block.querySelector('.card-menu-list');
+      document.querySelectorAll('.card-menu-list.open').forEach(m => m.classList.remove('open'));
+      if (list) list.classList.add('open');
+    };
+    const startPress = e => {
+      if (e.target.closest('button')) return;
+      longPressed = false;
+      pressTimer = setTimeout(() => { longPressed = true; openCardMenu(); }, 550);
+    };
+    const cancelPress = () => clearTimeout(pressTimer);
+
+    // Mantener presionada la tarjeta (mouse o dedo) abre el mismo menú de
+    // "···" (Editar/Eliminar) en vez de tener que acertarle al botón chico.
+    block.addEventListener('mousedown', startPress);
+    block.addEventListener('mouseup', cancelPress);
+    block.addEventListener('mouseleave', cancelPress);
+    block.addEventListener('touchstart', startPress, { passive: true });
+    block.addEventListener('touchmove', cancelPress, { passive: true });
+    // Al soltar tras un press-and-hold ya cumplido, el navegador dispara un
+    // "click" normal (mismo lugar, sin movimiento) que llegaría a document y
+    // cerraría el menú que se acaba de abrir (initCardMenus en utils.js lo
+    // cierra ante cualquier clic afuera) — se corta acá antes de que llegue.
+    block.addEventListener('click', e => {
+      if (longPressed) { e.stopPropagation(); longPressed = false; }
+    });
+
     block.addEventListener('dblclick', e => {
       if (e.target.closest('button')) return;
       handleAbrirFeria(block.dataset.id);
     });
     block.addEventListener('touchend', e => {
+      cancelPress();
+      if (longPressed) { longPressed = false; return; } // ya abrió el menú: no contar como toque
       if (e.target.closest('button') || wasAccidentalTouch()) return;
       const now  = Date.now();
       const last = lastTapTime['feria_' + block.dataset.id] || 0;
@@ -281,16 +318,6 @@ export function renderFerias() {
     });
   });
 }
-
-function setFeriaStars(val) {
-  feriaAlineacion = Math.max(0, Math.min(5, val || 0));
-  document.querySelectorAll('#feriaStarsWrap .star-btn').forEach(btn => {
-    btn.classList.toggle('active', +btn.dataset.val <= val);
-  });
-}
-document.querySelectorAll('#feriaStarsWrap .star-btn').forEach(btn => {
-  btn.addEventListener('click', () => setFeriaStars(+btn.dataset.val));
-});
 
 function updateFeriaFechasTrigger() {
   const trigger = document.getElementById('feriaFechasTrigger');
@@ -319,8 +346,8 @@ function openFeriaModal(editId) {
   document.getElementById('feriaFeedback').textContent = '';
   clearFieldErrors('feriaEmpresa');
   setFieldError('feriaFechas', '', 'feriaFechasTrigger');
-  setFieldError('feriaHora', '');
   const today = toISODate(new Date());
+  document.getElementById('feriaStockLinkWrap').style.display = editId ? '' : 'none';
   if (editId) {
     const f = ferias.find(x => x.id === editId);
     if (!f) return;
@@ -328,30 +355,25 @@ function openFeriaModal(editId) {
     document.getElementById('feriaEmpresa').value             = f.empresa;
     document.getElementById('feriaFechaInicio').value         = f.fechaInicio || today;
     document.getElementById('feriaFechaFin').value            = f.fechaFin || today;
-    document.getElementById('feriaHoraInicio').value           = f.horaInicio || '09:00';
-    document.getElementById('feriaHoraFin').value              = f.horaFin || '18:00';
     document.getElementById('feriaPrecio').value               = f.precio || '';
     document.getElementById('feriaLugar').value                = f.lugar || '';
-    document.getElementById('feriaFechaImportante').value      = f.fechaImportante || '';
     document.getElementById('feriaObservaciones').value        = f.observaciones || '';
-    setFeriaStars(f.alineacion || 0);
   } else {
     document.getElementById('feriaModalTitle').textContent    = 'Nueva feria';
     document.getElementById('feriaEmpresa').value             = '';
     document.getElementById('feriaFechaInicio').value         = today;
     document.getElementById('feriaFechaFin').value            = today;
-    document.getElementById('feriaHoraInicio').value           = '09:00';
-    document.getElementById('feriaHoraFin').value              = '18:00';
     document.getElementById('feriaPrecio').value               = '';
     document.getElementById('feriaLugar').value                = '';
-    document.getElementById('feriaFechaImportante').value      = '';
     document.getElementById('feriaObservaciones').value        = '';
-    setFeriaStars(0);
   }
   updateFeriaFechasTrigger();
   document.getElementById('feriaOverlay').classList.add('open');
   setTimeout(() => document.getElementById('feriaEmpresa').focus(), 100);
 }
+document.getElementById('btnFeriaStockFromEdit').addEventListener('click', () => {
+  if (feriaEditId) openFeriaStockModal(feriaEditId);
+});
 
 function isFeriaFormDirty() {
   return !!document.getElementById('feriaEmpresa')?.value.trim()
@@ -372,20 +394,15 @@ document.getElementById('btnSaveFeria').addEventListener('click', async () => {
   const empresa         = document.getElementById('feriaEmpresa').value.trim();
   const fechaInicio     = document.getElementById('feriaFechaInicio').value;
   const fechaFin        = document.getElementById('feriaFechaFin').value;
-  const horaInicio      = document.getElementById('feriaHoraInicio').value;
-  const horaFin         = document.getElementById('feriaHoraFin').value;
   const precio          = parseFloat(document.getElementById('feriaPrecio').value) || 0;
   const lugar           = document.getElementById('feriaLugar').value.trim();
-  const fechaImportante = document.getElementById('feriaFechaImportante').value.trim();
   const observaciones   = document.getElementById('feriaObservaciones').value.trim();
   const fb              = document.getElementById('feriaFeedback');
 
-  clearFieldErrors('feriaEmpresa', 'feriaFechas', 'feriaHora');
+  clearFieldErrors('feriaEmpresa', 'feriaFechas');
   if (!empresa) { setFieldError('feriaEmpresa', 'La empresa organizadora es obligatoria.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
   if (!fechaInicio || !fechaFin) { setFieldError('feriaFechas', 'Las fechas de la feria son obligatorias.', 'feriaFechasTrigger'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
   if (fechaInicio > fechaFin) { setFieldError('feriaFechas', 'La fecha de inicio no puede ser posterior a la de fin.', 'feriaFechasTrigger'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
-  if (!horaInicio || !horaFin) { setFieldError('feriaHora', 'El horario diario de la feria es obligatorio.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
-  if (horaInicio >= horaFin) { setFieldError('feriaHora', 'La hora de inicio debe ser anterior a la hora de fin.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
 
   const btn = document.getElementById('btnSaveFeria');
   btn.disabled = true; btn.textContent = 'Guardando…';
@@ -393,15 +410,15 @@ document.getElementById('btnSaveFeria').addEventListener('click', async () => {
     if (feriaEditId) {
       const f = ferias.find(x => x.id === feriaEditId);
       if (f) {
-        Object.assign(f, { empresa, fechaInicio, fechaFin, horaInicio, horaFin, precio, lugar, fechaImportante, observaciones, alineacion: feriaAlineacion });
+        Object.assign(f, { empresa, fechaInicio, fechaFin, precio, lugar, observaciones });
         await updateFeria(f);
       }
     } else {
       await appendFeria({
-        id: crypto.randomUUID(), empresa, fechaInicio, fechaFin, horaInicio, horaFin, precio, lugar, fechaImportante,
-        observaciones, alineacion: feriaAlineacion, estado: 'confirmada', conteoPersonas: 0,
+        id: crypto.randomUUID(), empresa, fechaInicio, fechaFin, horaInicio: '', horaFin: '', precio, lugar,
+        fechaImportante: '', observaciones, alineacion: 0, estado: 'confirmada', conteoPersonas: 0,
         planStock: {}, ventas: [], observacionesDiarias: [], conteoProductos: {},
-        conteoMenores30: 0, conteoEntre30y55: 0, conteoMayores55: 0
+        conteoMenores30: 0, conteoEntre30y55: 0, conteoMayores55: 0, cerrada: false
       });
     }
     await loadFerias();
@@ -422,17 +439,6 @@ function getFeriaDefaultDay(f) {
   const today = toISODate(new Date());
   if (dias.includes(today)) return today;
   return today < dias[0] ? dias[0] : dias[dias.length - 1];
-}
-
-function feriaHorarioTerminado(f, fecha) {
-  if (!f.horaFin) return false;
-  return new Date() > new Date(`${fecha}T${f.horaFin}:00`);
-}
-
-function feriaTerminadaCompleta(f) {
-  const dias = getFeriaDateList(f);
-  if (!dias.length) return false;
-  return feriaHorarioTerminado(f, dias[dias.length - 1]);
 }
 
 function openFeriaStockModal(feriaId) {
@@ -556,9 +562,23 @@ function renderFeriaCounterDay() {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
   renderFeriaVentaRows(f, feriaCounterFecha);
-  renderFeriaConteoProductos(f, feriaCounterFecha);
-  document.getElementById('feriaDownloadWrap').style.display = feriaTerminadaCompleta(f) ? '' : 'none';
 }
+
+document.getElementById('btnTerminarFeria').addEventListener('click', async () => {
+  const f = ferias.find(x => x.id === feriaCounterId);
+  if (!f) return;
+  if (!confirm('¿Terminar esta feria? Vas a poder ver el resumen y el conteo de productos, pero no seguir registrando el conteo del día.')) return;
+  f.cerrada = true;
+  try {
+    await updateFeria(f);
+    closeFeriaCounter();
+    renderFerias();
+    openFeriaResumen(f.id);
+  } catch (e) {
+    f.cerrada = false;
+    alert('Error al terminar la feria: ' + e.message);
+  }
+});
 
 function scheduleFeriaCounterSave() {
   clearTimeout(feriaCounterSaveTimer);
@@ -695,17 +715,16 @@ document.getElementById('btnAddFeriaObsDiaria').addEventListener('click', async 
   try { await updateFeria(f); } catch (e) { console.warn('Error guardando observación:', e.message); }
 });
 
-function renderFeriaConteoProductos(f, fecha) {
-  const wrap    = document.getElementById('feriaConteoProductosWrap');
+// wrap: contenedor propio de este día (la resumen muestra uno por cada día
+// de la feria, ver openFeriaResumen) — ya no vive fijo en el HTML porque
+// dejó de ser un solo día dentro del contador; ver respuesta guardada sobre
+// el cierre manual de la feria.
+function renderFeriaConteoProductos(f, fecha, wrap) {
   const planHoy = f.planStock[fecha] || {};
   const ids     = Object.keys(planHoy).filter(id => planHoy[id] > 0);
 
   if (!ids.length) {
     wrap.innerHTML = '<p class="mgmt-note">No hay stock planeado para este día.</p>';
-    return;
-  }
-  if (!feriaHorarioTerminado(f, fecha)) {
-    wrap.innerHTML = `<p class="mgmt-note">Disponible después de las ${esc(f.horaFin)} de este día.</p>`;
     return;
   }
 
@@ -730,13 +749,13 @@ function renderFeriaConteoProductos(f, fecha) {
       <thead><tr><th>Lote</th><th>Llevados</th><th>Vendidos</th><th>Sobrantes</th></tr></thead>
       <tbody>${rowsHTML}</tbody>
     </table>
-    <button class="btn-outline btn-sm" id="btnSaveConteoProductos" style="margin-top:8px">Guardar conteo de productos</button>
-    <div id="feriaConteoProductosResult" style="margin-top:8px"></div>
+    <button type="button" class="btn-outline btn-sm" data-conteo-save style="margin-top:8px">Guardar conteo de productos</button>
+    <div data-conteo-result style="margin-top:8px"></div>
   `;
 
-  if (existing) renderConteoProductosResult(f, fecha);
+  if (existing) renderConteoProductosResult(f, fecha, wrap);
 
-  document.getElementById('btnSaveConteoProductos').addEventListener('click', async () => {
+  wrap.querySelector('[data-conteo-save]').addEventListener('click', async () => {
     const detalle = {};
     ids.forEach(id => {
       const llevados = planHoy[id];
@@ -749,13 +768,13 @@ function renderFeriaConteoProductos(f, fecha) {
     f.conteoProductos[fecha] = { detalle, revisadoEn: new Date().toISOString() };
     try {
       await updateFeria(f);
-      renderConteoProductosResult(f, fecha);
+      renderConteoProductosResult(f, fecha, wrap);
     } catch (e) { alert('Error al guardar: ' + e.message); }
   });
 }
 
-function renderConteoProductosResult(f, fecha) {
-  const resultEl = document.getElementById('feriaConteoProductosResult');
+function renderConteoProductosResult(f, fecha, wrap) {
+  const resultEl = wrap.querySelector('[data-conteo-result]');
   const conteo   = (f.conteoProductos || {})[fecha];
   if (!resultEl || !conteo) return;
   const problemas = Object.entries(conteo.detalle)
@@ -775,11 +794,8 @@ function feriaToText(f) {
   const lines = [];
   lines.push(sep, `FERIA: ${f.empresa}`, sep, '');
   lines.push(`Fechas: ${f.fechaInicio} a ${f.fechaFin}`);
-  lines.push(`Horario diario: ${f.horaInicio} a ${f.horaFin}`);
   lines.push(`Lugar: ${f.lugar || '—'}`);
   lines.push(`Precio de participación: ${fmtCOP(f.precio)}`);
-  lines.push(`Fecha importante cercana: ${f.fechaImportante || '—'}`);
-  lines.push(`Alineación con TateQuieto: ${f.alineacion || 0}/5`);
   if (f.observaciones) lines.push(`Observaciones generales: ${f.observaciones}`);
   lines.push('', `Personas que probaron TateQuieto (total): ${feriaConteoTotal(f)}`);
   lines.push(`  • Menores de 30: ${f.conteoMenores30 || 0}`);
@@ -834,11 +850,6 @@ function downloadFeriaTxt(f) {
   a.click(); URL.revokeObjectURL(url);
 }
 
-document.getElementById('btnDownloadFeria').addEventListener('click', () => {
-  const f = ferias.find(x => x.id === feriaCounterId);
-  if (f) downloadFeriaTxt(f);
-});
-
 // ── Ferias: resumen (fuera de las fechas de la feria, en vez del conteo) ────────
 
 function openFeriaResumen(feriaId) {
@@ -847,6 +858,18 @@ function openFeriaResumen(feriaId) {
   feriaResumenId = feriaId;
   document.getElementById('feriaResumenTitle').textContent   = f.empresa;
   document.getElementById('feriaResumenContent').textContent = feriaToText(f);
+
+  const conteoWrap = document.getElementById('feriaResumenConteoWrap');
+  const dias = getFeriaDateList(f);
+  conteoWrap.innerHTML = dias.map(fecha => `
+    <div class="feria-section">
+      <h4 class="feria-section-title">Conteo de productos — ${fmtDateShortEs(fecha)}</h4>
+      <div data-dia="${esc(fecha)}"></div>
+    </div>`).join('');
+  dias.forEach(fecha => {
+    renderFeriaConteoProductos(f, fecha, conteoWrap.querySelector(`[data-dia="${CSS.escape(fecha)}"]`));
+  });
+
   document.getElementById('feriaResumenOverlay').classList.add('open');
 }
 
