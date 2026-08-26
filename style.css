@@ -1451,6 +1451,15 @@ input, textarea, [contenteditable], [contenteditable] * {
   font-size: 14.5px; font-weight: 700; color: var(--brand);
 }
 
+/* Feria ya terminada (pasó por calendario o se cerró a mano): gris claro
+   para diferenciarla de un vistazo de las que siguen activas o vienen. */
+.feria-block--terminada { background: var(--gray-100); border-color: var(--gray-200); }
+.feria-block--terminada:hover { border-color: var(--gray-300); box-shadow: none; }
+.feria-block--terminada .feria-block-title,
+.feria-block--terminada .feria-block-stats { color: var(--text-sub); }
+.feria-block--terminada .feria-block-meta,
+.feria-block--terminada .feria-block-fechas { color: var(--gray-400); }
+
 /* Menú de editar/eliminar (press-and-hold): a diferencia del "⋯" flotante
    reutilizable, en la tarjeta de feria es una segunda fila fija debajo del
    contenido (no flota encima), con los dos botones pegados uno junto al otro

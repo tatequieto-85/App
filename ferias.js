@@ -224,6 +224,12 @@ function feriaEsFutura(f) {
   return !!f.fechaInicio && toISODate(new Date()) < f.fechaInicio;
 }
 
+// Ya pasó por calendario o se cerró a mano — mismo criterio que hace que
+// handleAbrirFeria caiga en el resumen (ver más abajo).
+function feriaHaTerminado(f) {
+  return !feriaEstaEnCurso(f) && !feriaEsFutura(f);
+}
+
 // Punto de entrada único del botón "Registrar conteo"/"Ver resumen" y del
 // doble clic/toque sobre la tarjeta: en fechas de feria abre el conteo,
 // antes de esas fechas pregunta el plan de stock (total por lote), y ya
@@ -246,8 +252,9 @@ function fmtDayMonth(iso) {
 
 function feriaBlockHTML(f) {
   const fechas = (f.fechaInicio && f.fechaFin) ? `${fmtDayMonth(f.fechaInicio)} a ${fmtDayMonth(f.fechaFin)}` : '—';
+  const terminada = feriaHaTerminado(f);
   return `
-    <div class="feria-block" data-id="${esc(f.id)}">
+    <div class="feria-block${terminada ? ' feria-block--terminada' : ''}" data-id="${esc(f.id)}">
       <div class="feria-block-row1">
         <div class="feria-block-orglugar">
           <div class="feria-block-title">${esc(f.empresa)}</div>
@@ -295,7 +302,10 @@ export function renderFerias() {
     container.innerHTML = '<div class="empty-state">No hay ferias. Agrega la primera con "+ Nueva feria".</div>';
     return;
   }
-  container.innerHTML = `<div class="feria-blocks-grid">${ferias.map(feriaBlockHTML).join('')}</div>`;
+  // Las ferias terminadas (o cerradas a mano) se hunden al final, sin
+  // reordenar entre sí las que quedan arriba.
+  const ordenadas = [...ferias].sort((a, b) => feriaHaTerminado(a) - feriaHaTerminado(b));
+  container.innerHTML = `<div class="feria-blocks-grid">${ordenadas.map(feriaBlockHTML).join('')}</div>`;
   wireFeriaCardActions(container);
   container.querySelectorAll('.feria-block').forEach(block => {
     let pressTimer  = null;
