@@ -92,7 +92,7 @@ export async function loadFerias() {
     planStock:            safeParseJSON(r[14], {}),
     ventas:               safeParseJSON(r[15], []),
     observacionesDiarias: safeParseJSON(r[16], []),
-    conteoProductos:      safeParseJSON(r[17], {}),
+    conteoProductos:      safeParseJSON(r[17], null),
     conteoMenores30:      parseInt(r[18]) || 0,
     conteoEntre30y55:     parseInt(r[19]) || 0,
     conteoMayores55:      parseInt(r[20]) || 0,
@@ -106,6 +106,14 @@ export async function loadFerias() {
 export function feriaConteoTotal(f) {
   const porRango = (f.conteoMenores30 || 0) + (f.conteoEntre30y55 || 0) + (f.conteoMayores55 || 0);
   return porRango || (f.conteoPersonas || 0);
+}
+
+function feriaTotalLlevados(f) {
+  return Object.values(f.planStock || {}).reduce((sum, qty) => sum + (qty || 0), 0);
+}
+
+function feriaTotalVendidos(f) {
+  return (f.ventas || []).reduce((sum, v) => sum + (v.cantidad || 0), 0);
 }
 
 function feriaRowValues(f) {
@@ -154,11 +162,7 @@ async function deleteFeriaRow(rowIndex) {
 export function getStockComprometidoLote(ejecucionId, excludeFeriaId) {
   return ferias
     .filter(f => f.id !== excludeFeriaId)
-    .reduce((sum, f) => {
-      let total = 0;
-      Object.values(f.planStock || {}).forEach(porLote => { total += (porLote[ejecucionId] || 0); });
-      return sum + total;
-    }, 0);
+    .reduce((sum, f) => sum + ((f.planStock || {})[ejecucionId] || 0), 0);
 }
 
 export function getStockVendidoLote(ejecucionId) {
@@ -217,8 +221,8 @@ function feriaEsFutura(f) {
 
 // Punto de entrada único del botón "Registrar conteo"/"Ver resumen" y del
 // doble clic/toque sobre la tarjeta: en fechas de feria abre el conteo,
-// antes de esas fechas pregunta el plan de stock por día, y ya pasada (o
-// cerrada a mano) muestra el resumen.
+// antes de esas fechas pregunta el plan de stock (total por lote), y ya
+// pasada (o cerrada a mano) muestra el resumen.
 function handleAbrirFeria(feriaId) {
   const f = ferias.find(x => x.id === feriaId);
   if (!f) return;
@@ -229,14 +233,28 @@ function handleAbrirFeria(feriaId) {
 
 // ── Ferias: UI ─────────────────────────────────────────────────────────────────
 
+function fmtDayMonth(iso) {
+  if (!iso) return '';
+  const d = parseISODate(iso);
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 function feriaBlockHTML(f) {
-  const fechas = (f.fechaInicio && f.fechaFin) ? `${fmtDateShortEs(f.fechaInicio)} → ${fmtDateShortEs(f.fechaFin)}` : '—';
+  const fechas = (f.fechaInicio && f.fechaFin) ? `${fmtDayMonth(f.fechaInicio)} a ${fmtDayMonth(f.fechaFin)}` : '—';
   return `
     <div class="feria-block" data-id="${esc(f.id)}">
-      <div class="feria-block-title">${esc(f.empresa)}</div>
-      <div class="feria-block-meta">📅 ${fechas}</div>
-      <div class="feria-block-meta">📍 ${esc(f.lugar || '—')}</div>
-      <div class="feria-block-counter">👥 ${feriaConteoTotal(f)}</div>
+      <div class="feria-block-row1">
+        <div class="feria-block-orglugar">
+          <div class="feria-block-title">${esc(f.empresa)}</div>
+          <div class="feria-block-meta">📍 ${esc(f.lugar || '—')}</div>
+        </div>
+        <div class="feria-block-fechas">${fechas}</div>
+      </div>
+      <div class="feria-block-stats">
+        <span class="feria-block-stat-llevados">📦 ${feriaTotalLlevados(f)}</span>
+        <span class="feria-block-stat-contados">👥 ${feriaConteoTotal(f)}</span>
+        <span class="feria-block-stat-comprados">🛒 ${feriaTotalVendidos(f)}</span>
+      </div>
       <div class="card-menu">
         <div class="card-menu-list">
           <button type="button" data-edit-feria="${esc(f.id)}">${ICON_EDIT} Editar</button>
@@ -418,7 +436,7 @@ document.getElementById('btnSaveFeria').addEventListener('click', async () => {
       await appendFeria({
         id: crypto.randomUUID(), empresa, fechaInicio, fechaFin, horaInicio: '', horaFin: '', precio, lugar,
         fechaImportante: '', observaciones, alineacion: 0, estado: 'confirmada', conteoPersonas: 0,
-        planStock: {}, ventas: [], observacionesDiarias: [], conteoProductos: {},
+        planStock: {}, ventas: [], observacionesDiarias: [], conteoProductos: null,
         conteoMenores30: 0, conteoEntre30y55: 0, conteoMayores55: 0, cerrada: false
       });
     }
@@ -448,30 +466,25 @@ function openFeriaStockModal(feriaId) {
   feriaStockPendingId = feriaId;
   document.getElementById('feriaStockFeedback').textContent = '';
   document.getElementById('btnSaveFeriaStock').textContent = 'Guardar plan';
-  const dias  = getFeriaDateList(f);
   const wrap  = document.getElementById('feriaStockTableWrap');
   const lotes = ejecuciones.filter(ej => (ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180));
 
   if (!lotes.length) {
     wrap.innerHTML = '<div class="empty-state">No hay lotes con producción registrada en Procesos → Ejecuciones.</div>';
   } else {
-    const headerCells = dias.map(d => `<th>${esc(fmtDateShortEs(d))}</th>`).join('');
     const rowsHTML = lotes.map(ej => {
       const disponible = getStockDisponibleLote(ej.id, feriaId);
-      const cells = dias.map(d => {
-        const val = (f.planStock[d] && f.planStock[d][ej.id]) || '';
-        return `<td><input type="number" min="0" step="1" class="field-input feria-stock-input" data-lote="${esc(ej.id)}" data-fecha="${d}" value="${val}" style="width:64px" /></td>`;
-      }).join('');
+      const val = f.planStock[ej.id] || '';
       return `
         <tr>
           <td class="feria-stock-receta">${esc(ej.nombreReceta)} — Lote ${esc(ej.loteId || ej.id.slice(0, 8))}<div class="feria-stock-disponible">Disponible: ${disponible}</div></td>
-          ${cells}
+          <td><input type="number" min="0" step="1" class="field-input feria-stock-input" data-lote="${esc(ej.id)}" value="${val}" style="width:64px" /></td>
         </tr>`;
     }).join('');
     wrap.innerHTML = `
       <div style="overflow-x:auto">
         <table class="tasks-table feria-stock-table">
-          <thead><tr><th>Lote</th>${headerCells}</tr></thead>
+          <thead><tr><th>Lote</th><th>Total a llevar</th></tr></thead>
           <tbody>${rowsHTML}</tbody>
         </table>
       </div>`;
@@ -495,19 +508,15 @@ document.getElementById('btnSaveFeriaStock').addEventListener('click', async () 
   if (!f) return;
 
   const newPlan = {};
-  const totals  = {};
   document.querySelectorAll('.feria-stock-input').forEach(inp => {
     const ejecucionId = inp.dataset.lote;
-    const fecha       = inp.dataset.fecha;
     const qty         = parseInt(inp.value) || 0;
     if (qty <= 0) return;
-    newPlan[fecha] = newPlan[fecha] || {};
-    newPlan[fecha][ejecucionId] = qty;
-    totals[ejecucionId] = (totals[ejecucionId] || 0) + qty;
+    newPlan[ejecucionId] = qty;
   });
 
   const excesos = [];
-  Object.entries(totals).forEach(([ejecucionId, total]) => {
+  Object.entries(newPlan).forEach(([ejecucionId, total]) => {
     const disponible = getStockDisponibleLote(ejecucionId, f.id);
     if (total > disponible) {
       const ej = ejecuciones.find(e => e.id === ejecucionId);
@@ -555,7 +564,7 @@ function renderFeriaCounterValues(f) {
   document.getElementById('feriaCounterValueEntre30y55').textContent = f.conteoEntre30y55 || 0;
   document.getElementById('feriaCounterValueMayores55').textContent = f.conteoMayores55 || 0;
   document.getElementById('feriaCounterValueTotal').textContent   = feriaConteoTotal(f);
-  const blockCounterEl = document.querySelector(`.feria-block[data-id="${CSS.escape(f.id)}"] .feria-block-counter`);
+  const blockCounterEl = document.querySelector(`.feria-block[data-id="${CSS.escape(f.id)}"] .feria-block-stat-contados`);
   if (blockCounterEl) blockCounterEl.textContent = `👥 ${feriaConteoTotal(f)}`;
 }
 
@@ -616,17 +625,17 @@ document.getElementById('btnFeriaCounterReset').addEventListener('click', () => 
   scheduleFeriaCounterSave();
 });
 
-// Una fila por lote que se llevó hoy a la feria (planStock del día) y que
-// todavía tiene stock disponible (llevado - ya vendido hoy > 0).
+// Una fila por lote planeado para la feria (planStock, ya no por día) que
+// todavía tiene stock disponible (llevado - ya vendido en toda la feria > 0).
 function renderFeriaVentaRows(f, fecha) {
-  const wrap    = document.getElementById('feriaVentaRows');
-  const planHoy = f.planStock[fecha] || {};
-  const vendidoHoy = {};
-  (f.ventas || []).filter(v => v.fecha === fecha).forEach(v => {
-    vendidoHoy[v.ejecucionId] = (vendidoHoy[v.ejecucionId] || 0) + v.cantidad;
+  const wrap = document.getElementById('feriaVentaRows');
+  const plan = f.planStock || {};
+  const vendidoTotal = {};
+  (f.ventas || []).forEach(v => {
+    vendidoTotal[v.ejecucionId] = (vendidoTotal[v.ejecucionId] || 0) + v.cantidad;
   });
-  const filas = Object.keys(planHoy)
-    .map(id => ({ id, disponible: (planHoy[id] || 0) - (vendidoHoy[id] || 0) }))
+  const filas = Object.keys(plan)
+    .map(id => ({ id, disponible: (plan[id] || 0) - (vendidoTotal[id] || 0) }))
     .filter(row => row.disponible > 0);
 
   if (!filas.length) {
@@ -666,6 +675,8 @@ function renderFeriaVentaRows(f, fecha) {
         recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString()
       });
       renderFeriaCounterDay();
+      const compradosEl = document.querySelector(`.feria-block[data-id="${CSS.escape(f2.id)}"] .feria-block-stat-comprados`);
+      if (compradosEl) compradosEl.textContent = `🛒 ${feriaTotalVendidos(f2)}`;
       try { await updateFeria(f2); } catch (e) { console.warn('Error guardando venta:', e.message); }
     });
   });
@@ -720,21 +731,23 @@ document.getElementById('btnAddFeriaObsDiaria').addEventListener('click', async 
 // de la feria, ver openFeriaResumen) — ya no vive fijo en el HTML porque
 // dejó de ser un solo día dentro del contador; ver respuesta guardada sobre
 // el cierre manual de la feria.
-function renderFeriaConteoProductos(f, fecha, wrap) {
-  const planHoy = f.planStock[fecha] || {};
-  const ids     = Object.keys(planHoy).filter(id => planHoy[id] > 0);
+// Ya no es por día: el plan de stock es un total por lote para toda la
+// feria, así que el conteo de productos también se hace una sola vez.
+function renderFeriaConteoProductos(f, wrap) {
+  const plan = f.planStock || {};
+  const ids  = Object.keys(plan).filter(id => plan[id] > 0);
 
   if (!ids.length) {
-    wrap.innerHTML = '<p class="mgmt-note">No hay stock planeado para este día.</p>';
+    wrap.innerHTML = '<p class="mgmt-note">No hay stock planeado para esta feria.</p>';
     return;
   }
 
-  const existing = (f.conteoProductos || {})[fecha];
+  const existing = f.conteoProductos;
   const rowsHTML = ids.map(id => {
     const ej         = ejecuciones.find(e => e.id === id);
     const label      = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
-    const llevados   = planHoy[id];
-    const vendidos   = (f.ventas || []).filter(v => v.fecha === fecha && v.ejecucionId === id).reduce((s, v) => s + v.cantidad, 0);
+    const llevados   = plan[id];
+    const vendidos   = (f.ventas || []).filter(v => v.ejecucionId === id).reduce((s, v) => s + v.cantidad, 0);
     const sobrantesVal = existing?.detalle?.[id]?.sobrantes ?? '';
     return `
       <tr>
@@ -754,30 +767,29 @@ function renderFeriaConteoProductos(f, fecha, wrap) {
     <div data-conteo-result style="margin-top:8px"></div>
   `;
 
-  if (existing) renderConteoProductosResult(f, fecha, wrap);
+  if (existing?.detalle) renderConteoProductosResult(f, wrap);
 
   wrap.querySelector('[data-conteo-save]').addEventListener('click', async () => {
     const detalle = {};
     ids.forEach(id => {
-      const llevados = planHoy[id];
-      const vendidos = (f.ventas || []).filter(v => v.fecha === fecha && v.ejecucionId === id).reduce((s, v) => s + v.cantidad, 0);
+      const llevados = plan[id];
+      const vendidos = (f.ventas || []).filter(v => v.ejecucionId === id).reduce((s, v) => s + v.cantidad, 0);
       const input     = wrap.querySelector(`.feria-sobrante-input[data-lote="${CSS.escape(id)}"]`);
       const sobrantes  = parseInt(input.value) || 0;
       detalle[id] = { llevados, vendidos, sobrantes, descuadre: llevados - vendidos - sobrantes };
     });
-    f.conteoProductos = f.conteoProductos || {};
-    f.conteoProductos[fecha] = { detalle, revisadoEn: new Date().toISOString() };
+    f.conteoProductos = { detalle, revisadoEn: new Date().toISOString() };
     try {
       await updateFeria(f);
-      renderConteoProductosResult(f, fecha, wrap);
+      renderConteoProductosResult(f, wrap);
     } catch (e) { alert('Error al guardar: ' + e.message); }
   });
 }
 
-function renderConteoProductosResult(f, fecha, wrap) {
+function renderConteoProductosResult(f, wrap) {
   const resultEl = wrap.querySelector('[data-conteo-result]');
-  const conteo   = (f.conteoProductos || {})[fecha];
-  if (!resultEl || !conteo) return;
+  const conteo   = f.conteoProductos;
+  if (!resultEl || !conteo?.detalle) return;
   const problemas = Object.entries(conteo.detalle)
     .filter(([, d]) => d.descuadre !== 0)
     .map(([id, d]) => {
@@ -803,33 +815,33 @@ function feriaToText(f) {
   lines.push(`  • Entre 30 y 55: ${f.conteoEntre30y55 || 0}`);
   lines.push(`  • Mayores de 55: ${f.conteoMayores55 || 0}`);
 
+  const plan = f.planStock || {};
+  const idsPlan = Object.keys(plan);
+  lines.push('', 'Stock llevado a la feria (total):');
+  if (idsPlan.length) {
+    idsPlan.forEach(id => {
+      const ej = ejecuciones.find(e => e.id === id);
+      const label = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
+      lines.push(`  - ${label}: ${plan[id]} unidades`);
+    });
+  } else {
+    lines.push('  Sin stock planeado.');
+  }
+  if (f.conteoProductos?.detalle) {
+    lines.push('', 'Conteo de productos:');
+    Object.entries(f.conteoProductos.detalle).forEach(([id, d]) => {
+      const ej = ejecuciones.find(e => e.id === id);
+      const label = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
+      lines.push(`  - ${label}: llevados ${d.llevados}, vendidos ${d.vendidos}, sobrantes ${d.sobrantes}${d.descuadre !== 0 ? ` ⚠️ descuadre ${d.descuadre}` : ''}`);
+    });
+  }
+
   getFeriaDateList(f).forEach(fecha => {
     lines.push('', `── DÍA ${fecha} ─────────────────────────────────────────`);
-    const plan = f.planStock[fecha] || {};
-    const ids  = Object.keys(plan);
-    if (ids.length) {
-      lines.push('Stock llevado:');
-      ids.forEach(id => {
-        const ej = ejecuciones.find(e => e.id === id);
-        const label = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
-        lines.push(`  - ${label}: ${plan[id]} unidades`);
-      });
-    } else {
-      lines.push('Sin stock planeado.');
-    }
     const ventasDia = (f.ventas || []).filter(v => v.fecha === fecha);
     if (ventasDia.length) {
       lines.push('Ventas:');
       ventasDia.forEach(v => lines.push(`  - ${v.recetaNombre}${v.loteId ? ` — Lote ${v.loteId}` : ''}: ${v.cantidad}`));
-    }
-    const conteo = (f.conteoProductos || {})[fecha];
-    if (conteo) {
-      lines.push('Conteo de productos:');
-      Object.entries(conteo.detalle).forEach(([id, d]) => {
-        const ej = ejecuciones.find(e => e.id === id);
-        const label = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
-        lines.push(`  - ${label}: llevados ${d.llevados}, vendidos ${d.vendidos}, sobrantes ${d.sobrantes}${d.descuadre !== 0 ? ` ⚠️ descuadre ${d.descuadre}` : ''}`);
-      });
     }
     const obsDia = (f.observacionesDiarias || []).filter(o => o.fecha === fecha);
     if (obsDia.length) {
@@ -861,15 +873,12 @@ function openFeriaResumen(feriaId) {
   document.getElementById('feriaResumenContent').textContent = feriaToText(f);
 
   const conteoWrap = document.getElementById('feriaResumenConteoWrap');
-  const dias = getFeriaDateList(f);
-  conteoWrap.innerHTML = dias.map(fecha => `
+  conteoWrap.innerHTML = `
     <div class="feria-section">
-      <h4 class="feria-section-title">Conteo de productos — ${fmtDateShortEs(fecha)}</h4>
-      <div data-dia="${esc(fecha)}"></div>
-    </div>`).join('');
-  dias.forEach(fecha => {
-    renderFeriaConteoProductos(f, fecha, conteoWrap.querySelector(`[data-dia="${CSS.escape(fecha)}"]`));
-  });
+      <h4 class="feria-section-title">Conteo de productos</h4>
+      <div data-conteo-productos></div>
+    </div>`;
+  renderFeriaConteoProductos(f, conteoWrap.querySelector('[data-conteo-productos]'));
 
   document.getElementById('feriaResumenOverlay').classList.add('open');
 }
