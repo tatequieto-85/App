@@ -208,13 +208,22 @@ function feriaEstaEnCurso(f) {
   return getFeriaDateList(f).includes(toISODate(new Date())) && !f.cerrada;
 }
 
+// Todavía no llegó la fecha de inicio: acá lo que hace falta es planificar
+// cuánto stock llevar por día, no un conteo (no hay "hoy" válido dentro de
+// la feria todavía).
+function feriaEsFutura(f) {
+  return !!f.fechaInicio && toISODate(new Date()) < f.fechaInicio;
+}
+
 // Punto de entrada único del botón "Registrar conteo"/"Ver resumen" y del
-// doble clic/toque sobre la tarjeta: fuera de las fechas de la feria no tiene
-// sentido dejar cargar el conteo del día (no hay "hoy" válido que registrar).
+// doble clic/toque sobre la tarjeta: en fechas de feria abre el conteo,
+// antes de esas fechas pregunta el plan de stock por día, y ya pasada (o
+// cerrada a mano) muestra el resumen.
 function handleAbrirFeria(feriaId) {
   const f = ferias.find(x => x.id === feriaId);
   if (!f) return;
   if (feriaEstaEnCurso(f)) openFeriaCounter(feriaId);
+  else if (feriaEsFutura(f)) openFeriaStockModal(feriaId);
   else openFeriaResumen(feriaId);
 }
 
