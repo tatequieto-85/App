@@ -1381,15 +1381,16 @@ input, textarea, [contenteditable], [contenteditable] * {
   gap: 14px;
 }
 .receta-card {
-  display: flex; flex-direction: column; gap: 10px;
-  padding: 14px 16px; aspect-ratio: 4 / 5; box-sizing: border-box;
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 14px 16px 0; aspect-ratio: 4 / 5; box-sizing: border-box;
   border: 1.5px solid var(--border); border-radius: var(--radius);
   background: var(--surface);
   transition: box-shadow .2s, border-color .2s;
   cursor: pointer;
 }
 .receta-card:hover { border-color: rgba(113,75,103,.3); box-shadow: var(--shadow); }
-.receta-card-body  { flex: 1; min-width: 0; }
+.receta-card-body  { padding-bottom: 14px; }
 .receta-card-title { font-size: 15px; font-weight: 700; color: var(--text); }
 .receta-card-meta  { font-size: 11px; color: var(--text-sub); margin-top: 4px; }
 
@@ -1540,8 +1541,21 @@ input, textarea, [contenteditable], [contenteditable] * {
   font-size: 10.5px; font-weight: 600; color: var(--text-sub);
   text-transform: uppercase; letter-spacing: .03em; white-space: nowrap;
 }
-.receta-card-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
-.receta-card-actions .btn-outline, .receta-card-actions .btn-ejecutar { width: 100%; margin: 0; }
+/* Panel Editar/Borrar montado al mantener presionada la tarjeta — mismo
+   patrón que .receta-group-card-actions más abajo. */
+.receta-card-actions {
+  display: none; position: absolute; left: 0; right: 0; bottom: 0;
+  border-top: 1px solid var(--border);
+}
+.receta-card-actions.open { display: flex; }
+.receta-card-actions button {
+  flex: 1; border: none; background: var(--surface); cursor: pointer;
+  padding: 10px 8px; font-size: 12.5px; font-weight: 600; color: var(--text);
+}
+.receta-card-actions button:first-child { border-right: 1px solid var(--border); }
+.receta-card-actions button:hover { background: var(--bg); }
+.receta-card-actions button[data-del-receta] { color: #C0392B; }
+.receta-card-actions button[data-del-receta]:hover { background: #EF444414; }
 
 /* ── Menú "⋯" reutilizable (recetas, ferias) ──────────────────────────────── */
 .card-menu { position: relative; }
@@ -1642,17 +1656,6 @@ input, textarea, [contenteditable], [contenteditable] * {
 .receta-group-new-color { padding: 2px; height: 30px; }
 .receta-group-new-actions { display: flex; gap: 6px; }
 .receta-group-new-actions button { flex: 1; margin: 0; padding: 6px 8px; }
-
-/* Selector "Mover a" dentro del menú "⋯" de cada receta */
-.card-menu-move { padding: 4px 10px 6px; }
-.card-menu-move label {
-  display: block; font-size: 10px; font-weight: 700; color: var(--text-sub);
-  text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px;
-}
-.card-menu-move select {
-  width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 5px 6px; font-size: 12.5px; font-family: inherit; background: var(--surface); color: var(--text);
-}
 
 /* ── Ideas: tablero de bloques por área (4 columnas, con filas que crecen) ── */
 .idea-board-header {
@@ -2181,17 +2184,6 @@ input, textarea, [contenteditable], [contenteditable] * {
   margin: 0 -20px -20px;
 }
 .receta-save-footer .btn-primary { margin-top: 0; }
-
-/* ── Ejecutar button ─────────────────────────────────────────────────────── */
-.btn-ejecutar {
-  background: var(--brand); color: var(--brand-text);
-  border: none; border-radius: var(--radius);
-  padding: 10px 18px; font-size: 14px; font-weight: 700;
-  cursor: pointer; transition: opacity .15s, transform .1s;
-  display: flex; align-items: center; gap: 6px;
-}
-.btn-ejecutar:hover { opacity: .88; transform: translateY(-1px); }
-.btn-ejecutar:active { transform: translateY(0); }
 
 /* ── Instruction drag handle ─────────────────────────────────────────────── */
 .instr-drag-handle {

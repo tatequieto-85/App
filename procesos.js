@@ -2,8 +2,7 @@ import { sheetsReq } from './auth.js';
 import {
   esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeParseJSON, safeLoad,
   fmtDate, fmtDateShortEs, fmtDuration, fmtCOP, fmtSeconds, parseISODate, toISODate, addDays, diffDays,
-  normalizeObsList, todayISOBogota, ICON_COPY, ICON_EDIT, ICON_TRASH, ICON_DOWNLOAD, ICON_CHECK, ICON_MORE,
-  initCardMenus
+  normalizeObsList, todayISOBogota, ICON_DOWNLOAD, ICON_CHECK
 } from './utils.js';
 import { wasAccidentalTouch } from './input-guard.js';
 import { loadConfig } from './contenido.js';
@@ -471,11 +470,11 @@ export async function loadProcesos() {
   if (ok) { renderRecetasList(); renderEjecucionesList(); }
 }
 
+// Sin botones visibles — todo es gesto: un clic = ver pasos, doble clic =
+// empezar ejecución, mantener presionado = panel Editar/Borrar montado
+// sobre la tarjeta (mismo patrón que las tarjetas de grupo, ver
+// wireRecetaCardEvents más abajo).
 function recetaCardHTML(r) {
-  const moveOptions = [
-    `<option value=""${!r.blockId ? ' selected' : ''}>Sin bloque</option>`,
-    ...recetaBlocks.map(b => `<option value="${esc(b.id)}"${r.blockId === b.id ? ' selected' : ''}>${esc(b.nombre)}</option>`)
-  ].join('');
   return `
     <div class="receta-card" data-id="${esc(r.id)}">
       <div class="receta-card-body">
@@ -483,20 +482,8 @@ function recetaCardHTML(r) {
         <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''}</div>
       </div>
       <div class="receta-card-actions">
-        <button class="btn-outline btn-sm" data-ver-receta="${esc(r.id)}">👁 Ver pasos</button>
-        <button class="btn-ejecutar" data-ejecutar="${esc(r.id)}">▶ Ejecutar</button>
-        <div class="card-menu">
-          <button type="button" class="card-menu-btn" data-menu-btn title="Más acciones">${ICON_MORE}</button>
-          <div class="card-menu-list">
-            <button type="button" data-dup-receta="${esc(r.id)}">${ICON_COPY} Duplicar</button>
-            <button type="button" data-edit-receta="${esc(r.id)}">${ICON_EDIT} Editar</button>
-            <div class="card-menu-move">
-              <label>Mover a</label>
-              <select data-move-receta="${esc(r.id)}">${moveOptions}</select>
-            </div>
-            <button type="button" data-del-receta="${esc(r.id)}" data-row="${r.rowIndex}">${ICON_TRASH} Eliminar</button>
-          </div>
-        </div>
+        <button type="button" data-edit-receta="${esc(r.id)}">Editar</button>
+        <button type="button" data-del-receta="${esc(r.id)}" data-row="${r.rowIndex}">Borrar</button>
       </div>
     </div>`;
 }
@@ -728,9 +715,7 @@ function wireRecetaGroupCardPress(container) {
     card.addEventListener('touchstart', startPress, { passive: true });
     card.addEventListener('touchmove', cancelPress, { passive: true });
 
-    card.addEventListener('click', e => {
-      if (longPressed) { longPressed = false; return; }
-      if (e.target.closest('button')) return;
+    const enterGroup = () => {
       currentRecetaGroupId = groupId;
       // Sin botón "Volver" en pantalla — se sale del grupo con el gesto
       // nativo de deslizar desde el borde izquierdo (o el botón atrás),
@@ -738,6 +723,22 @@ function wireRecetaGroupCardPress(container) {
       // gesto no tendría a dónde volver (ver popstate más abajo).
       history.pushState({ view: 'procesos', recetaDrill: true }, '', location.hash || '#procesos');
       renderRecetasList();
+    };
+
+    // Un solo clic no hace nada — entrar al grupo requiere doble
+    // clic/doble toque, igual que ejecutar una receta más abajo.
+    card.addEventListener('click', e => { if (longPressed) longPressed = false; });
+    card.addEventListener('dblclick', e => {
+      if (longPressed || e.target.closest('button')) return;
+      enterGroup();
+    });
+    card.addEventListener('touchend', e => {
+      if (longPressed) { longPressed = false; return; }
+      if (e.target.closest('button') || wasAccidentalTouch()) return;
+      const now = Date.now();
+      const last = lastTapTime['grp_' + groupId] || 0;
+      lastTapTime['grp_' + groupId] = now;
+      if (now - last < 350) enterGroup();
     });
   });
 }
@@ -746,7 +747,7 @@ function wireRecetaGroupCardPress(container) {
 // vez a nivel de módulo (si fuera dentro de wireRecetaGroupCardPress
 // quedaría un listener nuevo apilado en cada re-render de la galería).
 document.addEventListener('click', () => {
-  document.querySelectorAll('.receta-group-card-actions.open').forEach(a => a.classList.remove('open'));
+  document.querySelectorAll('.receta-group-card-actions.open, .receta-card-actions.open').forEach(a => a.classList.remove('open'));
 });
 
 // Recetas de un solo grupo — se llega tocando su tarjeta en la galería.
@@ -788,71 +789,70 @@ function renderRecetasList() {
   if (btnNuevoGrupo)  btnNuevoGrupo.style.display  = currentRecetaGroupId == null ? '' : 'none';
 }
 
+// Tarjeta de receta, sin botones visibles: un clic = ver pasos, doble
+// clic/doble toque = empezar ejecución, mantener presionado = panel
+// Editar/Borrar (mismo patrón que wireRecetaGroupCardPress arriba). El
+// clic simple se demora un instante para poder cancelarse si en realidad
+// era el primer golpe de un doble clic/doble toque.
 function wireRecetaCardEvents(container) {
   container.querySelectorAll('.receta-card[data-id]').forEach(card => {
+    const id = card.dataset.id;
+    let pressTimer  = null;
+    let longPressed = false;
+    let clickTimer  = null;
+
+    const openCardActions = () => {
+      container.querySelectorAll('.receta-card-actions.open').forEach(a => a.classList.remove('open'));
+      card.querySelector('.receta-card-actions')?.classList.add('open');
+    };
+    const startPress = e => {
+      if (e.target.closest('button')) return;
+      longPressed = false;
+      pressTimer = setTimeout(() => { longPressed = true; openCardActions(); }, 550);
+    };
+    const cancelPress = () => clearTimeout(pressTimer);
+
+    card.addEventListener('mousedown', startPress);
+    card.addEventListener('mouseup', cancelPress);
+    card.addEventListener('mouseleave', cancelPress);
+    card.addEventListener('touchstart', startPress, { passive: true });
+    card.addEventListener('touchmove', cancelPress, { passive: true });
+
+    card.addEventListener('click', e => {
+      if (longPressed) { longPressed = false; return; }
+      if (e.target.closest('button')) return;
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(() => openRecetaDetail(id), 280);
+    });
     card.addEventListener('dblclick', e => {
-      if (e.target.closest('button, select')) return;
-      openRecetaDetail(card.dataset.id);
+      if (longPressed || e.target.closest('button')) return;
+      clearTimeout(clickTimer);
+      startExecution(id);
     });
     card.addEventListener('touchend', e => {
-      if (e.target.closest('button, select') || wasAccidentalTouch()) return;
+      if (longPressed) { longPressed = false; return; }
+      if (e.target.closest('button') || wasAccidentalTouch()) return;
       const now = Date.now();
-      const last = lastTapTime['rec_' + card.dataset.id] || 0;
-      lastTapTime['rec_' + card.dataset.id] = now;
-      if (now - last < 350) openRecetaDetail(card.dataset.id);
-    });
-  });
-  container.querySelectorAll('[data-ejecutar]').forEach(btn => {
-    btn.addEventListener('click', () => startExecution(btn.dataset.ejecutar));
-  });
-  container.querySelectorAll('[data-ver-receta]').forEach(btn => {
-    btn.addEventListener('click', () => openRecetaDetail(btn.dataset.verReceta));
-  });
-  initCardMenus(container);
-  container.querySelectorAll('[data-dup-receta]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const rec = recetas.find(r => r.id === btn.dataset.dupReceta);
-      if (!rec) return;
-      btn.disabled = true;
-      try {
-        await appendReceta({
-          id: crypto.randomUUID(),
-          nombre: rec.nombre + ' (copia)',
-          descripcion: rec.descripcion,
-          etapas: JSON.parse(JSON.stringify(rec.etapas)),
-          ingredientesMaestros: JSON.parse(JSON.stringify(rec.ingredientesMaestros || [])),
-          blockId: rec.blockId || '',
-          creadoEn: new Date().toISOString()
-        });
-        await loadRecetasData();
-        renderRecetasList();
-      } catch (e) { alert('Error al duplicar: ' + e.message); btn.disabled = false; }
-    });
-  });
-  container.querySelectorAll('[data-edit-receta]').forEach(btn => {
-    btn.addEventListener('click', () => openRecetaModal(btn.dataset.editReceta));
-  });
-  container.querySelectorAll('[data-move-receta]').forEach(sel => {
-    sel.addEventListener('click', e => e.stopPropagation());
-    sel.addEventListener('change', async () => {
-      const rec = recetas.find(r => r.id === sel.dataset.moveReceta);
-      if (!rec) return;
-      const newBlockId = sel.value;
-      if ((rec.blockId || '') === newBlockId) return;
-      rec.blockId = newBlockId;
-      sel.disabled = true;
-      try {
-        await updateReceta(rec);
-        renderRecetasList();
-      } catch (e) {
-        alert('Error al mover: ' + e.message);
-        await loadRecetasData();
-        renderRecetasList();
+      const last = lastTapTime['rec_' + id] || 0;
+      lastTapTime['rec_' + id] = now;
+      if (now - last < 350) {
+        clearTimeout(clickTimer);
+        startExecution(id);
+      } else {
+        clickTimer = setTimeout(() => openRecetaDetail(id), 350);
       }
     });
   });
+
+  container.querySelectorAll('[data-edit-receta]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      openRecetaModal(btn.dataset.editReceta);
+    });
+  });
   container.querySelectorAll('[data-del-receta]').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
       if (!confirm('¿Eliminar esta receta?')) return;
       btn.disabled = true;
       try {
@@ -994,14 +994,12 @@ function openRecetaDetail(recetaId) {
     <div class="receta-detail-etapas">${etapasHTML || '<div class="empty-state">Esta receta no tiene etapas.</div>'}</div>
   `;
 
-  document.getElementById('btnEditFromRecetaDetail').onclick = () => {
-    document.getElementById('recetaDetailOverlay').classList.remove('open');
-    openRecetaModal(recetaId);
-  };
-  document.getElementById('btnDownloadRecetaDetail').onclick = () => downloadRecetaTxt(recetaId);
   document.getElementById('recetaDetailOverlay').classList.add('open');
 }
 
+// Los botones "Descargar"/"Editar" del header de este modal se sacaron a
+// pedido del usuario — downloadRecetaTxt() queda sin un disparador por
+// ahora, pero se deja por si hace falta reengancharla más adelante.
 function downloadRecetaTxt(recetaId) {
   const rec = recetas.find(r => r.id === recetaId);
   if (!rec) return;
