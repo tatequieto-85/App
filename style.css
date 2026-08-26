@@ -1406,8 +1406,13 @@ input, textarea, [contenteditable], [contenteditable] * {
 /* ── Ferias: modal de conteo — secciones ─────────────────────────────────── */
 .feria-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 .feria-section-title { font-size: 12px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
-.feria-counter-quickrow { display: flex; gap: 8px; margin: 16px 0; }
-.feria-counter-quickrow button { flex: 1; margin: 0; }
+.feria-counter-quickrow { display: flex; gap: 0; margin: 16px 0; }
+.feria-counter-quickrow button {
+  flex: 1; margin: 0; border-radius: 0;
+  border-left: 1px solid rgba(255,255,255,.25);
+}
+.feria-counter-quickrow button:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); border-left: none; }
+.feria-counter-quickrow button:last-child  { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
 
 /* Registrar venta (feria) reutiliza el mismo estilo de grilla que el plan
    de stock (.feria-stock-list/.feria-stock-item, ver más abajo), pero en
