@@ -559,8 +559,8 @@ function renderRecetaGroupsGallery(container) {
       </div>
       <input type="color" class="receta-group-new-color" value="#714B67" />
       <div class="receta-group-new-actions">
-        <button type="button" class="btn-primary btn-sm" data-confirm-new-group>Crear</button>
-        <button type="button" class="btn-outline btn-sm" data-cancel-new-group>Cancelar</button>
+        <button type="button" class="btn-primary" data-confirm-new-group>Crear</button>
+        <button type="button" class="btn-outline" data-cancel-new-group>Cancelar</button>
       </div>
       <div class="feedback" data-new-group-feedback></div>
     </div>` : '';
@@ -627,8 +627,8 @@ function renderRecetaGroupsGallery(container) {
           </div>
           <input type="color" class="receta-group-new-color" value="${esc(block.color || '#714B67')}" />
           <div class="receta-group-new-actions">
-            <button type="button" class="btn-primary btn-sm" data-confirm-edit-group>Guardar</button>
-            <button type="button" class="btn-outline btn-sm" data-cancel-edit-group>Cancelar</button>
+            <button type="button" class="btn-primary" data-confirm-edit-group>Guardar</button>
+            <button type="button" class="btn-outline" data-cancel-edit-group>Cancelar</button>
           </div>
           <div class="feedback" data-edit-group-feedback></div>
         </div>`;
