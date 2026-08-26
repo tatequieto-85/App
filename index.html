@@ -1155,42 +1155,23 @@
   <!-- Modal: Evaluación de lote (al finalizar ejecución) -->
   <div class="modal-overlay" id="evaluacionOverlay">
     <div class="modal modal-evaluacion">
-      <div class="modal-header eval-modal-header">
-        <div>
-          <h2>Evaluación técnica del lote</h2>
-          <div class="eval-clock-wrap">
-            <span class="eval-clock-label">Tiempo desde inicio</span>
-            <div class="eval-clock" id="evalClock"></div>
-          </div>
-        </div>
+      <div class="modal-header">
+        <h2>Evaluación técnica del lote</h2>
         <button class="btn-icon" id="btnCloseEvaluacion"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body modal-body-scroll">
-        <div class="info-box" id="evalResumen"></div>
-
-        <label class="field-label" for="evalLoteId">Número de lote <span class="field-label-hint">· fijo</span></label>
-        <input class="field-input" id="evalLoteId" type="text" readonly />
-
         <div class="eval-lot-meta-grid">
+          <input class="field-input" id="evalLoteId" type="text" readonly />
           <div>
-            <label class="field-label" for="evalFechaElaboracion">Fecha de elaboración <span class="field-label-hint">· fijo</span></label>
+            <label class="field-label" for="evalFechaElaboracion">Fecha de elaboración</label>
             <input class="field-input" id="evalFechaElaboracion" type="date" readonly />
           </div>
-          <div>
-            <label class="field-label" for="evalFechaVencimiento">Vencimiento estimado <span class="field-label-hint">· fijo</span></label>
-            <input class="field-input" id="evalFechaVencimiento" type="date" readonly />
-          </div>
         </div>
-
-        <!-- FASE 1 -->
-        <div class="eval-phase-header">
-          <span class="eval-phase-badge eval-phase-badge--pre">Fase 1</span>
-          Antes de envasar
-        </div>
+        <label class="field-label" for="evalFechaVencimiento">Vencimiento estimado</label>
+        <input class="field-input" id="evalFechaVencimiento" type="date" readonly />
 
         <div class="eval-dim eval-dim--ph">
-          <div class="eval-dim-title">pH <span class="eval-dim-code">I-01</span> <span class="eval-required">OBLIGATORIO</span></div>
-          <div class="eval-dim-desc">Medir ANTES de envasar. <strong>Óptimo: pH 4.0</strong>. Margen aceptable hasta pH 4.4 (límite). Si pH &gt; 4.4: agregar ácido cítrico 0.5 g y remedir.</div>
+          <div class="eval-dim-title">pH registrado</div>
           <div class="eval-ph-row">
             <input class="field-input eval-ph-input" id="evalPH" type="number" step="0.01" min="0" max="14" placeholder="Ej: 3.8" />
             <span class="eval-ph-unit">pH</span>
@@ -1198,15 +1179,8 @@
           </div>
         </div>
 
-        <div class="eval-phase2-notice">
-          <div>🧊 <strong>Fase 2</strong> (Prueba en frío · Estabilidad de color · Sello y vacío) — botón disponible en <strong>1 hora</strong> en Ejecuciones.</div>
-          <div style="margin-top:4px">💧 <strong>Sinéresis</strong> — botón disponible en <strong>24 horas</strong> en Ejecuciones.</div>
-          <div style="margin-top:6px;font-size:11px;opacity:.75">Recibirás un WhatsApp cuando cada etapa esté lista.</div>
-        </div>
-
-        <!-- Envasado & Rendimiento I-09 -->
         <div class="eval-dim">
-          <div class="eval-dim-title">Envasado y Rendimiento <span class="eval-dim-code">I-09</span></div>
+          <div class="eval-dim-title">Envasado y Rendimiento</div>
           <div class="eval-insumos-total" id="evalInsumosTotal">Cargando insumos usados…</div>
           <div class="eval-insumos-total" id="evalCostoProduccion"></div>
           <div class="eval-frascos-grid">
@@ -1217,10 +1191,6 @@
             <div class="eval-frasco-field">
               <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Frascos 180 ml</label>
               <input class="field-input" id="evalFrascos180" type="number" min="0" step="1" placeholder="0" style="margin:0" />
-            </div>
-            <div class="eval-frasco-field">
-              <label style="font-size:11px;color:var(--text-sub);display:block;margin-bottom:4px">Excedente (ml)</label>
-              <input class="field-input" id="evalExcedente" type="number" min="0" step="1" placeholder="0" style="margin:0" />
             </div>
           </div>
           <div class="eval-frascos-total" id="evalFrascosTotal">—</div>
@@ -1243,81 +1213,8 @@
           <button type="button" class="btn-outline obs-btn" id="btnAddEvalObs">Agregar</button>
         </div>
 
-        <button class="btn-primary" id="btnSaveEvaluacion" style="margin-top:16px">Guardar Fase 1</button>
+        <button class="btn-primary" id="btnSaveEvaluacion" style="margin-top:16px">Guardar evaluación</button>
         <div class="feedback" id="evaluacionFeedback"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Evaluación Fase 2 (1h después del cierre) -->
-  <div class="modal-overlay" id="fase2EvalOverlay">
-    <div class="modal modal-evaluacion">
-      <div class="modal-header">
-        <h2>Evaluación Fase 2</h2>
-        <button class="btn-icon" id="btnCloseFase2Eval"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      </div>
-      <div class="modal-body modal-body-scroll">
-        <div class="info-box" id="fase2LoteLabel"></div>
-
-        <div class="eval-dim">
-          <div class="eval-dim-title">D3 · Prueba en frío <span class="eval-dim-code">I-06</span></div>
-          <div class="eval-dim-desc">Nevera 1 hora. Evaluar textura al sacar vs temperatura ambiente.</div>
-          <div class="eval-scale">
-            <button class="fase2-scale-btn" data-dim="D3" data-val="1"><span class="esb-num">1</span><span class="esb-hint">Se solidifica<br>completo</span></button>
-            <button class="fase2-scale-btn" data-dim="D3" data-val="2"><span class="esb-num">2</span><span class="esb-hint">Se endurece<br>notoria</span></button>
-            <button class="fase2-scale-btn" data-dim="D3" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Leve cambio<br>recupera</span></button>
-            <button class="fase2-scale-btn" data-dim="D3" data-val="4"><span class="esb-num">4</span><span class="esb-hint">Casi igual<br>en frío</span></button>
-            <button class="fase2-scale-btn fase2-scale-btn--target" data-dim="D3" data-val="5"><span class="esb-num">5 ✓</span><span class="esb-hint">Idéntica<br>en frío</span></button>
-          </div>
-        </div>
-
-        <div class="eval-dim">
-          <div class="eval-dim-title">D6 · Estabilidad de color al aire <span class="eval-dim-code">I-07</span></div>
-          <div class="eval-dim-desc">1 cuchara en plato blanco, luz natural. Observar T+3, T+10, T+20 min.</div>
-          <div class="eval-scale">
-            <button class="fase2-scale-btn" data-dim="D6" data-val="1"><span class="esb-num">1</span><span class="esb-hint">Cambia<br>antes T+3</span></button>
-            <button class="fase2-scale-btn" data-dim="D6" data-val="2"><span class="esb-num">2</span><span class="esb-hint">T+3<br>a T+10</span></button>
-            <button class="fase2-scale-btn" data-dim="D6" data-val="3"><span class="esb-num">3</span><span class="esb-hint">Leve a<br>T+20</span></button>
-            <button class="fase2-scale-btn fase2-scale-btn--target" data-dim="D6" data-val="4"><span class="esb-num">4 ✓</span><span class="esb-hint">Sin cambio<br>a T+20</span></button>
-            <button class="fase2-scale-btn fase2-scale-btn--target" data-dim="D6" data-val="5"><span class="esb-num">5 ✓✓</span><span class="esb-hint">Sin cambio<br>a T+60</span></button>
-          </div>
-        </div>
-
-        <div class="eval-dim">
-          <div class="eval-dim-title">Verificación de sello y vacío <span class="eval-dim-code">I-10</span></div>
-          <div class="eval-dim-desc">Verificar después de enfriar. Tapa convexa o sin pop = desechar.</div>
-          <label class="eval-check-row"><input type="checkbox" id="fase2SelloTapa" class="eval-checkbox" /> Tapa cóncava sin rebote al presionar</label>
-          <label class="eval-check-row"><input type="checkbox" id="fase2SelloPop" class="eval-checkbox" /> Vacío audible al abrir (pop)</label>
-          <label class="eval-check-row"><input type="checkbox" id="fase2SelloOlor" class="eval-checkbox" /> Color y olor sin alteración</label>
-        </div>
-
-        <button class="btn-primary" id="btnSaveFase2" style="margin-top:16px">Guardar Fase 2</button>
-        <div class="feedback" id="fase2Feedback"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Evaluación Sinéresis (24h después del cierre) -->
-  <div class="modal-overlay" id="sineresisEvalOverlay">
-    <div class="modal modal-evaluacion">
-      <div class="modal-header">
-        <h2>Evaluación Sinéresis</h2>
-        <button class="btn-icon" id="btnCloseSineresisEval"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      </div>
-      <div class="modal-body modal-body-scroll">
-        <div class="info-box" id="sineresisLoteLabel"></div>
-
-        <div class="eval-dim">
-          <div class="eval-dim-title">Sinéresis — separación de agua <span class="eval-dim-code">I-08</span></div>
-          <div class="eval-dim-desc">Frasco abierto 24 h en nevera. ¿Acumulación de líquido en la superficie?</div>
-          <div class="eval-radio-group">
-            <label class="eval-radio-row"><input type="radio" name="sinEvalOpt" value="ok" /> Sin separación visible ✓</label>
-            <label class="eval-radio-row"><input type="radio" name="sinEvalOpt" value="fail" /> Separación visible ✗ — emulsión inestable</label>
-          </div>
-        </div>
-
-        <button class="btn-primary" id="btnSaveSineresis" style="margin-top:16px">Guardar Sinéresis</button>
-        <div class="feedback" id="sineresisFeedback"></div>
       </div>
     </div>
   </div>

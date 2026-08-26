@@ -4,7 +4,7 @@ import { setActiveBase, activeBaseModulos } from './db-state.js';
 import { navigateTo } from './main.js';
 import { initSheet, setDefaultDateTime, loadStories } from './contenido.js';
 import { initKanbanSheets, loadKanbanTasks } from './tareas.js';
-import { initRecetasSheets, checkPendingEvalNotifications } from './procesos.js';
+import { initRecetasSheets } from './procesos.js';
 import { initIngredientesSheet } from './ingredientes.js';
 import { initComprasSheet } from './compras.js';
 import { initFeriasSheet } from './ferias.js';
@@ -134,7 +134,6 @@ export async function connectToDatabase(base) {
   screenDbPicker.style.display = 'none';
   screenApp.style.display = '';
   applyModuleVisibility();
-  checkPendingEvalNotifications();
 }
 
 // Crea un Google Sheet nuevo desde cero, le arma toda la estructura de

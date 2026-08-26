@@ -5,7 +5,6 @@ import {
   normalizeObsList, todayISOBogota, ICON_DOWNLOAD, ICON_CHECK
 } from './utils.js';
 import { wasAccidentalTouch } from './input-guard.js';
-import { loadConfig } from './contenido.js';
 import { computeCostoProduccion } from './compras.js';
 import { ingredientes, normalizeIngName, getIngredienteUnidad } from './ingredientes.js';
 
@@ -36,10 +35,6 @@ let draggedInstrList     = null;
 let armedDragRow         = null; // fila con draggable=true mientras se sostiene el handle
 let instrDragMouseupWired = false;
 let recetaDetailId       = null; // for recipe detail view
-let evalClockInterval    = null; // clock in evaluation modal
-let fase2EvalEjId        = null; // ejecucion being evaluated (fase2)
-let sineresisEvalEjId    = null; // ejecucion being evaluated (sineresis)
-let fase2Scores          = { D3: 0, D6: 0 };
 let lastTapTime          = {}; // para detección de doble-toque en móvil
 
 const RECETA_BLOCK_HUES = [355, 25, 45, 95, 165, 200, 230, 280];
@@ -65,182 +60,6 @@ export function getStockProducido(recetaId) {
       return sum + (ev.frascos230 || 0) + (ev.frascos180 || 0);
     }, 0);
 }
-
-// ── Eval stage WA notifications ──────────────────────────────────────────────
-
-const EVAL_NOTIF_KEY = 'ss_eval_notifs';
-
-function getEvalNotifs() {
-  return safeParseJSON(localStorage.getItem(EVAL_NOTIF_KEY), []);
-}
-
-function saveEvalNotifs(notifs) {
-  localStorage.setItem(EVAL_NOTIF_KEY, JSON.stringify(notifs));
-}
-
-function scheduleEvalNotifications(ej) {
-  const ev = ej.evaluacion || {};
-  const notifs = getEvalNotifs().filter(n => !(n.ejId === ej.id));
-  if (ev.fase2UnlockAt) {
-    notifs.push({ ejId: ej.id, loteId: ej.loteId, recetaNombre: ej.nombreReceta,
-      unlockAt: ev.fase2UnlockAt, type: 'fase2', sent: false });
-  }
-  if (ev.sineresisUnlockAt) {
-    notifs.push({ ejId: ej.id, loteId: ej.loteId, recetaNombre: ej.nombreReceta,
-      unlockAt: ev.sineresisUnlockAt, type: 'sineresis', sent: false });
-  }
-  saveEvalNotifs(notifs);
-  armEvalNotifTimers();
-}
-
-function armEvalNotifTimers() {
-  const now = Date.now();
-  getEvalNotifs().forEach(n => {
-    if (n.sent) return;
-    const msUntil = new Date(n.unlockAt).getTime() - now;
-    if (msUntil <= 0) {
-      sendEvalWANotification(n);
-    } else {
-      setTimeout(() => sendEvalWANotification(n), msUntil);
-    }
-  });
-}
-
-async function sendEvalWANotification(notif) {
-  const notifs = getEvalNotifs();
-  const idx = notifs.findIndex(n => n.ejId === notif.ejId && n.type === notif.type);
-  if (idx >= 0 && notifs[idx].sent) return;
-  if (idx >= 0) notifs[idx].sent = true;
-  saveEvalNotifs(notifs);
-
-  try {
-    const cfg = await loadConfig();
-    if (!cfg.phone || !cfg.apikey) return;
-    const lote = notif.loteId || '—';
-    const receta = notif.recetaNombre || '';
-    let msg;
-    if (notif.type === 'fase2') {
-      msg = `🧊 *TATEAPP — Fase 2 lista*\n\nLote ${lote} (${receta})\n\nYa puedes evaluar:\n• Prueba en frío\n• Estabilidad de color\n• Verificación de sello y vacío\n\nProcesos → Ejecuciones → botón "Evaluar Fase 2"`;
-    } else {
-      msg = `💧 *TATEAPP — Sinéresis lista*\n\nLote ${lote} (${receta})\n\nHan pasado 24h. Evalúa la sinéresis ahora.\n\nProcesos → Ejecuciones → botón "Evaluar Sinéresis"`;
-    }
-    const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(cfg.phone)}&text=${encodeURIComponent(msg)}&apikey=${encodeURIComponent(cfg.apikey)}`;
-    await fetch(url, { mode: 'no-cors' });
-  } catch (e) {
-    console.warn('sendEvalWANotification:', e);
-  }
-}
-
-export function checkPendingEvalNotifications() {
-  armEvalNotifTimers();
-}
-
-// ── Procesos: Fase 2 / Sinéresis evaluation ───────────────────────────────────
-
-function openFase2Eval(ejId) {
-  const ej = ejecuciones.find(e => e.id === ejId);
-  if (!ej) return;
-  fase2EvalEjId = ejId;
-  fase2Scores = { D3: 0, D6: 0 };
-  document.querySelectorAll('.fase2-scale-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('fase2SelloTapa').checked = false;
-  document.getElementById('fase2SelloPop').checked  = false;
-  document.getElementById('fase2SelloOlor').checked = false;
-  document.getElementById('fase2Feedback').textContent = '';
-  document.getElementById('fase2LoteLabel').textContent =
-    `Lote ${ej.loteId || '—'} — ${ej.nombreReceta}`;
-  document.getElementById('fase2EvalOverlay').classList.add('open');
-}
-
-function openSineresisEval(ejId) {
-  const ej = ejecuciones.find(e => e.id === ejId);
-  if (!ej) return;
-  sineresisEvalEjId = ejId;
-  document.querySelectorAll('input[name="sinEvalOpt"]').forEach(r => r.checked = false);
-  document.getElementById('sineresisFeedback').textContent = '';
-  document.getElementById('sineresisLoteLabel').textContent =
-    `Lote ${ej.loteId || '—'} — ${ej.nombreReceta}`;
-  document.getElementById('sineresisEvalOverlay').classList.add('open');
-}
-
-document.getElementById('btnCloseFase2Eval').addEventListener('click', () => {
-  document.getElementById('fase2EvalOverlay').classList.remove('open');
-});
-document.getElementById('btnCloseSineresisEval').addEventListener('click', () => {
-  document.getElementById('sineresisEvalOverlay').classList.remove('open');
-});
-
-document.querySelectorAll('.fase2-scale-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const dim = btn.dataset.dim;
-    const val = +btn.dataset.val;
-    fase2Scores[dim] = val;
-    document.querySelectorAll(`.fase2-scale-btn[data-dim="${dim}"]`).forEach(b => {
-      b.classList.toggle('active', +b.dataset.val === val);
-    });
-  });
-});
-
-document.getElementById('btnSaveFase2').addEventListener('click', async () => {
-  const ej = ejecuciones.find(e => e.id === fase2EvalEjId);
-  if (!ej) return;
-  const btn = document.getElementById('btnSaveFase2');
-  const fb  = document.getElementById('fase2Feedback');
-
-  const unratedFase2 = ['D3', 'D6'].filter(d => !fase2Scores[d]);
-  if (unratedFase2.length) {
-    return setFb(fb, `Falta calificar: ${unratedFase2.map(d => EVAL_DIM_LABELS[d]).join(', ')}.`, 'err');
-  }
-
-  btn.disabled = true; btn.textContent = 'Guardando…';
-  try {
-    const fase2Data = {
-      scores:    { ...fase2Scores },
-      scoreTotal: fase2Scores.D3 + fase2Scores.D6,
-      sello: {
-        tapa: document.getElementById('fase2SelloTapa').checked,
-        pop:  document.getElementById('fase2SelloPop').checked,
-        olor: document.getElementById('fase2SelloOlor').checked,
-      }
-    };
-    ej.evaluacion.fase2        = fase2Data;
-    ej.evaluacion.scores.D3    = fase2Scores.D3;
-    ej.evaluacion.scores.D6    = fase2Scores.D6;
-    ej.evaluacion.sello        = fase2Data.sello;
-    ej.evaluacion.scoreTotal   = (ej.evaluacion.scoreTotal || 0) + fase2Data.scoreTotal;
-    await updateEjecucion(ej);
-    await loadEjecucionesData();
-    renderEjecucionesList();
-    setFb(fb, '✅ Fase 2 guardada correctamente.', 'ok');
-    setTimeout(() => document.getElementById('fase2EvalOverlay').classList.remove('open'), 2000);
-  } catch (e) {
-    setFb(fb, 'Error: ' + e.message, 'err');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Guardar Fase 2';
-  }
-});
-
-document.getElementById('btnSaveSineresis').addEventListener('click', async () => {
-  const ej = ejecuciones.find(e => e.id === sineresisEvalEjId);
-  if (!ej) return;
-  const val = document.querySelector('input[name="sinEvalOpt"]:checked')?.value;
-  if (!val) return setFb(document.getElementById('sineresisFeedback'), 'Selecciona una opción.', 'err');
-  const btn = document.getElementById('btnSaveSineresis');
-  const fb  = document.getElementById('sineresisFeedback');
-  btn.disabled = true; btn.textContent = 'Guardando…';
-  try {
-    ej.evaluacion.sineresis = val;
-    await updateEjecucion(ej);
-    await loadEjecucionesData();
-    renderEjecucionesList();
-    setFb(fb, '✅ Sinéresis guardada correctamente.', 'ok');
-    setTimeout(() => document.getElementById('sineresisEvalOverlay').classList.remove('open'), 2000);
-  } catch (e) {
-    setFb(fb, 'Error: ' + e.message, 'err');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Guardar Sinéresis';
-  }
-});
 
 // ── Procesos: Sheets init ─────────────────────────────────────────────────────
 
@@ -878,39 +697,6 @@ function renderEjecucionesList() {
     const ev = ej.evaluacion || {};
     const stars = ev.calificacion ? '★'.repeat(ev.calificacion) + '☆'.repeat(5 - ev.calificacion) : '—';
     const durMin = ej.duracionTotal ? Math.round(+ej.duracionTotal / 60) + ' min' : '—';
-    const now = Date.now();
-
-    // Phase 2 status
-    let fase2Html = '';
-    if (ev.fase2UnlockAt) {
-      const unlockMs = new Date(ev.fase2UnlockAt).getTime();
-      if (ev.fase2) {
-        fase2Html = `<div class="eval-stage-done">✅ Fase 2 evaluada</div>`;
-      } else if (now >= unlockMs) {
-        fase2Html = `<button class="btn-eval-stage btn-fase2-eval" data-fase2-id="${esc(ej.id)}">🧊 Evaluar Fase 2</button>`;
-      } else {
-        const ms = unlockMs - now;
-        const h = Math.floor(ms / 3600000);
-        const m = Math.floor((ms % 3600000) / 60000);
-        fase2Html = `<div class="eval-stage-pending">🧊 Fase 2 en ${h > 0 ? h + 'h ' : ''}${m}m</div>`;
-      }
-    }
-
-    // Sinéresis status
-    let sinHtml = '';
-    if (ev.sineresisUnlockAt) {
-      const sinUnlockMs = new Date(ev.sineresisUnlockAt).getTime();
-      if (ev.sineresis != null) {
-        sinHtml = `<div class="eval-stage-done">✅ Sinéresis: ${ev.sineresis === 'ok' ? 'Sin separación ✓' : 'Separación visible ✗'}</div>`;
-      } else if (now >= sinUnlockMs) {
-        sinHtml = `<button class="btn-eval-stage btn-sineresis-eval" data-sin-id="${esc(ej.id)}">💧 Evaluar Sinéresis</button>`;
-      } else {
-        const ms = sinUnlockMs - now;
-        const h = Math.floor(ms / 3600000);
-        const m = Math.floor((ms % 3600000) / 60000);
-        sinHtml = `<div class="eval-stage-pending">💧 Sinéresis en ${h > 0 ? h + 'h ' : ''}${m}m</div>`;
-      }
-    }
 
     return `
       <div class="ejecucion-card" data-ej-id="${esc(ej.id)}" style="cursor:pointer">
@@ -924,7 +710,6 @@ function renderEjecucionesList() {
           ${ev.calificacion ? `&nbsp;·&nbsp; <span class="ejecucion-stars">${stars}</span>` : ''}
         </div>
         ${normalizeObsList(ev.observaciones).length ? `<div class="ejecucion-obs">${normalizeObsList(ev.observaciones).map(o => esc(o.text)).join(' · ')}</div>` : ''}
-        ${fase2Html || sinHtml ? `<div class="eval-stages-row">${fase2Html}${sinHtml}</div>` : ''}
         <div class="ejecucion-hint">doble clic = ver detalle</div>
       </div>
     `;
@@ -940,13 +725,6 @@ function renderEjecucionesList() {
       lastTapTime['ej_' + ejId] = now;
       if (now - last < 350) openEjecucionDetail(ejId);
     });
-  });
-
-  container.querySelectorAll('.btn-fase2-eval').forEach(btn => {
-    btn.addEventListener('click', e => { e.stopPropagation(); openFase2Eval(btn.dataset.fase2Id); });
-  });
-  container.querySelectorAll('.btn-sineresis-eval').forEach(btn => {
-    btn.addEventListener('click', e => { e.stopPropagation(); openSineresisEval(btn.dataset.sinId); });
   });
 }
 
@@ -1058,7 +836,7 @@ document.getElementById('recetaDetailOverlay').addEventListener('click', e => {
 function generateEjecucionAnalysis(ej) {
   const ev     = ej.evaluacion || {};
   const etapas = ej.etapasData || [];
-  if (!etapas.length && !ev.scoreTotal && !ev.rendimiento) return '';
+  if (!etapas.length && !ev.rendimiento) return '';
 
   let html = '<div class="analysis-block"><div class="analysis-title">📊 Análisis de la ejecución</div>';
 
@@ -1091,14 +869,6 @@ function generateEjecucionAnalysis(ej) {
     });
   }
 
-  // Quality summary
-  if (ev.scoreTotal !== undefined) {
-    const lvl = SCORE_LEVELS.find(l => ev.scoreTotal >= l.min) || SCORE_LEVELS[SCORE_LEVELS.length - 1];
-    html += `<div class="analysis-row" style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px">
-      <span class="analysis-label">Puntaje calidad</span>
-      <span class="analysis-value">${ev.scoreTotal}/10 — ${lvl.label}</span>
-    </div>`;
-  }
   if (ev.ph !== undefined) {
     const phColor = ev.ph <= 4.0 ? '#10B981' : ev.ph <= 4.4 ? '#F59E0B' : '#EF4444';
     const phLabel = ev.ph <= 4.0 ? '✓ Óptimo' : ev.ph <= 4.4 ? '⚠ Aceptable (no óptimo)' : '✗ Revisar';
@@ -1111,7 +881,7 @@ function generateEjecucionAnalysis(ej) {
     const color = ev.rendimiento >= 80 ? '#10B981' : ev.rendimiento >= 65 ? '#F59E0B' : '#EF4444';
     html += `<div class="analysis-row">
       <span class="analysis-label">Rendimiento</span>
-      <span class="analysis-value" style="color:${color}">${ev.rendimiento.toFixed(1)}% (${(ev.frascos230||0)*230+(ev.frascos180||0)*180+(ev.excedente||0)} ml de ${ev.totalInsumosG || '?'} g)</span>
+      <span class="analysis-value" style="color:${color}">${ev.rendimiento.toFixed(1)}% (${(ev.frascos230||0)*230+(ev.frascos180||0)*180} ml de ${ev.totalInsumosG || '?'} g)</span>
     </div>`;
   }
   if (ev.frascos230 || ev.frascos180) {
@@ -1651,37 +1421,6 @@ const LIMPIEZA_ETAPA = {
   fija: true
 };
 
-// Puntaje técnico: desde que se quitaron D1/D2/D4/D5 (Fase 1 ya no
-// califica nada), el único puntaje posible es el de Fase 2 (D3+D6, máx.
-// 10) — los cortes quedan en las mismas proporciones que antes (90/70/
-// 50/30% del máximo).
-const SCORE_LEVELS = [
-  { min: 9, label: 'ÓPTIMO',         cls: 'level-opt' },
-  { min: 7, label: 'CORRECTO',       cls: 'level-ok'  },
-  { min: 5, label: 'ACEPTABLE',      cls: 'level-acc' },
-  { min: 3, label: 'EN DESARROLLO',  cls: 'level-dev' },
-  { min: 0, label: 'REFORMULAR',     cls: 'level-bad' },
-];
-
-// ── Eval modal clock ──────────────────────────────────────────────────────────
-
-function startEvalClock() {
-  const el = document.getElementById('evalClock');
-  if (!el) return;
-  if (evalClockInterval) clearInterval(evalClockInterval);
-  const update = () => {
-    el.textContent = new Date().toLocaleTimeString('es-CO', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-    });
-  };
-  update();
-  evalClockInterval = setInterval(update, 1000);
-}
-
-function stopEvalClock() {
-  if (evalClockInterval) { clearInterval(evalClockInterval); evalClockInterval = null; }
-}
-
 // ── Procesos: Recipe execution with stage timer ───────────────────────────────
 
 function saveExecutionProgress() {
@@ -1906,11 +1645,6 @@ function finishExecution() {
   executionState = null;
   document.getElementById('ejecutarOverlay').classList.remove('open');
 
-  const durMin = Math.round(durTotal / 60);
-  document.getElementById('evalResumen').innerHTML =
-    `✅ <strong>${esc(receta.nombre)}</strong> completada.<br/>
-     Duración total: <strong>${durMin} min</strong> · ${stagesData.length} etapa${stagesData.length !== 1 ? 's' : ''} registrada${stagesData.length !== 1 ? 's' : ''}.`;
-
   // Reset evaluation form
   document.getElementById('evalPH').value          = '';
   document.getElementById('evalPHStatus').textContent = '';
@@ -1954,18 +1688,11 @@ function finishExecution() {
 
   document.getElementById('evalFrascos230').value = '';
   document.getElementById('evalFrascos180').value = '';
-  document.getElementById('evalExcedente').value = '';
   document.getElementById('evalFrascosTotal').textContent = '—';
   document.getElementById('evalRendimientoResult').textContent = '';
   document.getElementById('evalRendimientoResult').className = 'eval-rendimiento-result';
 
-  // Set unlock times for timed evaluation stages
-  const nowMs = Date.now();
-  evaluacionPendiente.fase2UnlockAt      = new Date(nowMs + 60 * 60 * 1000).toISOString();
-  evaluacionPendiente.sineresisUnlockAt  = new Date(nowMs + 24 * 60 * 60 * 1000).toISOString();
-
   document.getElementById('evaluacionOverlay').classList.add('open');
-  startEvalClock();
 }
 
 document.getElementById('btnCancelEjecutar').addEventListener('click', () => {
@@ -1997,7 +1724,6 @@ function isEvaluacionFormDirty() {
 
 document.getElementById('btnCloseEvaluacion').addEventListener('click', () => {
   if (isEvaluacionFormDirty() && !confirm('¿Salir sin guardar? Se perderán los cambios.')) return;
-  stopEvalClock();
   document.getElementById('evaluacionOverlay').classList.remove('open');
 });
 
@@ -2007,14 +1733,13 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
   const fb     = document.getElementById('evaluacionFeedback');
 
   if (!loteId) return setFb(fb, 'El número de lote es obligatorio.', 'err');
-  if (isNaN(phVal)) return setFb(fb, 'El pH es obligatorio antes de envasar (I-01).', 'err');
+  if (isNaN(phVal)) return setFb(fb, 'El pH es obligatorio antes de envasar.', 'err');
   if (phVal > 4.4)  return setFb(fb, `⚠️ pH ${phVal.toFixed(2)} > 4.4 — agregar ácido cítrico 0.5 g y remedir. No se puede finalizar sin pH ≤ 4.4.`, 'err');
   if (!evaluacionPendiente) return;
 
   const f230 = parseInt(document.getElementById('evalFrascos230').value) || 0;
   const f180 = parseInt(document.getElementById('evalFrascos180').value) || 0;
-  const exc  = parseInt(document.getElementById('evalExcedente').value) || 0;
-  if (f230 < 0 || f180 < 0 || exc < 0) return setFb(fb, 'Los frascos y el excedente no pueden ser negativos.', 'err');
+  if (f230 < 0 || f180 < 0) return setFb(fb, 'Los frascos no pueden ser negativos.', 'err');
 
   const btn = document.getElementById('btnSaveEvaluacion');
   btn.disabled = true; btn.textContent = 'Guardando…';
@@ -2026,21 +1751,13 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
       calificacion:       evalRating,
       observaciones:      [...evalObsRows],
       ph:                 phVal,
-      scores:             {},
-      fase2UnlockAt:      evaluacionPendiente.fase2UnlockAt,
-      sineresisUnlockAt:  evaluacionPendiente.sineresisUnlockAt,
-      fase2:              null,
-      sineresis:          null,
-      fase2WASent:        false,
-      sineresisWASent:    false,
       fechaElaboracion:   document.getElementById('evalFechaElaboracion').value,
       fechaVencimiento:   document.getElementById('evalFechaVencimiento').value,
       frascos230:         f230,
       frascos180:         f180,
-      excedente:          exc,
       totalInsumosG:      evaluacionTotalInsumosG,
       rendimiento:        (() => {
-        const ml = f230 * 230 + f180 * 180 + exc;
+        const ml = f230 * 230 + f180 * 180;
         return (ml > 0 && evaluacionTotalInsumosG > 0)
           ? Math.round(ml / evaluacionTotalInsumosG * 10000) / 100
           : null;
@@ -2051,20 +1768,18 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
 
     await appendEjecucion(evaluacionPendiente);
     clearExecutionProgress();
-    scheduleEvalNotifications(evaluacionPendiente);
     await loadEjecucionesData();
     renderEjecucionesList();
 
-    setFb(fb, '✅ Fase 1 guardada. Fase 2 en 1h y Sinéresis en 24h en Ejecuciones.', 'ok');
+    setFb(fb, '✅ Evaluación guardada.', 'ok');
     setTimeout(() => {
-      stopEvalClock();
       document.getElementById('evaluacionOverlay').classList.remove('open');
-    }, 3000);
+    }, 2000);
     evaluacionPendiente = null;
   } catch (e) {
     setFb(fb, 'Error: ' + e.message, 'err');
   } finally {
-    btn.disabled = false; btn.textContent = 'Guardar Fase 1';
+    btn.disabled = false; btn.textContent = 'Guardar evaluación';
   }
 });
 
@@ -2114,19 +1829,18 @@ document.getElementById('btnAddEvalObs').addEventListener('click', () => {
 function updateFrascosTotal() {
   const f230 = parseInt(document.getElementById('evalFrascos230').value) || 0;
   const f180 = parseInt(document.getElementById('evalFrascos180').value) || 0;
-  const exc  = parseInt(document.getElementById('evalExcedente').value) || 0;
-  const totalMl = f230 * 230 + f180 * 180 + exc;
+  const totalMl = f230 * 230 + f180 * 180;
   const fTot = f230 + f180;
 
   const totEl = document.getElementById('evalFrascosTotal');
-  totEl.textContent = (fTot > 0 || exc > 0)
+  totEl.textContent = fTot > 0
     ? `${fTot} frasco${fTot !== 1 ? 's' : ''} · ${totalMl} ml total`
     : '—';
 
   const rEl = document.getElementById('evalRendimientoResult');
   if (totalMl > 0 && evaluacionTotalInsumosG > 0) {
     const pct = (totalMl / evaluacionTotalInsumosG * 100).toFixed(1);
-    rEl.textContent = `Rendimiento I-09: ${pct}%`;
+    rEl.textContent = `Rendimiento: ${pct}%`;
     rEl.className   = 'eval-rendimiento-result ' + (parseFloat(pct) >= 70 ? 'ok' : 'warn');
   } else {
     rEl.textContent = '';
@@ -2134,16 +1848,11 @@ function updateFrascosTotal() {
   }
 }
 
-['evalFrascos230', 'evalFrascos180', 'evalExcedente'].forEach(id =>
+['evalFrascos230', 'evalFrascos180'].forEach(id =>
   document.getElementById(id).addEventListener('input', updateFrascosTotal)
 );
 
 // ── Download ejecuciones TXT ──────────────────────────────────────────────────
-
-const EVAL_DIM_LABELS = {
-  D3: 'D3 · Prueba en frío (I-06)',
-  D6: 'D6 · Estabilidad de color al aire (I-07)'
-};
 
 function ejecucionToText(ej) {
   const ev = ej.evaluacion || {};
@@ -2187,10 +1896,10 @@ function ejecucionToText(ej) {
 
   // ── Envasado y rendimiento ──
   if (ev.frascos230 != null || ev.frascos180 != null) {
-    const f230 = ev.frascos230 || 0, f180 = ev.frascos180 || 0, exc = ev.excedente || 0;
-    const ml = f230 * 230 + f180 * 180 + exc;
-    lines.push('', '── ENVASADO Y RENDIMIENTO (I-09) ───────────────────────');
-    lines.push(`Frascos: ${f230}×230ml + ${f180}×180ml + ${exc}ml excedente = ${ml} ml total`);
+    const f230 = ev.frascos230 || 0, f180 = ev.frascos180 || 0;
+    const ml = f230 * 230 + f180 * 180;
+    lines.push('', '── ENVASADO Y RENDIMIENTO ───────────────────────────────');
+    lines.push(`Frascos: ${f230}×230ml + ${f180}×180ml = ${ml} ml total`);
     lines.push(`Total insumos usados: ${ev.totalInsumosG ?? '?'} g`);
     if (ev.rendimiento != null) lines.push(`Rendimiento: ${ev.rendimiento}%`);
   }
@@ -2204,37 +1913,13 @@ function ejecucionToText(ej) {
     }
   }
 
-  // ── Fase 1 ──
-  lines.push('', '── EVALUACIÓN TÉCNICA — FASE 1 (antes de envasar) ─────');
+  // ── Evaluación técnica ──
+  lines.push('', '── EVALUACIÓN TÉCNICA ───────────────────────────────────');
   if (ev.ph != null) {
     const phEstado = ev.ph <= 4.0 ? 'Óptimo' : ev.ph <= 4.4 ? 'Aceptable, no óptimo (margen hasta 4.4)' : 'Fuera de rango — requería corrección';
     lines.push(`pH medido: ${ev.ph} (${phEstado}; óptimo 4.0, límite 4.4)`);
   } else {
     lines.push('pH medido: no registrado');
-  }
-  // ── Fase 2 ──
-  lines.push('', '── EVALUACIÓN TÉCNICA — FASE 2 (1h después, en frío) ──');
-  if (ev.fase2) {
-    ['D3', 'D6'].forEach(d => {
-      if (ev.fase2.scores?.[d] != null) lines.push(`${EVAL_DIM_LABELS[d]}: ${ev.fase2.scores[d]}/5`);
-    });
-    const s = ev.fase2.sello || {};
-    lines.push(`Sello y vacío (I-10): Tapa cóncava ${s.tapa ? '✓' : '✗'} | Pop audible ${s.pop ? '✓' : '✗'} | Color/olor sin alteración ${s.olor ? '✓' : '✗'}`);
-  } else {
-    lines.push('Pendiente — aún no evaluada.');
-  }
-
-  // ── Sinéresis ──
-  lines.push('', '── EVALUACIÓN — SINÉRESIS (24h después) ────────────────');
-  lines.push(ev.sineresis
-    ? `Resultado: ${ev.sineresis === 'ok' ? 'Sin separación visible ✓' : 'Separación visible ✗ — emulsión inestable'}`
-    : 'Pendiente — aún no evaluada.');
-
-  // ── Puntaje total ──
-  if (ev.scoreTotal != null) {
-    lines.push('', '── PUNTAJE TÉCNICO TOTAL ────────────────────────────────');
-    const lvl = SCORE_LEVELS.find(l => ev.scoreTotal >= l.min) || SCORE_LEVELS[SCORE_LEVELS.length - 1];
-    lines.push(`${ev.scoreTotal}/10 — ${lvl.label}`);
   }
 
   // ── Calificación general ──
@@ -2258,17 +1943,12 @@ function ejecucionToText(ej) {
 
   // ── Conclusión ──
   lines.push('', '── CONCLUSIÓN ───────────────────────────────────────────');
-  const problemas = [];
-  if (ev.ph != null && ev.ph > 4.4) problemas.push(`pH ${ev.ph} fuera de rango (> 4.4)`);
-  if (ev.sineresis === 'fail') problemas.push('sinéresis con separación visible');
-  if (ev.fase2?.sello && (!ev.fase2.sello.tapa || !ev.fase2.sello.pop || !ev.fase2.sello.olor)) problemas.push('sello/vacío no conforme');
-  if (problemas.length) {
-    lines.push(`Lote con observaciones críticas: ${problemas.join('; ')}. Requiere revisión antes de despacho.`);
-  } else if (ev.scoreTotal != null) {
-    const lvl = SCORE_LEVELS.find(l => ev.scoreTotal >= l.min) || SCORE_LEVELS[SCORE_LEVELS.length - 1];
-    lines.push(`Lote clasificado como "${lvl.label}" (${ev.scoreTotal}/10), sin observaciones críticas registradas.`);
+  if (ev.ph != null && ev.ph > 4.4) {
+    lines.push(`Lote con observaciones críticas: pH ${ev.ph} fuera de rango (> 4.4). Requiere revisión antes de despacho.`);
+  } else if (ev.ph != null) {
+    lines.push('Lote sin observaciones críticas registradas.');
   } else {
-    lines.push('Evaluación incompleta — sin puntaje técnico registrado todavía.');
+    lines.push('Evaluación incompleta — sin pH registrado todavía.');
   }
 
   lines.push('', sep, '');
