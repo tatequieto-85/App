@@ -9,7 +9,7 @@ Cuando el usuario pida un cambio en un módulo específico, ir directo al archiv
 | Módulo (como lo nombra el usuario) | Archivo         | Qué contiene |
 |---|---|---|
 | Contenido (historias de Instagram) | `contenido.js`  | Stories CRUD, dropzone de archivos, modal de Configuración/WhatsApp, emoji picker |
-| Tareas (Kanban / Gantt / Lista / Calendario) | `tareas.js` | El módulo más grande. Kanban, Gantt, Lista, Calendario, modal de tarea, cronómetro por tarea, filtros, detalle de tarea |
+| Tareas (Kanban / Gantt / Lista) | `tareas.js` | El módulo más grande. Kanban, Gantt, Lista, modal de tarea, cronómetro por tarea, filtros, detalle de tarea, suscripción a Google Calendar/Calendario de iOS (feed vía Worker) |
 | Procesos (recetas + ejecución de lotes) | `procesos.js` | Recetas, bloques de recetas, ejecución paso a paso con cronómetro, evaluación de lote (Fase 1/2/Sinéresis), notificaciones de WhatsApp por evaluación |
 | Compras (precios de ingredientes) | `compras.js`    | Registro de compras, historial de precios, costo de producción |
 | Ingredientes (catálogo compartido) | `ingredientes.js` | CRUD de ingredientes, autocomplete — lo usan Compras y Procesos |

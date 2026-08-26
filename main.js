@@ -345,7 +345,6 @@ const COMMAND_PALETTE_ITEMS = [
   { label: 'Tareas · Kanban',        module: 'tareas',    action: () => { navigateTo('tareas'); switchSubTab('kanban'); } },
   { label: 'Tareas · Lista',         module: 'tareas',    action: () => { navigateTo('tareas'); switchSubTab('lista'); } },
   { label: 'Tareas · Gantt',         module: 'tareas',    action: () => { navigateTo('tareas'); switchSubTab('gantt'); } },
-  { label: 'Tareas · Calendario',    module: 'tareas',    action: () => { navigateTo('tareas'); switchSubTab('calendario'); } },
   { label: 'Procesos · Recetas',     module: 'procesos',  action: () => { navigateTo('procesos'); document.querySelector('[data-procesostab="recetas"]')?.click(); } },
   { label: 'Procesos · Ejecuciones', module: 'procesos',  action: () => { navigateTo('procesos'); document.querySelector('[data-procesostab="ejecuciones"]')?.click(); } },
   { label: 'Compras',                module: 'compras',   action: () => navigateTo('compras') },

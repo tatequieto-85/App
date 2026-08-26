@@ -34,8 +34,6 @@ let ganttCollapsedAreas    = new Set();
 let currentSubTab = 'kanban';
 let tareasLoadedEpoch = -1; // dbEpoch al que corresponde lo que hay cargado en memoria
 
-let calendarMonth = (() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; })();
-
 export const TERMINAL_STATES = ['Realizado', 'Cancelado', 'Postpuesto'];
 const DEFAULT_COLUMNS = [
   { name: 'Pendiente',   color: '#6B5050', terminal: false },
@@ -71,7 +69,6 @@ export function getAreaColor(area) {
 export function renderCurrentSubTab() {
   if (currentSubTab === 'kanban') renderKanban();
   else if (currentSubTab === 'gantt') renderGanttChart();
-  else if (currentSubTab === 'calendario') renderCalendar();
   else renderKanbanList();
 }
 
@@ -96,14 +93,12 @@ export async function switchSubTab(subtab) {
   document.getElementById('subTabKanban').style.display     = subtab === 'kanban'     ? '' : 'none';
   document.getElementById('subTabLista').style.display      = subtab === 'lista'      ? '' : 'none';
   document.getElementById('subTabGantt').style.display      = subtab === 'gantt'      ? '' : 'none';
-  document.getElementById('subTabCalendario').style.display = subtab === 'calendario' ? '' : 'none';
   document.getElementById('kanbanToolbar').style.display    = subtab === 'kanban'     ? '' : 'none';
   document.getElementById('ganttToolbar').style.display     = subtab === 'gantt'      ? '' : 'none';
-  document.getElementById('calendarToolbar').style.display  = subtab === 'calendario' ? '' : 'none';
-  document.getElementById('btnManageBoard').style.display   = (subtab === 'gantt' || subtab === 'calendario') ? 'none' : '';
+  document.getElementById('btnManageBoard').style.display   = subtab === 'gantt'      ? 'none' : '';
   updateSyncCalendarBtnVisibility();
 
-  // Kanban/Lista/Gantt/Calendario comparten los mismos kanbanTasks/columnas —
+  // Kanban/Lista/Gantt comparten los mismos kanbanTasks/columnas —
   // recargar todo de Sheets en cada click de sub-pestaña era puro desperdicio
   // (los guardados/ediciones ya refrescan kanbanTasks por su cuenta llamando
   // a loadKanbanTasks() directo). Solo se vuelve a pedir si cambió la base
@@ -124,7 +119,6 @@ export async function switchSubTab(subtab) {
 
   if (subtab === 'kanban') renderKanban();
   else if (subtab === 'gantt') renderGanttChart();
-  else if (subtab === 'calendario') renderCalendar();
   else renderKanbanList();
 }
 
@@ -842,64 +836,6 @@ export function renderKanbanList() {
   });
 }
 
-// ── Calendario Render ────────────────────────────────────────────────────────
-
-export function renderCalendar() {
-  const wrap = document.getElementById('calendarWrap');
-  if (!wrap) return;
-
-  const year  = calendarMonth.getFullYear();
-  const month = calendarMonth.getMonth();
-  const monthLabelEl = document.getElementById('calendarMonthLabel');
-  if (monthLabelEl) {
-    const label = calendarMonth.toLocaleDateString('es-CO', { month: 'long', year: 'numeric', timeZone: 'America/Bogota' });
-    monthLabelEl.textContent = label.charAt(0).toUpperCase() + label.slice(1);
-  }
-
-  const firstOfMonth = new Date(year, month, 1);
-  const startOffset  = (firstOfMonth.getDay() + 6) % 7; // lunes = 0
-  const gridStart    = new Date(year, month, 1 - startOffset);
-  const daysInGrid   = 42; // 6 semanas
-  const todayISO     = toISODate(new Date());
-
-  const tasksByDate = {};
-  kanbanTasks.forEach(t => {
-    if (!t.dueDate) return;
-    (tasksByDate[t.dueDate] ||= []).push(t);
-  });
-
-  const weekdayLabels = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-  const headerHTML = weekdayLabels.map(d => `<div class="calendar-weekday">${d}</div>`).join('');
-
-  let cellsHTML = '';
-  for (let i = 0; i < daysInGrid; i++) {
-    const d = addDays(gridStart, i);
-    const iso = toISODate(d);
-    const inMonth = d.getMonth() === month;
-    const dayTasks = (tasksByDate[iso] || []).slice().sort((a, b) => (a.title || '') < (b.title || '') ? -1 : 1);
-    const chips = dayTasks.map(t => {
-      const app = ganttBarAppearance(t);
-      const c   = getAreaColor(t.area);
-      return `<div class="calendar-chip ${app.cls}" data-task="${esc(t.id)}" style="background:${c.bg};color:${c.text}" title="${esc(t.area)} · ${esc(t.title)}">${esc(t.title)}</div>`;
-    }).join('');
-    cellsHTML += `
-      <div class="calendar-cell${inMonth ? '' : ' calendar-cell--out'}${iso === todayISO ? ' calendar-cell--today' : ''}">
-        <div class="calendar-cell-date">${d.getDate()}</div>
-        <div class="calendar-cell-chips">${chips}</div>
-      </div>`;
-  }
-
-  wrap.innerHTML = `
-    <div class="calendar-grid">
-      <div class="calendar-header-row">${headerHTML}</div>
-      <div class="calendar-body">${cellsHTML}</div>
-    </div>
-  `;
-
-  wrap.querySelectorAll('[data-task]').forEach(el => {
-    el.addEventListener('click', () => openTaskDetail(el.dataset.task));
-  });
-}
 
 // ── Gantt render engine ───────────────────────────────────────────────────────
 
@@ -2643,19 +2579,6 @@ document.querySelectorAll('#ganttZoomSwitch .gantt-zoom-btn').forEach(btn => {
     document.querySelectorAll('#ganttZoomSwitch .gantt-zoom-btn').forEach(b => b.classList.toggle('active', b === btn));
     renderGanttChart();
   });
-});
-
-document.getElementById('btnCalendarPrev').addEventListener('click', () => {
-  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
-  renderCalendar();
-});
-document.getElementById('btnCalendarNext').addEventListener('click', () => {
-  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
-  renderCalendar();
-});
-document.getElementById('btnCalendarToday').addEventListener('click', () => {
-  calendarMonth = (() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; })();
-  renderCalendar();
 });
 
 // ── Auto-guardado de borrador de tarea ───────────────────────────────────────
