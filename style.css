@@ -1376,18 +1376,19 @@ input, textarea, [contenteditable], [contenteditable] * {
 }
 
 /* ── Procesos: Receta cards ───────────────────────────────────────────────── */
+.receta-cards-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
 .receta-card {
-  display: flex; align-items: center; gap: 14px;
-  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 16px; aspect-ratio: 4 / 5; box-sizing: border-box;
   border: 1.5px solid var(--border); border-radius: var(--radius);
-  margin-bottom: 10px; background: var(--surface);
+  background: var(--surface);
   transition: box-shadow .2s, border-color .2s;
   cursor: pointer;
 }
-.receta-card:hover { border-color: rgba(113,75,103,.3); }
-.receta-card:hover { box-shadow: var(--shadow); }
-.receta-card:last-child { margin-bottom: 0; }
-.receta-card.dragging { opacity: .4; }
+.receta-card:hover { border-color: rgba(113,75,103,.3); box-shadow: var(--shadow); }
 .receta-card-body  { flex: 1; min-width: 0; }
 .receta-card-title { font-size: 15px; font-weight: 700; color: var(--text); }
 .receta-card-meta  { font-size: 11px; color: var(--text-sub); margin-top: 4px; }
@@ -1539,7 +1540,8 @@ input, textarea, [contenteditable], [contenteditable] * {
   font-size: 10.5px; font-weight: 600; color: var(--text-sub);
   text-transform: uppercase; letter-spacing: .03em; white-space: nowrap;
 }
-.receta-card-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; align-items: center; }
+.receta-card-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.receta-card-actions .btn-outline, .receta-card-actions .btn-ejecutar { width: 100%; margin: 0; }
 
 /* ── Menú "⋯" reutilizable (recetas, ferias) ──────────────────────────────── */
 .card-menu { position: relative; }

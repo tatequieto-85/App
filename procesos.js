@@ -633,7 +633,7 @@ function renderRecetaGroupDetail(container) {
       <span class="receta-group-detail-name">${esc(sec.nombre)}</span>
       <span class="receta-block-count">${sec.items.length}</span>
     </div>
-    ${sec.items.length ? sec.items.map(recetaCardHTML).join('') : '<div class="receta-block-empty">No hay recetas en este grupo todavía.</div>'}
+    ${sec.items.length ? `<div class="receta-cards-grid">${sec.items.map(recetaCardHTML).join('')}</div>` : '<div class="receta-block-empty">No hay recetas en este grupo todavía.</div>'}
   `;
 
   document.getElementById('btnBackRecetaGroups').addEventListener('click', () => {
