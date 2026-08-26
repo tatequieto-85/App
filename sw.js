@@ -1,4 +1,4 @@
-const CACHE = 'ss-v81';
+const CACHE = 'ss-v82';
 const ASSETS = [
   './', './index.html', './style.css', './config.js', './vendor-qrcode.js',
   './utils.js', './input-guard.js', './db-state.js', './undo.js', './auth.js',
@@ -11,7 +11,18 @@ const ASSETS = [
 // desde Google Apps Script (trigger de tiempo server-side), no este service worker.
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS).catch(() => {})));
+  // fetch con {cache:'reload'} en vez de c.addAll(ASSETS): addAll hace fetches
+  // normales que respetan el Cache-Control del servidor (GitHub Pages manda
+  // max-age=600) — si el archivo ya estaba en la caché HTTP del celular de
+  // los últimos 10 minutos, la versión nueva del SW terminaba guardando bytes
+  // viejos igual, aunque el nombre de CACHE ya fuera el correcto.
+  e.waitUntil(
+    caches.open(CACHE).then(c =>
+      Promise.all(ASSETS.map(url =>
+        fetch(url, { cache: 'reload' }).then(res => c.put(url, res)).catch(() => {})
+      ))
+    )
+  );
   self.skipWaiting();
 });
 
