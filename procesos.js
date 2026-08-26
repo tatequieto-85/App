@@ -28,6 +28,7 @@ let executionState       = null;
 let evaluacionPendiente  = null;
 let evalRating           = 0;
 let evaluacionTotalInsumosG = 0;
+let evalCostoInfo        = null; // { total, incompleto } — costo del lote, banner combinado con rendimiento
 let evalObsRows          = []; // { text, createdAt } rows for Fase 1 observaciones
 let ejecucionDetailId    = null;
 let draggedInstrRow      = null; // for instruction row drag-reorder
@@ -1656,12 +1657,13 @@ function finishExecution() {
   setEvalStars(0);
 
   // Lote fijo: número de lote, fecha de elaboración (= fecha de
-  // finalización del lote) y vencimiento estimado no se pueden editar.
-  document.getElementById('evalLoteId').value = generateLotId(receta.nombre);
-  const fechaElaboracionIso = evaluacionPendiente.fechaFin.slice(0, 10);
-  document.getElementById('evalFechaElaboracion').value = fechaElaboracionIso;
+  // finalización del lote) y vencimiento estimado no se pueden editar —
+  // por eso van como texto plano, no como <input>, ni siquiera con
+  // readonly (en iOS Safari un <input type="date"> readonly igual abre
+  // el selector nativo al tocarlo).
+  document.getElementById('evalLoteId').textContent = generateLotId(receta.nombre);
   const expDate = new Date(evaluacionPendiente.fechaFin); expDate.setMonth(expDate.getMonth() + 6);
-  document.getElementById('evalFechaVencimiento').value = expDate.toISOString().slice(0, 10);
+  document.getElementById('evalFechaVencimiento').textContent = expDate.toISOString().slice(0, 10);
 
   // Sum all insumos from stages (all units treated as grams/ml equivalently)
   evaluacionTotalInsumosG = stagesData.reduce((sum, stage) =>
@@ -1674,23 +1676,11 @@ function finishExecution() {
     }, 0)
   , 0);
 
-  const insEl = document.getElementById('evalInsumosTotal');
-  insEl.textContent = evaluacionTotalInsumosG > 0
-    ? `Total ingredientes usados (suma de etapas): ${evaluacionTotalInsumosG} g`
-    : 'No se registraron insumos con cantidad en las etapas.';
-
-  const costo   = computeCostoProduccion(stagesData);
-  const costoEl = document.getElementById('evalCostoProduccion');
-  costoEl.textContent = costo.incompleto.length
-    ? `Costo de producción: ${fmtCOP(costo.total)} (incompleto — sin compra registrada de: ${costo.incompleto.join(', ')})`
-    : `Costo de producción del lote: ${fmtCOP(costo.total)}`;
-  costoEl.classList.toggle('eval-costo-warn', costo.incompleto.length > 0);
-
+  evalCostoInfo = computeCostoProduccion(stagesData);
   document.getElementById('evalFrascos230').value = '';
   document.getElementById('evalFrascos180').value = '';
   document.getElementById('evalFrascosTotal').textContent = '—';
-  document.getElementById('evalRendimientoResult').textContent = '';
-  document.getElementById('evalRendimientoResult').className = 'eval-rendimiento-result';
+  renderCostoRendimiento();
 
   document.getElementById('evaluacionOverlay').classList.add('open');
 }
@@ -1728,7 +1718,7 @@ document.getElementById('btnCloseEvaluacion').addEventListener('click', () => {
 });
 
 document.getElementById('btnSaveEvaluacion').addEventListener('click', async () => {
-  const loteId = document.getElementById('evalLoteId').value.trim();
+  const loteId = document.getElementById('evalLoteId').textContent.trim();
   const phVal  = parseFloat(document.getElementById('evalPH').value);
   const fb     = document.getElementById('evaluacionFeedback');
 
@@ -1751,8 +1741,8 @@ document.getElementById('btnSaveEvaluacion').addEventListener('click', async () 
       calificacion:       evalRating,
       observaciones:      [...evalObsRows],
       ph:                 phVal,
-      fechaElaboracion:   document.getElementById('evalFechaElaboracion').value,
-      fechaVencimiento:   document.getElementById('evalFechaVencimiento').value,
+      fechaElaboracion:   evaluacionPendiente.fechaFin.slice(0, 10),
+      fechaVencimiento:   document.getElementById('evalFechaVencimiento').textContent.trim(),
       frascos230:         f230,
       frascos180:         f180,
       totalInsumosG:      evaluacionTotalInsumosG,
@@ -1826,6 +1816,32 @@ document.getElementById('btnAddEvalObs').addEventListener('click', () => {
 
 // ── Rendimiento & Frascos auto-calc ───────────────────────────────────────────
 
+// Costo de producción y rendimiento comparten un solo banner: el costo es
+// fijo (se calcula una vez al terminar la ejecución), el rendimiento se
+// recalcula en vivo a medida que se llenan los frascos.
+function renderCostoRendimiento() {
+  const costoEl = document.getElementById('evalCostoProduccion');
+  if (!evalCostoInfo) { costoEl.innerHTML = ''; return; }
+
+  const costoLine = evalCostoInfo.incompleto.length
+    ? `Costo de producción: ${fmtCOP(evalCostoInfo.total)} (incompleto — sin compra registrada de: ${evalCostoInfo.incompleto.join(', ')})`
+    : `Costo de producción del lote: ${fmtCOP(evalCostoInfo.total)}`;
+
+  const f230 = parseInt(document.getElementById('evalFrascos230').value) || 0;
+  const f180 = parseInt(document.getElementById('evalFrascos180').value) || 0;
+  const totalMl = f230 * 230 + f180 * 180;
+
+  let rendLine = '';
+  if (totalMl > 0 && evaluacionTotalInsumosG > 0) {
+    const pct = (totalMl / evaluacionTotalInsumosG * 100).toFixed(1);
+    const cls = parseFloat(pct) >= 70 ? 'ok' : 'warn';
+    rendLine = `<br><span class="eval-rendimiento-inline ${cls}">Rendimiento del lote: ${pct}%</span>`;
+  }
+
+  costoEl.innerHTML = costoLine + rendLine;
+  costoEl.classList.toggle('eval-costo-warn', evalCostoInfo.incompleto.length > 0);
+}
+
 function updateFrascosTotal() {
   const f230 = parseInt(document.getElementById('evalFrascos230').value) || 0;
   const f180 = parseInt(document.getElementById('evalFrascos180').value) || 0;
@@ -1837,15 +1853,7 @@ function updateFrascosTotal() {
     ? `${fTot} frasco${fTot !== 1 ? 's' : ''} · ${totalMl} ml total`
     : '—';
 
-  const rEl = document.getElementById('evalRendimientoResult');
-  if (totalMl > 0 && evaluacionTotalInsumosG > 0) {
-    const pct = (totalMl / evaluacionTotalInsumosG * 100).toFixed(1);
-    rEl.textContent = `Rendimiento: ${pct}%`;
-    rEl.className   = 'eval-rendimiento-result ' + (parseFloat(pct) >= 70 ? 'ok' : 'warn');
-  } else {
-    rEl.textContent = '';
-    rEl.className   = 'eval-rendimiento-result';
-  }
+  renderCostoRendimiento();
 }
 
 ['evalFrascos230', 'evalFrascos180'].forEach(id =>
