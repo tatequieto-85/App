@@ -1948,7 +1948,16 @@ input, textarea, [contenteditable], [contenteditable] * {
 /* El campo va antes que la lista de ya agregadas (igual que en la
    evaluación del lote) — sin borde arriba, que aquí no separa nada. */
 .exec-obs-section .obs-input-wrap { border-top: none; padding: 0; }
-.exec-obs-section .detail-etapa-obs-toggle { margin-top: 10px; }
+
+/* Las observaciones ya agregadas de la etapa actual van siempre
+   desplegadas (se están escribiendo en el momento) y sin la caja de
+   .obs-item — acá esa caja solo restaba espacio sin aportar nada. */
+.exec-obs-list { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
+.exec-obs-item {
+  font-size: 13px; color: var(--text); line-height: 1.5;
+  padding: 4px 0; border-bottom: 1px solid var(--border);
+}
+.exec-obs-item:last-child { border-bottom: none; }
 
 /* Barra inferior fija: Regresar siempre a la izquierda, Etapa siguiente
    siempre a la derecha, visible sin necesidad de hacer scroll */

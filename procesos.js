@@ -1572,28 +1572,18 @@ function goBackStage() {
   renderExecutionStep();
 }
 
-// Mismo patrón que las observaciones de etapa en el detalle de ejecución:
-// caja .obs-item, plegada por defecto detrás de un toggle "Observaciones
-// (N)". `open` fuerza que quede desplegada (justo después de agregar una,
-// para que el usuario vea de inmediato lo que acaba de escribir).
-function renderExecStageObsList(open) {
-  const toggle = document.getElementById('execStageObsToggle');
-  const list   = document.getElementById('execStageObsList');
-  if (!toggle || !list || !executionState) return;
+// Estas son las observaciones propias de la etapa que se está ejecutando
+// ahora mismo — a diferencia de las de detalle de ejecución (varias
+// etapas juntas, ahí sí plegadas), acá siempre van desplegadas: el
+// usuario las está escribiendo en el momento, no tiene sentido esconder
+// lo que acaba de agregar.
+function renderExecStageObsList() {
+  const list = document.getElementById('execStageObsList');
+  if (!list || !executionState) return;
   const rows = (executionState.stageObsDraft || {})[executionState.currentStageIndex] || [];
-
-  if (!rows.length) {
-    toggle.style.display = 'none';
-    list.style.display   = 'none';
-    return;
-  }
-
-  toggle.style.display = '';
-  toggle.innerHTML = `Observaciones (${rows.length}) <span class="detail-etapa-obs-arrow">▸</span>`;
-  toggle.classList.toggle('open', !!open);
-  list.style.display = open ? '' : 'none';
-  list.innerHTML = rows.map(o => `<div class="obs-item"><div class="obs-text">${esc(o.text)}</div></div>`).join('');
-  if (open) list.scrollTop = list.scrollHeight;
+  if (!rows.length) { list.innerHTML = ''; return; }
+  list.innerHTML = rows.map(o => `<div class="exec-obs-item">${esc(o.text)}</div>`).join('');
+  list.scrollTop = list.scrollHeight;
 }
 
 function renderExecutionStep() {
@@ -1630,8 +1620,7 @@ function renderExecutionStep() {
         <textarea class="field-textarea obs-textarea exec-obs-textarea" id="execStageObsInput" rows="3" placeholder="Escribe una observación…" autocapitalize="sentences" autocorrect="on" enterkeyhint="done"></textarea>
         <button type="button" class="btn-outline obs-btn exec-obs-btn" id="btnAddExecStageObs">Agregar</button>
       </div>
-      <div class="detail-etapa-obs-toggle" id="execStageObsToggle" style="display:none"></div>
-      <div id="execStageObsList" class="obs-list detail-etapa-obs-list" style="display:none"></div>
+      <div id="execStageObsList" class="exec-obs-list"></div>
     </div>
 
     <div class="exec-nav-footer">
@@ -1647,10 +1636,6 @@ function renderExecutionStep() {
   window.scrollTo(0, 0);
 
   renderExecStageObsList();
-  document.getElementById('execStageObsToggle').addEventListener('click', () => {
-    const open = document.getElementById('execStageObsList').style.display === 'none';
-    renderExecStageObsList(open);
-  });
   document.getElementById('btnAddExecStageObs').addEventListener('click', () => {
     const input = document.getElementById('execStageObsInput');
     const text  = input.value.trim();
@@ -1660,7 +1645,7 @@ function renderExecutionStep() {
     executionState.stageObsDraft[idx] = executionState.stageObsDraft[idx] || [];
     executionState.stageObsDraft[idx].push({ text, createdAt: new Date().toISOString() });
     input.value = '';
-    renderExecStageObsList(true);
+    renderExecStageObsList();
     saveExecutionProgress();
   });
 
