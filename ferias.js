@@ -302,10 +302,17 @@ export function renderFerias() {
     container.innerHTML = '<div class="empty-state">No hay ferias. Agrega la primera con "+ Nueva feria".</div>';
     return;
   }
-  // Las ferias terminadas (o cerradas a mano) se hunden al final, sin
-  // reordenar entre sí las que quedan arriba.
-  const ordenadas = [...ferias].sort((a, b) => feriaHaTerminado(a) - feriaHaTerminado(b));
-  container.innerHTML = `<div class="feria-blocks-grid">${ordenadas.map(feriaBlockHTML).join('')}</div>`;
+  // Las ferias terminadas (o cerradas a mano) se hunden al final, separadas
+  // por una línea divisoria, sin reordenar entre sí las que quedan arriba.
+  const activas    = ferias.filter(f => !feriaHaTerminado(f));
+  const terminadas = ferias.filter(feriaHaTerminado);
+  const dividerHTML = terminadas.length
+    ? '<div class="feria-list-divider"><span>Ferias terminadas</span></div>'
+    : '';
+  container.innerHTML = `
+    <div class="feria-blocks-grid">${activas.map(feriaBlockHTML).join('')}</div>
+    ${dividerHTML}
+    <div class="feria-blocks-grid">${terminadas.map(feriaBlockHTML).join('')}</div>`;
   wireFeriaCardActions(container);
   container.querySelectorAll('.feria-block').forEach(block => {
     let pressTimer  = null;
