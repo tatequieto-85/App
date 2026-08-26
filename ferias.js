@@ -1,5 +1,5 @@
 import { sheetsReq } from './auth.js';
-import { esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeParseJSON, fmtDate, fmtDateShortEs, fmtCOP, parseISODate, toISODate, addDays, ICON_EDIT, ICON_TRASH, ICON_MORE, initCardMenus } from './utils.js';
+import { esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeParseJSON, fmtDate, fmtDateShortEs, fmtCOP, parseISODate, toISODate, addDays, ICON_EDIT, ICON_TRASH, initCardMenus } from './utils.js';
 import { wasAccidentalTouch } from './input-guard.js';
 import { openCalendarPopover } from './tareas.js';
 import { ejecuciones, getStockProducido } from './procesos.js';
@@ -222,21 +222,16 @@ function handleAbrirFeria(feriaId) {
 
 function feriaBlockHTML(f) {
   const fechas = (f.fechaInicio && f.fechaFin) ? `${fmtDateShortEs(f.fechaInicio)} → ${fmtDateShortEs(f.fechaFin)}` : '—';
-  const enCurso = feriaEstaEnCurso(f);
   return `
     <div class="feria-block" data-id="${esc(f.id)}">
       <div class="feria-block-title">${esc(f.empresa)}</div>
       <div class="feria-block-meta">📅 ${fechas}</div>
       <div class="feria-block-meta">📍 ${esc(f.lugar || '—')}</div>
       <div class="feria-block-counter">👥 ${feriaConteoTotal(f)}</div>
-      <div class="feria-block-actions">
-        <button class="feria-confirm-btn" data-conteo-feria="${esc(f.id)}">${enCurso ? '👥 Registrar conteo' : '📋 Ver resumen'}</button>
-        <div class="card-menu">
-          <button type="button" class="card-menu-btn" data-menu-btn title="Más acciones">${ICON_MORE}</button>
-          <div class="card-menu-list">
-            <button type="button" data-edit-feria="${esc(f.id)}">${ICON_EDIT} Editar</button>
-            <button type="button" data-del-feria="${esc(f.id)}" data-row="${f.rowIndex}">${ICON_TRASH} Eliminar</button>
-          </div>
+      <div class="card-menu">
+        <div class="card-menu-list">
+          <button type="button" data-edit-feria="${esc(f.id)}">${ICON_EDIT} Editar</button>
+          <button type="button" data-del-feria="${esc(f.id)}" data-row="${f.rowIndex}">${ICON_TRASH} Eliminar</button>
         </div>
       </div>
     </div>`;
@@ -270,9 +265,6 @@ export function renderFerias() {
   }
   container.innerHTML = `<div class="feria-blocks-grid">${ferias.map(feriaBlockHTML).join('')}</div>`;
   wireFeriaCardActions(container);
-  container.querySelectorAll('[data-conteo-feria]').forEach(btn => {
-    btn.addEventListener('click', e => { e.stopPropagation(); handleAbrirFeria(btn.dataset.conteoFeria); });
-  });
   container.querySelectorAll('.feria-block').forEach(block => {
     let pressTimer  = null;
     let longPressed = false;
