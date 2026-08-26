@@ -1,15 +1,23 @@
 import { sheetsReq } from './auth.js';
-import { esc, setFb, setFieldError, clearFieldErrors, fmtDate, fmtDateShortEs, fmtCOP, toISODate, liveValidate } from './utils.js';
+import {
+  esc, setFb, setFieldError, clearFieldErrors, fmtDate, fmtDateShortEs, fmtCOP, toISODate, parseISODate, liveValidate,
+  attachThousandsInput, parseThousandsInput, formatThousandsValue, ICON_EDIT, ICON_TRASH
+} from './utils.js';
 import { ingredientes, findIngredienteDuplicate, getIngredienteUnidad, normalizeIngName, attachIngredienteAutocomplete } from './ingredientes.js';
 import { openCalendarPopover } from './tareas.js';
+import { wasAccidentalTouch } from './input-guard.js';
 
 let compras             = [];
 let comprasSheetId      = null;
 let comprasHistorialIng = null;
+let compraEditRecord  = null; // null = registrando compra nueva; si no, se está editando esa fila
+let lastTapTime         = {}; // para detección de doble-toque en móvil
 
 liveValidate('compraIngrediente', v => v.trim() ? '' : 'Indica el ingrediente.');
-liveValidate('compraCantidad', v => (parseFloat(v) > 0) ? '' : 'Debe ser mayor a 0.');
-liveValidate('compraPrecioTotal', v => (parseFloat(v) > 0) ? '' : 'Debe ser mayor a 0.');
+liveValidate('compraCantidad', v => (parseThousandsInput(v) > 0) ? '' : 'Debe ser mayor a 0.');
+liveValidate('compraPrecioTotal', v => (parseThousandsInput(v) > 0) ? '' : 'Debe ser mayor a 0.');
+attachThousandsInput(document.getElementById('compraCantidad'));
+attachThousandsInput(document.getElementById('compraPrecioTotal'));
 
 // ── Compras: Sheets init + CRUD ────────────────────────────────────────────────
 
@@ -54,6 +62,15 @@ async function appendCompra(c) {
     method: 'POST',
     body: JSON.stringify({ values: [[
       crypto.randomUUID(), c.ingrediente, c.cantidad, c.precioTotal, c.fecha, new Date().toISOString()
+    ]]})
+  });
+}
+
+async function updateCompra(c) {
+  await sheetsReq(`/values/Compras!A${c.rowIndex}:F${c.rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[
+      c.id, c.ingrediente, c.cantidad, c.precioTotal, c.fecha, c.creadoEn
     ]]})
   });
 }
@@ -114,6 +131,15 @@ export function computeCostoProduccion(etapasData) {
 
 // ── Compras: UI ────────────────────────────────────────────────────────────────
 
+function fmtDayMonthSlash(iso) {
+  if (!iso) return '';
+  const d = parseISODate(iso);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Doble clic/doble toque en la fila → registrar una compra nueva de ese
+// ingrediente (mismo destino que antes el botón 🛒). Mantener presionada la
+// fila → editar o eliminar la última compra registrada (solo si existe una).
 export function renderComprasList() {
   const container = document.getElementById('comprasList');
   if (!container) return;
@@ -126,32 +152,96 @@ export function renderComprasList() {
     const last      = getLatestCompra(ing.nombre);
     const unitPrice = last && last.cantidad ? last.precioTotal / last.cantidad : null;
     return `
-      <tr>
+      <tr class="compra-row" data-ing="${esc(ing.nombre)}">
         <td>${esc(ing.nombre)}</td>
-        <td>${esc(ing.unidad || '—')}</td>
+        <td>${last ? fmtDayMonthSlash(last.fecha) : '—'}</td>
         <td>${unitPrice != null ? `${fmtCOP(unitPrice)} / ${esc(ing.unidad || 'u')}` : 'Sin compras'}</td>
-        <td>${last ? (fmtDateShortEs(last.fecha) || fmtDate(last.creadoEn)) : '—'}</td>
-        <td style="white-space:nowrap">
-          <button class="task-action-btn" data-add-compra="${esc(ing.nombre)}" title="Registrar compra">🛒</button>
-          ${last ? `<button class="task-action-btn" data-historial="${esc(ing.nombre)}" title="Ver historial">📜</button>` : ''}
+      </tr>
+      <tr class="compra-row-actions" data-ing="${esc(ing.nombre)}">
+        <td colspan="3">
+          <div class="compra-row-actions-bar">
+            <button type="button" data-edit-compra="${esc(ing.nombre)}">${ICON_EDIT} Editar</button>
+            <button type="button" data-del-compra="${esc(ing.nombre)}">${ICON_TRASH} Eliminar</button>
+          </div>
         </td>
       </tr>`;
   }).join('');
 
   container.innerHTML = `
-    <table class="tasks-table">
-      <thead><tr><th>Ingrediente</th><th>Unidad</th><th>Último precio</th><th>Última compra</th><th></th></tr></thead>
+    <table class="tasks-table compra-table">
+      <thead><tr><th>Ingrediente</th><th>Última compra</th><th>Precio unitario</th></tr></thead>
       <tbody>${rowsHTML}</tbody>
     </table>
   `;
 
-  container.querySelectorAll('[data-add-compra]').forEach(btn => {
-    btn.addEventListener('click', () => openCompraModal(btn.dataset.addCompra));
+  container.querySelectorAll('[data-edit-compra]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const last = getLatestCompra(btn.dataset.editCompra);
+      if (last) openCompraModal(null, last);
+    });
   });
-  container.querySelectorAll('[data-historial]').forEach(btn => {
-    btn.addEventListener('click', () => openCompraHistorial(btn.dataset.historial));
+  container.querySelectorAll('[data-del-compra]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const last = getLatestCompra(btn.dataset.delCompra);
+      if (!last) return;
+      if (!confirm('¿Eliminar la última compra registrada de este ingrediente?')) return;
+      btn.disabled = true;
+      try {
+        await deleteCompraRow(last.rowIndex);
+        await loadCompras();
+        renderComprasList();
+      } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
+    });
+  });
+
+  container.querySelectorAll('.compra-row').forEach(row => {
+    const nombre = row.dataset.ing;
+    let pressTimer  = null;
+    let longPressed = false;
+    const openActions = () => {
+      container.querySelectorAll('.compra-row-actions.open').forEach(r => r.classList.remove('open'));
+      if (getLatestCompra(nombre)) row.nextElementSibling?.classList.add('open');
+    };
+    const startPress = e => {
+      if (e.target.closest('button')) return;
+      longPressed = false;
+      pressTimer = setTimeout(() => { longPressed = true; openActions(); }, 550);
+    };
+    const cancelPress = () => clearTimeout(pressTimer);
+
+    row.addEventListener('mousedown', startPress);
+    row.addEventListener('mouseup', cancelPress);
+    row.addEventListener('mouseleave', cancelPress);
+    row.addEventListener('touchstart', startPress, { passive: true });
+    row.addEventListener('touchmove', cancelPress, { passive: true });
+    row.addEventListener('click', e => {
+      if (longPressed) { e.stopPropagation(); longPressed = false; }
+    });
+
+    row.addEventListener('dblclick', e => {
+      if (e.target.closest('button')) return;
+      openCompraModal(nombre);
+    });
+    row.addEventListener('touchend', e => {
+      cancelPress();
+      if (longPressed) { longPressed = false; return; }
+      if (e.target.closest('button') || wasAccidentalTouch()) return;
+      const now  = Date.now();
+      const last = lastTapTime['compra_' + nombre] || 0;
+      lastTapTime['compra_' + nombre] = now;
+      if (now - last < 350) openCompraModal(nombre);
+    });
   });
 }
+
+// Clic afuera cierra la barra de editar/eliminar abierta — registrado una
+// sola vez a nivel de módulo (si fuera dentro de renderComprasList quedaría
+// un listener nuevo apilado en cada re-render).
+document.addEventListener('click', () => {
+  document.querySelectorAll('.compra-row-actions.open').forEach(r => r.classList.remove('open'));
+});
 
 function updateCompraUnidadHint() {
   const nombre = document.getElementById('compraIngrediente').value.trim();
@@ -165,19 +255,28 @@ function updateCompraFechaTrigger() {
   trigger.textContent = val ? fmtDateShortEs(val) : 'Elegir fecha…';
 }
 
-function openCompraModal(nombrePrefill) {
+// nombrePrefill: atajo "registrar compra nueva de este ingrediente" (🛒 /
+// doble clic en la fila) — ingrediente fijo, cantidad/precio/fecha en blanco.
+// editCompra: edita esa compra puntual (la última de la fila, ver botón
+// Editar del press-and-hold) — todos los campos prellenados y el guardado
+// actualiza esa fila en vez de agregar una nueva.
+function openCompraModal(nombrePrefill, editCompra) {
   document.getElementById('compraFeedback').textContent = '';
   clearFieldErrors('compraIngrediente', 'compraCantidad', 'compraPrecioTotal');
   const ingInput = document.getElementById('compraIngrediente');
-  ingInput.value    = nombrePrefill || '';
-  ingInput.disabled = !!nombrePrefill;
-  document.getElementById('compraCantidad').value    = '';
-  document.getElementById('compraPrecioTotal').value = '';
-  document.getElementById('compraFecha').value = toISODate(new Date());
+  const nombre = editCompra ? editCompra.ingrediente : (nombrePrefill || '');
+  ingInput.value    = nombre;
+  ingInput.disabled = !!nombre;
+  document.getElementById('compraCantidad').value    = editCompra ? formatThousandsValue(editCompra.cantidad) : '';
+  document.getElementById('compraPrecioTotal').value = editCompra ? formatThousandsValue(editCompra.precioTotal) : '';
+  document.getElementById('compraFecha').value = editCompra ? editCompra.fecha : toISODate(new Date());
   updateCompraFechaTrigger();
   updateCompraUnidadHint();
+  document.getElementById('compraModalTitle').textContent = editCompra ? 'Editar compra' : 'Registrar compra';
+  document.getElementById('btnSaveCompra').textContent    = editCompra ? 'Guardar cambios' : 'Guardar compra';
+  compraEditRecord = editCompra || null;
   document.getElementById('compraOverlay').classList.add('open');
-  if (!nombrePrefill) setTimeout(() => ingInput.focus(), 100);
+  if (!nombre) setTimeout(() => ingInput.focus(), 100);
 }
 
 attachIngredienteAutocomplete(document.getElementById('compraIngrediente'));
@@ -209,8 +308,8 @@ document.getElementById('btnNewCompra').addEventListener('click', () => openComp
 document.getElementById('btnSaveCompra').addEventListener('click', async () => {
   const ingInput     = document.getElementById('compraIngrediente');
   const nombre       = ingInput.value.trim();
-  const cantidad     = parseFloat(document.getElementById('compraCantidad').value);
-  const precioTotal  = parseFloat(document.getElementById('compraPrecioTotal').value);
+  const cantidad     = parseThousandsInput(document.getElementById('compraCantidad').value);
+  const precioTotal  = parseThousandsInput(document.getElementById('compraPrecioTotal').value);
   const fecha        = document.getElementById('compraFecha').value;
   const fb           = document.getElementById('compraFeedback');
 
@@ -223,16 +322,21 @@ document.getElementById('btnSaveCompra').addEventListener('click', async () => {
   if (!fecha) return setFb(fb, 'Indica la fecha de compra.', 'err');
 
   const btn = document.getElementById('btnSaveCompra');
+  const originalLabel = compraEditRecord ? 'Guardar cambios' : 'Guardar compra';
   btn.disabled = true; btn.textContent = 'Guardando…';
   try {
-    await appendCompra({ ingrediente: dup.nombre, cantidad, precioTotal, fecha });
+    if (compraEditRecord) {
+      await updateCompra({ ...compraEditRecord, ingrediente: dup.nombre, cantidad, precioTotal, fecha });
+    } else {
+      await appendCompra({ ingrediente: dup.nombre, cantidad, precioTotal, fecha });
+    }
     await loadCompras();
     renderComprasList();
     closeCompraModal();
   } catch (e) {
     setFb(fb, 'Error: ' + e.message, 'err');
   } finally {
-    btn.disabled = false; btn.textContent = 'Guardar compra';
+    btn.disabled = false; btn.textContent = originalLabel;
   }
 });
 

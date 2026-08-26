@@ -60,6 +60,36 @@ export function liveValidate(fieldId, validatorFn) {
   input.addEventListener('input', () => { if (input.classList.contains('field-input--invalid')) run(); });
 }
 
+// ── Input con separador de miles en vivo (es-CO: punto de miles, coma decimal) ──
+// El input pasa a ser type="text" (un type="number" nativo no acepta puntos de
+// miles en su value) — parseThousandsInput/formatThousandsValue convierten
+// entre lo que ve el usuario y el número real para validar/guardar.
+export function attachThousandsInput(inputEl) {
+  if (!inputEl) return;
+  inputEl.setAttribute('inputmode', 'decimal');
+  inputEl.addEventListener('input', () => {
+    const cursorFromEnd = inputEl.value.length - inputEl.selectionStart;
+    let raw = inputEl.value.replace(/[^\d,]/g, '');
+    const firstComma = raw.indexOf(',');
+    if (firstComma !== -1) raw = raw.slice(0, firstComma + 1) + raw.slice(firstComma + 1).replace(/,/g, '');
+    const [intPart, decPart] = raw.split(',');
+    const intFormatted = intPart ? parseInt(intPart, 10).toLocaleString('es-CO') : '';
+    inputEl.value = decPart !== undefined ? `${intFormatted},${decPart}` : intFormatted;
+    const pos = Math.max(0, inputEl.value.length - cursorFromEnd);
+    inputEl.setSelectionRange(pos, pos);
+  });
+}
+
+export function parseThousandsInput(value) {
+  if (!value) return NaN;
+  return parseFloat(String(value).replace(/\./g, '').replace(',', '.'));
+}
+
+export function formatThousandsValue(n) {
+  if (n === '' || n === null || n === undefined || isNaN(n)) return '';
+  return Number(n).toLocaleString('es-CO', { maximumFractionDigits: 6 });
+}
+
 export function confirmCloseIfDirty(overlayId, isDirtyFn) {
   if (isDirtyFn() && !confirm('¿Salir sin guardar? Se perderán los cambios.')) return;
   document.getElementById(overlayId).classList.remove('open');
