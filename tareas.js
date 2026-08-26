@@ -1,4 +1,4 @@
-import { sheetsReq, uploadToDrive, deleteDriveFile, thumbUrl } from './auth.js';
+import { sheetsReq, uploadToDrive, deleteDriveFile, thumbUrl, getSessionToken } from './auth.js';
 import {
   esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeParseJSON, safeLoad,
   fmtDate, fmtDateShortEs, fmtDuration, fmtSeconds, parseISODate, toISODate, addDays, diffDays,
@@ -7,7 +7,7 @@ import {
 import { pushUndo } from './undo.js';
 import { wasAccidentalTouch } from './input-guard.js';
 import { navigateTo } from './main.js';
-import { dbEpoch } from './db-state.js';
+import { dbEpoch, activeSheetId } from './db-state.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 export let kanbanTasks  = [];
@@ -2050,6 +2050,42 @@ function renderAreasList() {
     });
   });
 }
+
+// Link de suscripción al feed de calendario (ver worker/src/index.js →
+// handleCalendar): trae el sessionToken del Worker guardado en auth.js y el
+// sheetId de la base activa — el Worker con esos dos datos genera el .ics
+// en vivo leyendo KanbanTasks cada vez que Google (u otra app) lo pide.
+document.getElementById('btnSyncCalendar').addEventListener('click', () => {
+  const fb       = document.getElementById('calendarSyncFeedback');
+  const urlInput = document.getElementById('calendarSyncUrl');
+  fb.textContent = '';
+  const session = getSessionToken();
+  if (!CONFIG.WORKER_URL || !session) {
+    urlInput.value = '';
+    setFb(fb, 'Hace falta tener el Worker configurado (ver worker/README.md) y haber iniciado sesión con Google para generar este link.', 'err');
+  } else {
+    urlInput.value = `${CONFIG.WORKER_URL}/calendar.ics?session=${encodeURIComponent(session)}&sheet=${encodeURIComponent(activeSheetId)}`;
+  }
+  document.getElementById('calendarSyncOverlay').classList.add('open');
+});
+document.getElementById('btnCopyCalendarSync').addEventListener('click', async () => {
+  const urlInput = document.getElementById('calendarSyncUrl');
+  const fb       = document.getElementById('calendarSyncFeedback');
+  if (!urlInput.value) return;
+  try {
+    await navigator.clipboard.writeText(urlInput.value);
+    setFb(fb, '✅ Link copiado.', 'ok');
+  } catch {
+    urlInput.select();
+    setFb(fb, 'No se pudo copiar automático — seleccioná el texto y copialo a mano.', 'err');
+  }
+});
+document.getElementById('btnCloseCalendarSync').addEventListener('click', () => {
+  document.getElementById('calendarSyncOverlay').classList.remove('open');
+});
+document.getElementById('calendarSyncOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('calendarSyncOverlay')) document.getElementById('calendarSyncOverlay').classList.remove('open');
+});
 
 document.getElementById('btnManageBoard').addEventListener('click', () => {
   renderColsList();

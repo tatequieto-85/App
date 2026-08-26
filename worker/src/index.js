@@ -1,11 +1,14 @@
 // ── Worker de sesión: reemplaza al proxy de Apps Script ──────────────────────
-// Dos tareas, nada más (mismo criterio que el Worker de referencia descrito en
+// Tres tareas (mismo criterio que el Worker de referencia descrito en
 // ARQUITECTURA.txt sección 4):
 //   /oauth/callback  → intercambia un authorization code de Google por tokens,
 //                      guarda el refresh_token en KV (nunca llega al navegador)
 //                      y devuelve un sessionToken (JWT) para pedir tokens luego.
 //   /token           → dado un sessionToken válido, usa el refresh_token
 //                      guardado para conseguir un access_token nuevo.
+//   /calendar.ics    → feed de calendario (RFC 5545) con las tareas que
+//                      tienen fecha, para suscribirse desde Google Calendar
+//                      ("Agregar por URL"). Ver handleCalendar más abajo.
 //
 // Sin dependencias npm — todo con Web Crypto (mismo criterio que
 // "web-push-browser" citado en la sección 13 del documento de referencia: el
@@ -173,6 +176,104 @@ async function handleToken(url, env) {
   return jsonResponse({ access_token: tokens.access_token, expires_in: tokens.expires_in });
 }
 
+// ── Calendario (ICS) ──────────────────────────────────────────────────────────
+// Google Calendar (y cualquier app de calendario) piden esta URL solos, en
+// segundo plano, sin que el usuario esté ahí para loguearse — por eso el
+// sessionToken viaja en la URL en vez de pedirse interactivo como en /token.
+// Es el mismo secreto que ya usa /token para renovar el access_token, así que
+// esta URL da el mismo nivel de acceso: hay que tratarla como una contraseña
+// (no compartirla) — se lo avisa el frontend al mostrar el link.
+
+function icsEscape(s) {
+  return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+}
+
+function icsDate(iso) {
+  return (iso || '').replace(/-/g, '');
+}
+
+function addDaysToISO(iso, days) {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// Duplica DEFAULT_COLUMNS de tareas.js (el Worker no puede importar del
+// frontend) — si el usuario personaliza los nombres de columna terminal en
+// Gestionar tablero, esto queda desactualizado; solo afecta el ✓ cosmético
+// del título, no si la tarea aparece o no en el calendario.
+const TERMINAL_STATES = ['Realizado', 'Cancelado', 'Postpuesto'];
+
+function tasksToICS(rows) {
+  const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TATEAPP//Tareas//ES',
+    'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'X-WR-CALNAME:TATEAPP — Tareas', 'X-PUBLISHED-TTL:PT1H'
+  ];
+  rows.slice(1).forEach(r => {
+    const id = r[0];
+    if (!id) return;
+    const title    = r[2] || '(sin título)';
+    const desc     = r[3] || '';
+    const dueDate  = r[4] || '';
+    const status   = r[5] || '';
+    const area     = r[1] || '';
+    const startDate = r[11] || '';
+    if (!dueDate) return; // sin fecha no hay nada que poner en el calendario
+
+    const dtStart = startDate && startDate < dueDate ? startDate : dueDate;
+    const dtEnd    = addDaysToISO(dueDate, 1); // DTEND es exclusivo en eventos de día completo
+    const summary  = TERMINAL_STATES.includes(status) ? `✓ ${title}` : title;
+    const descLines = [`Área: ${area || '—'}`, `Estado: ${status || '—'}`];
+    if (desc) descLines.push('', desc);
+
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${id}@tateapp`,
+      `DTSTAMP:${now}`,
+      `DTSTART;VALUE=DATE:${icsDate(dtStart)}`,
+      `DTEND;VALUE=DATE:${icsDate(dtEnd)}`,
+      `SUMMARY:${icsEscape(summary)}`,
+      `DESCRIPTION:${icsEscape(descLines.join('\n'))}`
+    );
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  // RFC 5545 pide plegar líneas largas por octeto, pero eso puede cortar un
+  // carácter UTF-8 (tildes, ñ, emoji) a la mitad; Google Calendar acepta
+  // líneas largas sin plegar sin problema, así que se deja así.
+  return lines.join('\r\n');
+}
+
+async function handleCalendar(url, env) {
+  const sessionToken = url.searchParams.get('session');
+  const sheetId       = url.searchParams.get('sheet');
+  if (!sheetId) return new Response('missing_sheet', { status: 400 });
+
+  const payload = await verifySessionToken(sessionToken, env.JWT_SECRET);
+  if (!payload) return new Response('invalid_session', { status: 401 });
+
+  const refreshToken = await env.REFRESH_TOKENS.get(payload.sub);
+  if (!refreshToken) return new Response('no_refresh_token', { status: 401 });
+
+  const tokens = await refreshWithGoogle(refreshToken, env);
+  if (tokens.error || !tokens.access_token) return new Response('refresh_failed', { status: 401 });
+
+  const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/KanbanTasks!A:P`;
+  const sheetsResp = await fetch(sheetsUrl, { headers: { Authorization: `Bearer ${tokens.access_token}` } });
+  if (!sheetsResp.ok) return new Response('sheets_error', { status: 502 });
+  const data = await sheetsResp.json();
+
+  return new Response(tasksToICS(data.values || []), {
+    headers: {
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': 'inline; filename="tateapp-tareas.ics"',
+      'Cache-Control': 'public, max-age=1800'
+    }
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url    = new URL(request.url);
@@ -182,9 +283,10 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
 
     let resp;
-    if (url.pathname === '/oauth/callback') resp = await handleOAuthCallback(url, env);
-    else if (url.pathname === '/token')     resp = await handleToken(url, env);
-    else                                     resp = jsonResponse({ error: 'not_found' }, 404);
+    if (url.pathname === '/oauth/callback')    resp = await handleOAuthCallback(url, env);
+    else if (url.pathname === '/token')        resp = await handleToken(url, env);
+    else if (url.pathname === '/calendar.ics') resp = await handleCalendar(url, env);
+    else                                        resp = jsonResponse({ error: 'not_found' }, 404);
 
     Object.entries(cors).forEach(([k, v]) => resp.headers.set(k, v));
     return resp;

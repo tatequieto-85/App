@@ -80,7 +80,7 @@ function saveSessionToken(st) {
   if (st) localStorage.setItem(SESSION_KEY, st);
 }
 
-function getSessionToken() {
+export function getSessionToken() {
   return localStorage.getItem(SESSION_KEY);
 }
 

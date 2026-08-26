@@ -65,6 +65,13 @@ un authorization code real de Google (no se puede simular a mano), así que en
 la práctica es más simple ir directo a `wrangler deploy` y probar contra la
 app real apuntando `WORKER_URL` al Worker recién desplegado.
 
+## Actualizar el Worker ya desplegado
+
+Cualquier cambio a `src/index.js` (como el endpoint `/calendar.ics` que arma
+el feed de calendario de Tareas) necesita un `npx wrangler deploy` nuevo
+desde esta carpeta para que quede en línea — a diferencia del frontend
+(GitHub Pages), esto no se actualiza solo con el push a `main`.
+
 ## Qué NO hace este Worker
 
 - No revoca el `refresh_token` al hacer "Cerrar sesión" en la app (mismo
