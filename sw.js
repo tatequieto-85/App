@@ -1,4 +1,4 @@
-const CACHE = 'ss-v73';
+const CACHE = 'ss-v74';
 const ASSETS = [
   './', './index.html', './style.css', './config.js', './vendor-qrcode.js',
   './utils.js', './input-guard.js', './db-state.js', './undo.js', './auth.js',
