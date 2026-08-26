@@ -397,6 +397,8 @@ input, textarea, [contenteditable], [contenteditable] * {
 .field-input:focus, .field-textarea:focus {
   border-color: var(--brand); background: #fff;
 }
+.field-input[readonly] { color: var(--text-sub); background: var(--border); cursor: default; }
+.field-input[readonly]:focus { border-color: var(--border); background: var(--border); }
 .field-textarea { resize: vertical; min-height: 100px; }
 
 .field-input--invalid, .field-textarea--invalid {
@@ -2019,17 +2021,6 @@ input, textarea, [contenteditable], [contenteditable] * {
 .eval-scale {
   display: flex; gap: 5px;
 }
-.eval-scale-btn {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 8px 3px; background: var(--surface);
-  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
-  cursor: pointer; transition: all .14s;
-}
-.eval-scale-btn:hover    { border-color: var(--brand); background: #714B6710; }
-.eval-scale-btn.active   { border-color: var(--brand); background: #714B6722; }
-.eval-scale-btn--target  { border-color: #7A9C3E; }
-.eval-scale-btn--target.active { border-color: #7A9C3E; background: #7A9C3E1A; }
-
 .esb-num  { font-size: 13px; font-weight: 700; color: var(--text); }
 .esb-hint { font-size: 9px; color: var(--text-sub); text-align: center; line-height: 1.3; }
 
@@ -2057,23 +2048,6 @@ input, textarea, [contenteditable], [contenteditable] * {
 
 .eval-radio-group { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .eval-radio-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
-
-.eval-score-box {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  background: var(--brand); color: var(--brand-text);
-  border-radius: var(--radius); padding: 16px 20px; margin: 18px 0 14px;
-}
-.eval-score-label { font-size: 12px; opacity: .75; margin-bottom: 4px; }
-.eval-score-value { font-size: 28px; font-weight: 800; flex-shrink: 0; }
-.eval-score-level {
-  font-size: 11px; font-weight: 700; padding: 3px 10px;
-  border-radius: 20px; background: rgba(255,255,255,.18); display: inline-block;
-}
-.eval-score-level.level-opt { background: #7A9C3E44; }
-.eval-score-level.level-ok  { background: #2E7D3244; }
-.eval-score-level.level-acc { background: #F59E0B44; }
-.eval-score-level.level-dev { background: #714B6744; }
-.eval-score-level.level-bad { background: #C6282844; }
 
 /* ── Hint chip ───────────────────────────────────────────────────────────── */
 .hint-chip {
