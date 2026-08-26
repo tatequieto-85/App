@@ -1425,6 +1425,7 @@ body {
   border: 1.5px solid var(--border); border-radius: var(--radius);
   padding: 16px; background: var(--surface); cursor: pointer;
   transition: box-shadow .2s, border-color .2s;
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
 }
 .feria-block:hover { border-color: rgba(113,75,103,.3); box-shadow: var(--shadow); }
 .feria-block-title   { font-size: 14.5px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
