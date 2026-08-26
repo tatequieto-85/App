@@ -477,22 +477,17 @@ function openFeriaStockModal(feriaId) {
   if (!lotes.length) {
     wrap.innerHTML = '<div class="empty-state">No hay lotes con producción registrada en Procesos → Ejecuciones.</div>';
   } else {
-    const rowsHTML = lotes.map(ej => {
+    const itemsHTML = lotes.map(ej => {
       const disponible = getStockDisponibleLote(ej.id, feriaId);
       const val = f.planStock[ej.id] || '';
       return `
-        <tr>
-          <td class="feria-stock-receta">${esc(ej.nombreReceta)} — Lote ${esc(ej.loteId || ej.id.slice(0, 8))}<div class="feria-stock-disponible">Disponible: ${disponible}</div></td>
-          <td><input type="number" min="0" step="1" class="field-input feria-stock-input" data-lote="${esc(ej.id)}" value="${val}" style="width:64px" /></td>
-        </tr>`;
+        <div class="feria-stock-item">
+          <div class="feria-stock-sabor">${esc(ej.nombreReceta)}</div>
+          <div class="feria-stock-lote">Lote ${esc(ej.loteId || ej.id.slice(0, 8))} · Disponible: ${disponible}</div>
+          <input type="number" min="0" step="1" class="field-input feria-stock-input" data-lote="${esc(ej.id)}" value="${val}" placeholder="Cantidad a llevar" />
+        </div>`;
     }).join('');
-    wrap.innerHTML = `
-      <div style="overflow-x:auto">
-        <table class="tasks-table feria-stock-table">
-          <thead><tr><th>Lote</th><th>Total a llevar</th></tr></thead>
-          <tbody>${rowsHTML}</tbody>
-        </table>
-      </div>`;
+    wrap.innerHTML = `<div class="feria-stock-list">${itemsHTML}</div>`;
   }
 
   document.getElementById('feriaStockOverlay').classList.add('open');
