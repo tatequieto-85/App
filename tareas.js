@@ -2051,10 +2051,13 @@ function renderAreasList() {
   });
 }
 
-// Link de suscripción al feed de calendario (ver worker/src/index.js →
-// handleCalendar): trae el sessionToken del Worker guardado en auth.js y el
-// sheetId de la base activa — el Worker con esos dos datos genera el .ics
-// en vivo leyendo KanbanTasks cada vez que Google (u otra app) lo pide.
+// Suscripción con un clic: arma el link del feed (ver worker/src/index.js →
+// handleCalendar, con el sessionToken del Worker y el sheetId de la base
+// activa) y lo manda directo a la pantalla de Google Calendar que confirma
+// el alta ("¿Agregar este calendario?") — ese último clic de confirmación
+// no se puede saltar, es Google el que lo exige, no algo que dependa de acá.
+// El modal solo se muestra si algo falla o si el navegador bloqueó la
+// pestaña nueva, para no cortar el flujo de un clic en el caso normal.
 document.getElementById('btnSyncCalendar').addEventListener('click', () => {
   const fb       = document.getElementById('calendarSyncFeedback');
   const urlInput = document.getElementById('calendarSyncUrl');
@@ -2063,10 +2066,17 @@ document.getElementById('btnSyncCalendar').addEventListener('click', () => {
   if (!CONFIG.WORKER_URL || !session) {
     urlInput.value = '';
     setFb(fb, 'Hace falta tener el Worker configurado (ver worker/README.md) y haber iniciado sesión con Google para generar este link.', 'err');
-  } else {
-    urlInput.value = `${CONFIG.WORKER_URL}/calendar.ics?session=${encodeURIComponent(session)}&sheet=${encodeURIComponent(activeSheetId)}`;
+    document.getElementById('calendarSyncOverlay').classList.add('open');
+    return;
   }
-  document.getElementById('calendarSyncOverlay').classList.add('open');
+  const icsUrl = `${CONFIG.WORKER_URL}/calendar.ics?session=${encodeURIComponent(session)}&sheet=${encodeURIComponent(activeSheetId)}`;
+  urlInput.value = icsUrl;
+  const addUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(icsUrl)}`;
+  const win = window.open(addUrl, '_blank', 'noopener');
+  if (!win) {
+    setFb(fb, 'El navegador bloqueó la pestaña nueva — copiá el link de abajo y pegalo a mano en Google Calendar.', 'err');
+    document.getElementById('calendarSyncOverlay').classList.add('open');
+  }
 });
 document.getElementById('btnCopyCalendarSync').addEventListener('click', async () => {
   const urlInput = document.getElementById('calendarSyncUrl');
