@@ -216,7 +216,8 @@ document.querySelectorAll('[data-stocktab]').forEach(btn => {
     document.getElementById('subTabStockResumen').style.display      = currentStockTab === 'resumen'      ? '' : 'none';
     document.getElementById('subTabStockTrazabilidad').style.display = currentStockTab === 'trazabilidad' ? '' : 'none';
     document.getElementById('subTabStockTestigo').style.display      = currentStockTab === 'testigo'      ? '' : 'none';
-    document.getElementById('btnNewStockAjuste').style.display  = currentStockTab === 'resumen' ? '' : 'none';
+    // btnNewStockAjuste ya no necesita su propio toggle: vive dentro de
+    // subTabStockResumen, así que sigue la visibilidad de ese contenedor.
     document.getElementById('btnNewStockTestigo').style.display = currentStockTab === 'testigo' ? '' : 'none';
   });
 });
@@ -228,25 +229,29 @@ export function renderStockResumen() {
     container.innerHTML = '<div class="empty-state">No hay recetas registradas en Procesos.</div>';
     return;
   }
-  const rows = recetas.map(r => {
+  // Tarjeta por receta en vez de tabla: con 6 columnas de datos, una
+  // tabla de ancho fijo siempre terminaba con scroll horizontal en
+  // celular. Acá cada estadística envuelve a la siguiente línea sola.
+  container.innerHTML = recetas.map(r => {
     const s = getStockResumen(r.id);
+    const stat = (label, value, cls) => `
+      <div class="stock-resumen-stat">
+        <span class="stock-resumen-stat-label">${label}</span>
+        <span class="stock-resumen-stat-value${cls ? ' ' + cls : ''}">${value}</span>
+      </div>`;
     return `
-      <tr>
-        <td>${esc(r.nombre)}</td>
-        <td>${s.producido}</td>
-        <td>${s.comprometido}</td>
-        <td>${s.vendido}</td>
-        <td>${s.testigo}</td>
-        <td>${s.ajustes >= 0 ? '+' : ''}${s.ajustes}</td>
-        <td class="stock-disponible-cell${s.disponible < 0 ? ' stock-disponible-neg' : ''}">${s.disponible}</td>
-      </tr>`;
+      <div class="stock-resumen-card">
+        <div class="stock-resumen-title">${esc(r.nombre)}</div>
+        <div class="stock-resumen-stats">
+          ${stat('Producido', s.producido)}
+          ${stat('En ferias', s.comprometido)}
+          ${stat('Vendido', s.vendido)}
+          ${stat('Testigo', s.testigo)}
+          ${stat('Ajustes', `${s.ajustes >= 0 ? '+' : ''}${s.ajustes}`)}
+          ${stat('Disponible', s.disponible, 'stock-disponible-cell' + (s.disponible < 0 ? ' stock-disponible-neg' : ''))}
+        </div>
+      </div>`;
   }).join('');
-  container.innerHTML = `
-    <table class="tasks-table">
-      <thead><tr><th>Receta</th><th>Producido</th><th>En ferias</th><th>Vendido</th><th>Testigo</th><th>Ajustes</th><th>Disponible</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
 }
 
 export function renderStockTrazabilidad() {
