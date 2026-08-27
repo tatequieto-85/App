@@ -19,7 +19,6 @@ let lastTapTime          = {}; // para detección de doble-toque en móvil
 let canales              = [];
 let canalesSheetId       = null;
 let currentCanalId       = null; // null = galería de canales; string = dentro de un canal
-let creatingNewCanal     = false;
 let draggedCanalId       = null;
 
 const CANAL_HUES = [355, 25, 45, 95, 165, 200, 230, 280];
@@ -539,7 +538,7 @@ function canalColorStyle(canal, idx) {
 }
 
 function renderCanalesGallery(container) {
-  if (!canales.length && !creatingNewCanal) {
+  if (!canales.length) {
     container.innerHTML = '<div class="empty-state">No hay canales de venta. Agrega el primero con "+ Nuevo canal".</div>';
     return;
   }
@@ -557,53 +556,7 @@ function renderCanalesGallery(container) {
       </div>`;
   }).join('');
 
-  const newFormHTML = creatingNewCanal ? `
-    <div class="canal-venta-card canal-venta-card--form" data-new-canal-form>
-      <div class="receta-group-new-row">
-        <input type="text" class="receta-group-new-icon" placeholder="🏪" maxlength="4" />
-        <input type="text" class="receta-group-new-name" placeholder="Nombre del canal…" maxlength="40" />
-      </div>
-      <input type="color" class="receta-group-new-color" value="#714B67" />
-      <div class="receta-group-new-actions">
-        <button type="button" class="btn-primary" data-confirm-new-canal>Crear</button>
-        <button type="button" class="btn-outline" data-cancel-new-canal>Cancelar</button>
-      </div>
-      <div class="feedback" data-new-canal-feedback></div>
-    </div>` : '';
-
-  container.innerHTML = `<div class="canales-venta-grid">${newFormHTML}${cardsHTML}</div>`;
-
-  if (creatingNewCanal) {
-    const formEl    = container.querySelector('[data-new-canal-form]');
-    const nameInput = formEl.querySelector('.receta-group-new-name');
-    nameInput.focus();
-    formEl.querySelector('[data-cancel-new-canal]').addEventListener('click', () => {
-      creatingNewCanal = false;
-      renderFerias();
-    });
-    const confirmNewCanal = async () => {
-      const nombre = nameInput.value.trim();
-      const icono  = formEl.querySelector('.receta-group-new-icon').value.trim();
-      const color  = formEl.querySelector('.receta-group-new-color').value;
-      const fb     = formEl.querySelector('[data-new-canal-feedback]');
-      if (!nombre) return setFb(fb, 'Ponele un nombre al canal.', 'err');
-      if (canales.find(c => c.nombre.toLowerCase() === nombre.toLowerCase()))
-        return setFb(fb, 'Ya existe un canal con ese nombre.', 'err');
-      const btn = formEl.querySelector('[data-confirm-new-canal]');
-      btn.disabled = true;
-      try {
-        await appendCanal({ id: crypto.randomUUID(), nombre, color, icono, creadoEn: new Date().toISOString() });
-        await loadCanales();
-        creatingNewCanal = false;
-        renderFerias();
-      } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); btn.disabled = false; }
-    };
-    formEl.querySelector('[data-confirm-new-canal]').addEventListener('click', confirmNewCanal);
-    nameInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter')  { e.preventDefault(); confirmNewCanal(); }
-      if (e.key === 'Escape') { e.preventDefault(); creatingNewCanal = false; renderFerias(); }
-    });
-  }
+  container.innerHTML = `<div class="canales-venta-grid">${cardsHTML}</div>`;
 
   container.querySelectorAll('[data-del-canal]').forEach(btn => {
     btn.addEventListener('click', async e => {
@@ -860,9 +813,56 @@ document.getElementById('feriaOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('feriaOverlay')) closeFeriaModal();
 });
 document.getElementById('btnNewFeria').addEventListener('click', () => openFeriaModal(null));
-document.getElementById('btnNewCanal').addEventListener('click', () => {
-  creatingNewCanal = true;
-  renderFerias();
+
+// Crear un canal nuevo abre un modal de verdad (antes era un
+// mini-formulario in-place que reemplazaba una tarjeta de la grilla —
+// a pedido del usuario, "no es limpia"). Editar un canal existente
+// sigue siendo in-place, eso no cambió.
+function openNewCanalModal() {
+  document.getElementById('newCanalIcon').value = '';
+  document.getElementById('newCanalName').value = '';
+  document.getElementById('newCanalColor').value = '#714B67';
+  document.getElementById('newCanalFeedback').textContent = '';
+  document.getElementById('newCanalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('newCanalName').focus(), 100);
+}
+document.getElementById('btnNewCanal').addEventListener('click', openNewCanalModal);
+
+function isNewCanalFormDirty() {
+  return !!document.getElementById('newCanalName')?.value.trim();
+}
+function closeNewCanalModal() {
+  confirmCloseIfDirty('newCanalOverlay', isNewCanalFormDirty);
+}
+document.getElementById('btnCloseNewCanal').addEventListener('click', closeNewCanalModal);
+document.getElementById('newCanalOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('newCanalOverlay')) closeNewCanalModal();
+});
+
+async function confirmNewCanal() {
+  const nombre = document.getElementById('newCanalName').value.trim();
+  const icono  = document.getElementById('newCanalIcon').value.trim();
+  const color  = document.getElementById('newCanalColor').value;
+  const fb     = document.getElementById('newCanalFeedback');
+  if (!nombre) return setFb(fb, 'Ponele un nombre al canal.', 'err');
+  if (canales.find(c => c.nombre.toLowerCase() === nombre.toLowerCase()))
+    return setFb(fb, 'Ya existe un canal con ese nombre.', 'err');
+  const btn = document.getElementById('btnConfirmNewCanal');
+  btn.disabled = true;
+  try {
+    await appendCanal({ id: crypto.randomUUID(), nombre, color, icono, creadoEn: new Date().toISOString() });
+    await loadCanales();
+    document.getElementById('newCanalOverlay').classList.remove('open');
+    renderFerias();
+  } catch (e) {
+    setFb(fb, 'Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById('btnConfirmNewCanal').addEventListener('click', confirmNewCanal);
+document.getElementById('newCanalName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); confirmNewCanal(); }
 });
 
 document.getElementById('btnSaveFeria').addEventListener('click', async () => {

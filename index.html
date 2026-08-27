@@ -711,6 +711,26 @@
     </div>
   </div>
 
+  <!-- Modal: Nueva agrupación de recetas -->
+  <div class="modal-overlay" id="newRecetaGroupOverlay">
+    <div class="modal" style="max-width:380px">
+      <div class="modal-header">
+        <h2>Nueva agrupación</h2>
+        <button class="btn-icon" id="btnCloseNewRecetaGroup"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <label class="field-label" for="newRecetaGroupName">Nombre</label>
+        <input class="field-input" id="newRecetaGroupName" type="text" placeholder="Nombre del grupo…" maxlength="40" />
+        <label class="field-label" for="newRecetaGroupIcon">Ícono</label>
+        <input class="field-input" id="newRecetaGroupIcon" type="text" placeholder="🍯" maxlength="4" />
+        <label class="field-label" for="newRecetaGroupColor">Color</label>
+        <input class="field-input" id="newRecetaGroupColor" type="color" value="#714B67" style="padding:2px;height:40px" />
+        <button class="btn-primary" id="btnConfirmNewRecetaGroup" style="width:100%;margin-top:16px">Crear</button>
+        <div class="feedback" id="newRecetaGroupFeedback"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Nueva / Editar Receta -->
   <div class="modal-overlay" id="recetaOverlay">
     <div class="modal modal-receta">
@@ -890,6 +910,26 @@
         <small class="field-error" id="baseModulosErr"></small>
         <button class="btn-primary" id="btnSaveBase">Crear base de datos</button>
         <div class="feedback" id="baseFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nuevo canal de venta -->
+  <div class="modal-overlay" id="newCanalOverlay">
+    <div class="modal" style="max-width:380px">
+      <div class="modal-header">
+        <h2>Nuevo canal de venta</h2>
+        <button class="btn-icon" id="btnCloseNewCanal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <label class="field-label" for="newCanalName">Nombre</label>
+        <input class="field-input" id="newCanalName" type="text" placeholder="Nombre del canal…" maxlength="40" />
+        <label class="field-label" for="newCanalIcon">Ícono</label>
+        <input class="field-input" id="newCanalIcon" type="text" placeholder="🏪" maxlength="4" />
+        <label class="field-label" for="newCanalColor">Color</label>
+        <input class="field-input" id="newCanalColor" type="color" value="#714B67" style="padding:2px;height:40px" />
+        <button class="btn-primary" id="btnConfirmNewCanal" style="width:100%;margin-top:16px">Crear</button>
+        <div class="feedback" id="newCanalFeedback"></div>
       </div>
     </div>
   </div>
