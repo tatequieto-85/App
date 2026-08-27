@@ -799,6 +799,16 @@ export function renderKanban() {
 
 // ── Lista Render ──────────────────────────────────────────────────────────────
 
+function listaTerminalToggleBtn(termCount) {
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'kanban-toggle-terminal';
+  toggleBtn.textContent = showTerminal
+    ? '⬆️ Ocultar finalizadas'
+    : `⬇️ Finalizadas (${termCount})`;
+  toggleBtn.addEventListener('click', () => { showTerminal = !showTerminal; renderKanbanList(); });
+  return toggleBtn;
+}
+
 export function renderKanbanList() {
   const container    = document.getElementById('tasksList');
   if (!container) return;
@@ -813,10 +823,17 @@ export function renderKanbanList() {
   if (statusFilter)   tasks = tasks.filter(t => t.status   === statusFilter);
   if (priorityFilter) tasks = tasks.filter(t => t.priority === priorityFilter);
   if (dueFilter)      tasks = tasks.filter(t => getDueStatus(t.dueDate) === dueFilter);
+  // Igual que en el Kanban (mismo showTerminal compartido): por defecto
+  // solo se ven las tareas por hacer, las finalizadas quedan ocultas atrás
+  // de un toggle. Si el usuario ya filtró por un estado terminal a
+  // propósito (ej. "Realizado"), ese filtro manda y no se vuelve a ocultar.
+  const termCount = tasks.filter(t => TERMINAL_STATES.includes(t.status)).length;
+  if (!statusFilter && !showTerminal) tasks = tasks.filter(t => !TERMINAL_STATES.includes(t.status));
   tasks.sort((a, b) => (a.dueDate || '9999') < (b.dueDate || '9999') ? -1 : 1);
 
   if (!tasks.length) {
     container.innerHTML = '<div class="empty-state">No hay tareas con estos filtros.</div>';
+    if (!statusFilter && termCount) container.appendChild(listaTerminalToggleBtn(termCount));
     return;
   }
 
@@ -860,6 +877,7 @@ export function renderKanbanList() {
 
   container.innerHTML = '';
   container.appendChild(table);
+  if (!statusFilter && termCount) container.appendChild(listaTerminalToggleBtn(termCount));
 
   container.querySelectorAll('[data-view]').forEach(btn => {
     btn.addEventListener('click', () => openTaskDetail(btn.dataset.view));
