@@ -746,6 +746,7 @@ function wireCanalCardPress(container) {
       enterCanal();
     });
     card.addEventListener('touchend', e => {
+      cancelPress();
       if (longPressed) { longPressed = false; return; }
       if (e.target.closest('button') || wasAccidentalTouch()) return;
       const now = Date.now();

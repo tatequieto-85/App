@@ -573,6 +573,7 @@ function wireRecetaGroupCardPress(container) {
       enterGroup();
     });
     card.addEventListener('touchend', e => {
+      cancelPress();
       if (longPressed) { longPressed = false; return; }
       if (e.target.closest('button') || wasAccidentalTouch()) return;
       const now = Date.now();
@@ -675,6 +676,7 @@ function wireRecetaCardEvents(container) {
       startExecution(id);
     });
     card.addEventListener('touchend', e => {
+      cancelPress();
       if (longPressed) { longPressed = false; return; }
       if (e.target.closest('button') || wasAccidentalTouch()) return;
       const now = Date.now();
@@ -774,6 +776,7 @@ function renderEjecucionesList() {
       openEjecucionDetail(ejId);
     });
     card.addEventListener('touchend', e => {
+      cancelPress();
       if (longPressed) { longPressed = false; return; }
       if (e.target.closest('button') || wasAccidentalTouch()) return;
       const now  = Date.now();
