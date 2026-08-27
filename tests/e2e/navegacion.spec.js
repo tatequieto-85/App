@@ -25,8 +25,8 @@ test('Ctrl+K abre la paleta de comandos, filtra y navega', async ({ page }) => {
   await page.keyboard.press('Control+k');
   await expect(page.locator('#commandPaletteOverlay')).toHaveClass(/open/);
 
-  await page.locator('#commandPaletteInput').fill('ferias');
-  await page.locator('.command-palette-item', { hasText: 'Ferias' }).first().click();
+  await page.locator('#commandPaletteInput').fill('ventas');
+  await page.locator('.command-palette-item', { hasText: 'Ventas' }).first().click();
 
   await expect(page.locator('#viewFerias')).toBeVisible();
   await expect(page.locator('#commandPaletteOverlay')).not.toHaveClass(/open/);

@@ -12,7 +12,7 @@
 export const ALL_TABS = [
   'Bases', 'Config', 'Stories', 'KanbanTasks', 'KanbanConfig', 'GanttProjects',
   'RecetasPlantillas', 'RecetaBlocks', 'RecetasEjecuciones', 'Ingredientes',
-  'Compras', 'Ferias', 'StockTestigo', 'StockMovimientos', 'QR', 'Ideas'
+  'Compras', 'Ferias', 'CanalesVenta', 'StockTestigo', 'StockMovimientos', 'QR', 'Ideas'
 ];
 
 const ALL_MODULE_KEYS = ['contenido', 'tareas', 'procesos', 'compras', 'ferias', 'stock', 'informes', 'qr', 'ideas'];

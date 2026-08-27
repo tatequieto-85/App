@@ -1449,6 +1449,50 @@ input, textarea, [contenteditable], [contenteditable] * {
 .feria-stock-lote  { grid-column: 1; grid-row: 2; font-size: 11px; color: var(--text-sub); margin-top: 2px; }
 .feria-stock-item .feria-stock-input { grid-column: 2; grid-row: 1 / span 2; width: 90px; }
 
+/* ── Ventas: galería de canales (pantalla principal) ──────────────────────── */
+/* Mismo patrón que la galería de grupos de recetas en Procesos — ver ese
+   bloque de CSS para el porqué de cada regla (padding sin borde abajo +
+   overflow:hidden para el panel Editar/Borrar, aspect-ratio:auto en la
+   variante --form). Se duplica en vez de compartir selectores porque son
+   dos features distintas que pueden divergir más adelante. */
+.canales-venta-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.canal-venta-card {
+  position: relative; overflow: hidden;
+  border: 1.5px solid var(--border); border-radius: var(--radius);
+  padding: 16px 16px 0; background: var(--surface); cursor: pointer;
+  aspect-ratio: 4 / 5; box-sizing: border-box;
+  display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  transition: box-shadow .2s, border-color .2s;
+}
+.canal-venta-card:hover { box-shadow: var(--shadow); }
+.canal-venta-card.dragging { opacity: .4; }
+.canal-venta-card.block-drag-over { outline: 2px dashed var(--brand); outline-offset: 2px; }
+.canal-venta-card-icon { font-size: 32px; line-height: 1; }
+.canal-venta-card-name { font-size: 14.5px; font-weight: 700; color: var(--text); padding-bottom: 16px; }
+
+.canal-venta-card-actions {
+  display: none; position: absolute; left: 0; right: 0; bottom: 0;
+  border-top: 1px solid var(--border);
+}
+.canal-venta-card-actions.open { display: flex; }
+.canal-venta-card-actions button {
+  flex: 1; border: none; background: var(--surface); cursor: pointer;
+  padding: 10px 8px; font-size: 12.5px; font-weight: 600; color: var(--text);
+}
+.canal-venta-card-actions button:first-child { border-right: 1px solid var(--border); }
+.canal-venta-card-actions button:hover { background: var(--bg); }
+.canal-venta-card-actions button[data-del-canal] { color: #C0392B; }
+.canal-venta-card-actions button[data-del-canal]:hover { background: #EF444414; }
+
+.canal-venta-card--form {
+  cursor: default; align-items: stretch; gap: 8px; padding-bottom: 16px;
+  aspect-ratio: auto; overflow: visible;
+}
+.canal-venta-card--form:hover { box-shadow: none; }
+
 /* ── Ferias: bloques ──────────────────────────────────────────────────────── */
 .feria-blocks-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

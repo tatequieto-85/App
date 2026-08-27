@@ -15,6 +15,25 @@ let feriaStockPendingId  = null;
 let feriaResumenId       = null;
 let lastTapTime          = {}; // para detección de doble-toque en móvil
 
+// ── Canales de venta (Ferias es uno más) ──────────────────────────────────────
+let canales              = [];
+let canalesSheetId       = null;
+let currentCanalId       = null; // null = galería de canales; string = dentro de un canal
+let creatingNewCanal     = false;
+let draggedCanalId       = null;
+
+const CANAL_HUES = [355, 25, 45, 95, 165, 200, 230, 280];
+
+// Convierte "#RRGGBB" (o "#RGB") a rgba(...) con la opacidad dada — mismo
+// helper que usa Procesos para el color pastel de las tarjetas de grupo.
+function hexToRgba(hex, alpha) {
+  const h    = (hex || '').replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  if (full.length !== 6 || /[^0-9a-fA-F]/.test(full)) return null;
+  const n = parseInt(full, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
 // ── Ferias: Sheets init + CRUD ──────────────────────────────────────────────────
 
 // Nota: las columnas A–L mantienen el orden original de este módulo
@@ -29,7 +48,7 @@ export async function initFeriasSheet() {
 
   if (hasF) {
     feriasSheetId = hasF.properties.sheetId;
-    const headerData = await sheetsReq('/values/Ferias!A1:W1').catch(() => ({}));
+    const headerData = await sheetsReq('/values/Ferias!A1:X1').catch(() => ({}));
     const headerRow  = (headerData.values || [])[0] || [];
     if (headerRow.length < 18) {
       await sheetsReq('/values/Ferias!M1:R1?valueInputOption=RAW', {
@@ -57,6 +76,12 @@ export async function initFeriasSheet() {
         body: JSON.stringify({ values: [[ 'Muestras' ]] })
       });
     }
+    if (headerRow.length < 24) {
+      await sheetsReq('/values/Ferias!X1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [[ 'CanalId' ]] })
+      });
+    }
   } else {
     const res = await sheetsReq(':batchUpdate', {
       method: 'POST',
@@ -70,15 +95,116 @@ export async function initFeriasSheet() {
         'ID','Empresa','FechaInicio','FechaFin','Precio','FechaImportante','Lugar',
         'Observaciones','Alineacion','Estado','ConteoPersonas','CreadoEn',
         'HoraInicio','HoraFin','PlanStock','Ventas','ObservacionesDiarias','ConteoProductos',
-        'ConteoMenores30','ConteoEntre30y55','ConteoMayores55','Cerrada','Muestras'
+        'ConteoMenores30','ConteoEntre30y55','ConteoMayores55','Cerrada','Muestras','CanalId'
       ]] })
     });
   }
+
+  await initCanalesVentaSheet();
+  await loadCanales();
+
+  // El canal "Ferias" se crea una sola vez (la primera vez que corre este
+  // código sobre una base ya existente) — ahí van a parar las ferias que
+  // ya estaban cargadas antes de que existieran los canales (ver backfill
+  // de CanalId más abajo).
+  let feriaCanal = canales.find(c => c.nombre === 'Ferias');
+  if (!feriaCanal) {
+    await appendCanal({ id: crypto.randomUUID(), nombre: 'Ferias', color: '#714B67', icono: '🎪', creadoEn: new Date().toISOString() });
+    await loadCanales();
+    feriaCanal = canales.find(c => c.nombre === 'Ferias');
+  }
+
   await loadFerias();
+  // Idempotente: solo toca las filas que todavía no tienen CanalId — una
+  // vez migradas, las siguientes cargas de la app no vuelven a escribirlas.
+  const sinCanal = ferias.filter(f => !f.canalId);
+  for (const f of sinCanal) {
+    f.canalId = feriaCanal.id;
+    await updateFeria(f);
+  }
+}
+
+// ── Canales de venta: Sheets init + CRUD ──────────────────────────────────────
+// Mismo layout/patrón que RecetaBlocks en procesos.js.
+
+async function initCanalesVentaSheet() {
+  const info = await sheetsReq('');
+  const tabs = info.sheets || [];
+  const hasC = tabs.find(s => s.properties.title === 'CanalesVenta');
+  if (hasC) {
+    canalesSheetId = hasC.properties.sheetId;
+    return;
+  }
+  const res = await sheetsReq(':batchUpdate', {
+    method: 'POST',
+    body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'CanalesVenta' } } }] })
+  });
+  const added = res.replies?.[0]?.addSheet?.properties;
+  if (added) canalesSheetId = added.sheetId;
+  await sheetsReq('/values/CanalesVenta!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+    method: 'POST',
+    body: JSON.stringify({ values: [['ID','Nombre','CreadoEn','SortOrder','Color','Icono']] })
+  });
+}
+
+export async function loadCanales() {
+  const data = await sheetsReq('/values/CanalesVenta!A:F');
+  const rows = (data.values || []).slice(1);
+  canales = rows.filter(r => r[0]).map((r, i) => ({
+    id:        r[0] || '',
+    nombre:    r[1] || '',
+    creadoEn:  r[2] || '',
+    sortOrder: r[3] !== undefined && r[3] !== '' ? +r[3] : i,
+    color:     r[4] || '',
+    icono:     r[5] || '',
+    rowIndex:  i + 2
+  }));
+  canales.sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+async function appendCanal(canal) {
+  const sortOrder = canales.length;
+  await sheetsReq('/values/CanalesVenta!A:F:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+    method: 'POST',
+    body: JSON.stringify({ values: [[canal.id, canal.nombre, canal.creadoEn, sortOrder, canal.color || '', canal.icono || '']] })
+  });
+}
+
+async function updateCanal(canal) {
+  await sheetsReq(`/values/CanalesVenta!A${canal.rowIndex}:F${canal.rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[canal.id, canal.nombre, canal.creadoEn, canal.sortOrder ?? 0, canal.color || '', canal.icono || '']] })
+  });
+}
+
+async function deleteCanalRow(rowIndex) {
+  if (!canalesSheetId) {
+    const info = await sheetsReq('');
+    const tab  = info.sheets.find(s => s.properties.title === 'CanalesVenta');
+    if (tab) canalesSheetId = tab.properties.sheetId;
+  }
+  await sheetsReq(':batchUpdate', {
+    method: 'POST',
+    body: JSON.stringify({ requests: [{ deleteDimension: {
+      range: { sheetId: canalesSheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex }
+    }}]})
+  });
+}
+
+// A diferencia de los grupos de recetas, acá no hay un "sin canal" al que
+// reasignar — si el canal tiene ferias/ventas cargadas, no se borra.
+async function deleteCanal(canalId) {
+  const canal = canales.find(c => c.id === canalId);
+  if (!canal) return;
+  if (ferias.some(f => f.canalId === canalId)) {
+    throw new Error(`Este canal tiene registros cargados — no se puede eliminar.`);
+  }
+  await deleteCanalRow(canal.rowIndex);
+  await loadCanales();
 }
 
 export async function loadFerias() {
-  const data = await sheetsReq('/values/Ferias!A:W');
+  const data = await sheetsReq('/values/Ferias!A:X');
   const rows = (data.values || []).slice(1);
   ferias = rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0]  || '',
@@ -104,6 +230,7 @@ export async function loadFerias() {
     conteoMayores55:      parseInt(r[20]) || 0,
     cerrada:              r[21] === 'TRUE',
     muestras:             safeParseJSON(r[22], []),
+    canalId:              r[23] || '',
     rowIndex:             i + 2
   }));
 }
@@ -147,19 +274,19 @@ function feriaRowValues(f) {
     f.horaInicio || '', f.horaFin || '', JSON.stringify(f.planStock || {}), JSON.stringify(f.ventas || []),
     JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {}),
     f.conteoMenores30 || 0, f.conteoEntre30y55 || 0, f.conteoMayores55 || 0,
-    f.cerrada ? 'TRUE' : 'FALSE', JSON.stringify(f.muestras || [])
+    f.cerrada ? 'TRUE' : 'FALSE', JSON.stringify(f.muestras || []), f.canalId || ''
   ];
 }
 
 async function appendFeria(f) {
-  await sheetsReq('/values/Ferias!A:W:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Ferias!A:X:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
 }
 
 async function updateFeria(f) {
-  await sheetsReq(`/values/Ferias!A${f.rowIndex}:W${f.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Ferias!A${f.rowIndex}:X${f.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
@@ -309,17 +436,41 @@ function wireFeriaCardActions(container) {
   });
 }
 
+// Punto de entrada de #feriasList: galería de canales si no se entró a
+// ninguno, o la lista de ferias de ese canal (filtrada) si sí.
 export function renderFerias() {
   const container = document.getElementById('feriasList');
   if (!container) return;
-  if (!ferias.length) {
-    container.innerHTML = '<div class="empty-state">No hay ferias. Agrega la primera con "+ Nueva feria".</div>';
+  const titleEl  = document.getElementById('feriasSectionTitle');
+  const btnCanal = document.getElementById('btnNewCanal');
+  const btnFeria = document.getElementById('btnNewFeria');
+
+  if (currentCanalId == null) {
+    if (titleEl)  titleEl.textContent = 'Canales de venta';
+    if (btnCanal) btnCanal.style.display = '';
+    if (btnFeria) btnFeria.style.display = 'none';
+    renderCanalesGallery(container);
+    return;
+  }
+
+  const canal = canales.find(c => c.id === currentCanalId);
+  if (!canal) { currentCanalId = null; renderFerias(); return; }
+  if (titleEl)  titleEl.textContent = canal.nombre;
+  if (btnCanal) btnCanal.style.display = 'none';
+  if (btnFeria) btnFeria.style.display = '';
+  renderFeriaListForCanal(container, currentCanalId);
+}
+
+function renderFeriaListForCanal(container, canalId) {
+  const feriasCanal = ferias.filter(f => f.canalId === canalId);
+  if (!feriasCanal.length) {
+    container.innerHTML = '<div class="empty-state">No hay ferias en este canal. Agrega la primera con "+ Nueva feria".</div>';
     return;
   }
   // Las ferias terminadas (o cerradas a mano) se hunden al final, separadas
   // por una línea divisoria, sin reordenar entre sí las que quedan arriba.
-  const activas    = ferias.filter(f => !feriaHaTerminado(f));
-  const terminadas = ferias.filter(feriaHaTerminado);
+  const activas    = feriasCanal.filter(f => !feriaHaTerminado(f));
+  const terminadas = feriasCanal.filter(feriaHaTerminado);
   const dividerHTML = terminadas.length
     ? '<div class="feria-list-divider"><span>Ferias terminadas</span></div>'
     : '';
@@ -373,6 +524,253 @@ export function renderFerias() {
     });
   });
 }
+
+// ── Canales de venta: galería (pantalla principal de Ventas) ─────────────────
+// Mismo patrón visual y de interacción que la galería de grupos de recetas
+// en Procesos: tarjetas 4:5, long-press = Editar/Borrar, doble clic/doble
+// toque = entrar, crear/editar in-place con ícono+nombre+color.
+
+function canalColorStyle(canal, idx) {
+  const customBg = canal.color ? hexToRgba(canal.color, .14) : null;
+  const hue = !customBg ? CANAL_HUES[idx % CANAL_HUES.length] : null;
+  const bg  = customBg || (hue != null ? `hsl(${hue} 70% 55% / .12)` : null);
+  const borderColor = canal.color ? `${canal.color}55` : (hue != null ? `hsl(${hue} 70% 45% / .35)` : 'var(--border)');
+  return { bg, borderColor };
+}
+
+function renderCanalesGallery(container) {
+  if (!canales.length && !creatingNewCanal) {
+    container.innerHTML = '<div class="empty-state">No hay canales de venta. Agrega el primero con "+ Nuevo canal".</div>';
+    return;
+  }
+
+  const cardsHTML = canales.map((canal, idx) => {
+    const { bg, borderColor } = canalColorStyle(canal, idx);
+    return `
+      <div class="canal-venta-card" data-canal-id="${esc(canal.id)}" draggable="true" style="${bg ? `background:${bg};` : ''}border-color:${borderColor}">
+        <div class="canal-venta-card-icon">${esc(canal.icono || '🏪')}</div>
+        <div class="canal-venta-card-name">${esc(canal.nombre)}</div>
+        <div class="canal-venta-card-actions">
+          <button type="button" data-edit-canal="${esc(canal.id)}">Editar</button>
+          <button type="button" data-del-canal="${esc(canal.id)}">Borrar</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  const newFormHTML = creatingNewCanal ? `
+    <div class="canal-venta-card canal-venta-card--form" data-new-canal-form>
+      <div class="receta-group-new-row">
+        <input type="text" class="receta-group-new-icon" placeholder="🏪" maxlength="4" />
+        <input type="text" class="receta-group-new-name" placeholder="Nombre del canal…" maxlength="40" />
+      </div>
+      <input type="color" class="receta-group-new-color" value="#714B67" />
+      <div class="receta-group-new-actions">
+        <button type="button" class="btn-primary" data-confirm-new-canal>Crear</button>
+        <button type="button" class="btn-outline" data-cancel-new-canal>Cancelar</button>
+      </div>
+      <div class="feedback" data-new-canal-feedback></div>
+    </div>` : '';
+
+  container.innerHTML = `<div class="canales-venta-grid">${newFormHTML}${cardsHTML}</div>`;
+
+  if (creatingNewCanal) {
+    const formEl    = container.querySelector('[data-new-canal-form]');
+    const nameInput = formEl.querySelector('.receta-group-new-name');
+    nameInput.focus();
+    formEl.querySelector('[data-cancel-new-canal]').addEventListener('click', () => {
+      creatingNewCanal = false;
+      renderFerias();
+    });
+    const confirmNewCanal = async () => {
+      const nombre = nameInput.value.trim();
+      const icono  = formEl.querySelector('.receta-group-new-icon').value.trim();
+      const color  = formEl.querySelector('.receta-group-new-color').value;
+      const fb     = formEl.querySelector('[data-new-canal-feedback]');
+      if (!nombre) return setFb(fb, 'Ponele un nombre al canal.', 'err');
+      if (canales.find(c => c.nombre.toLowerCase() === nombre.toLowerCase()))
+        return setFb(fb, 'Ya existe un canal con ese nombre.', 'err');
+      const btn = formEl.querySelector('[data-confirm-new-canal]');
+      btn.disabled = true;
+      try {
+        await appendCanal({ id: crypto.randomUUID(), nombre, color, icono, creadoEn: new Date().toISOString() });
+        await loadCanales();
+        creatingNewCanal = false;
+        renderFerias();
+      } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); btn.disabled = false; }
+    };
+    formEl.querySelector('[data-confirm-new-canal]').addEventListener('click', confirmNewCanal);
+    nameInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); confirmNewCanal(); }
+      if (e.key === 'Escape') { e.preventDefault(); creatingNewCanal = false; renderFerias(); }
+    });
+  }
+
+  container.querySelectorAll('[data-del-canal]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const canal = canales.find(c => c.id === btn.dataset.delCanal);
+      if (!canal) return;
+      if (!confirm(`¿Eliminar el canal "${canal.nombre}"?`)) return;
+      btn.disabled = true;
+      try {
+        await deleteCanal(canal.id);
+        renderFerias();
+      } catch (err) { alert(err.message); btn.disabled = false; }
+    });
+  });
+
+  container.querySelectorAll('[data-edit-canal]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const canal = canales.find(c => c.id === btn.dataset.editCanal);
+      if (!canal) return;
+      const card = btn.closest('.canal-venta-card');
+      card.outerHTML = `
+        <div class="canal-venta-card canal-venta-card--form" data-editing-canal="${esc(canal.id)}">
+          <div class="receta-group-new-row">
+            <input type="text" class="receta-group-new-icon" value="${esc(canal.icono || '')}" placeholder="🏪" maxlength="4" />
+            <input type="text" class="receta-group-new-name" value="${esc(canal.nombre)}" placeholder="Nombre del canal…" maxlength="40" />
+          </div>
+          <input type="color" class="receta-group-new-color" value="${esc(canal.color || '#714B67')}" />
+          <div class="receta-group-new-actions">
+            <button type="button" class="btn-primary" data-confirm-edit-canal>Guardar</button>
+            <button type="button" class="btn-outline" data-cancel-edit-canal>Cancelar</button>
+          </div>
+          <div class="feedback" data-edit-canal-feedback></div>
+        </div>`;
+      const formEl    = container.querySelector(`[data-editing-canal="${CSS.escape(canal.id)}"]`);
+      const nameInput = formEl.querySelector('.receta-group-new-name');
+      nameInput.focus();
+      formEl.querySelector('[data-cancel-edit-canal]').addEventListener('click', () => renderFerias());
+      const confirmEdit = async () => {
+        const nombre = nameInput.value.trim();
+        const icono  = formEl.querySelector('.receta-group-new-icon').value.trim();
+        const color  = formEl.querySelector('.receta-group-new-color').value;
+        const fb     = formEl.querySelector('[data-edit-canal-feedback]');
+        if (!nombre) return setFb(fb, 'Ponele un nombre al canal.', 'err');
+        const dup = canales.find(c => c.id !== canal.id && c.nombre.toLowerCase() === nombre.toLowerCase());
+        if (dup) return setFb(fb, 'Ya existe un canal con ese nombre.', 'err');
+        const saveBtn = formEl.querySelector('[data-confirm-edit-canal]');
+        saveBtn.disabled = true;
+        try {
+          await updateCanal({ ...canal, nombre, color, icono });
+          await loadCanales();
+          renderFerias();
+        } catch (err) { setFb(fb, 'Error: ' + err.message, 'err'); saveBtn.disabled = false; }
+      };
+      formEl.querySelector('[data-confirm-edit-canal]').addEventListener('click', confirmEdit);
+      nameInput.addEventListener('keydown', e2 => {
+        if (e2.key === 'Enter')  { e2.preventDefault(); confirmEdit(); }
+        if (e2.key === 'Escape') { e2.preventDefault(); renderFerias(); }
+      });
+    });
+  });
+
+  wireCanalCardPress(container);
+
+  // Reordenar canales arrastrando las tarjetas — mismo criterio que los
+  // grupos de recetas (sortOrder guardado en CanalesVenta).
+  container.querySelectorAll('.canal-venta-card[draggable="true"]').forEach(card => {
+    const canalId = card.dataset.canalId;
+    card.addEventListener('dragstart', e => {
+      draggedCanalId = canalId;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      container.querySelectorAll('.canal-venta-card.block-drag-over').forEach(el => el.classList.remove('block-drag-over'));
+      draggedCanalId = null;
+    });
+    card.addEventListener('dragover', e => {
+      if (!draggedCanalId || draggedCanalId === canalId) return;
+      e.preventDefault();
+      card.classList.add('block-drag-over');
+    });
+    card.addEventListener('dragleave', () => card.classList.remove('block-drag-over'));
+    card.addEventListener('drop', async e => {
+      if (!draggedCanalId || draggedCanalId === canalId) return;
+      e.preventDefault();
+      card.classList.remove('block-drag-over');
+      const fromIdx = canales.findIndex(c => c.id === draggedCanalId);
+      const toIdx   = canales.findIndex(c => c.id === canalId);
+      if (fromIdx === -1 || toIdx === -1) return;
+      const [moved] = canales.splice(fromIdx, 1);
+      canales.splice(toIdx, 0, moved);
+      canales.forEach((c, i) => { c.sortOrder = i; });
+      renderFerias();
+      try { await Promise.all(canales.map(updateCanal)); }
+      catch (err) { alert('Error al guardar el orden: ' + err.message); await loadCanales(); renderFerias(); }
+    });
+  });
+}
+
+// Mantener presionada una tarjeta de canal muestra el panel Editar/Borrar
+// montado sobre ella; doble clic/doble toque entra al canal. Un clic
+// normal no hace nada (mismo criterio que los grupos de recetas).
+function wireCanalCardPress(container) {
+  container.querySelectorAll('.canal-venta-card[data-canal-id]').forEach(card => {
+    const canalId = card.dataset.canalId;
+    let pressTimer  = null;
+    let longPressed = false;
+
+    const openCardActions = () => {
+      container.querySelectorAll('.canal-venta-card-actions.open').forEach(a => a.classList.remove('open'));
+      card.querySelector('.canal-venta-card-actions')?.classList.add('open');
+    };
+    const startPress = e => {
+      if (e.target.closest('button')) return;
+      longPressed = false;
+      pressTimer = setTimeout(() => { longPressed = true; openCardActions(); }, 550);
+    };
+    const cancelPress = () => clearTimeout(pressTimer);
+
+    card.addEventListener('mousedown', startPress);
+    card.addEventListener('mouseup', cancelPress);
+    card.addEventListener('mouseleave', cancelPress);
+    card.addEventListener('touchstart', startPress, { passive: true });
+    card.addEventListener('touchmove', cancelPress, { passive: true });
+
+    const enterCanal = () => {
+      currentCanalId = canalId;
+      // Sin botón "Volver" en pantalla — se sale del canal con el gesto
+      // nativo de deslizar desde el borde (o el botón atrás), que necesita
+      // esta entrada de historial para tener a dónde volver (ver popstate).
+      history.pushState({ view: 'ferias', canalDrill: true }, '', location.hash || '#ferias');
+      renderFerias();
+    };
+
+    card.addEventListener('click', e => { if (longPressed) longPressed = false; });
+    card.addEventListener('dblclick', e => {
+      if (longPressed || e.target.closest('button')) return;
+      enterCanal();
+    });
+    card.addEventListener('touchend', e => {
+      if (longPressed) { longPressed = false; return; }
+      if (e.target.closest('button') || wasAccidentalTouch()) return;
+      const now = Date.now();
+      const last = lastTapTime['canal_' + canalId] || 0;
+      lastTapTime['canal_' + canalId] = now;
+      if (now - last < 350) enterCanal();
+    });
+  });
+}
+
+// Clic afuera cierra el panel Editar/Borrar abierto — registrado una sola
+// vez a nivel de módulo (si fuera dentro de wireCanalCardPress quedaría un
+// listener nuevo apilado en cada re-render de la galería).
+document.addEventListener('click', () => {
+  document.querySelectorAll('.canal-venta-card-actions.open').forEach(a => a.classList.remove('open'));
+});
+
+// Sin botón "Volver" en pantalla: salir de un canal depende del gesto
+// nativo de deslizar/atrás del navegador, que dispara esto.
+window.addEventListener('popstate', () => {
+  if (currentCanalId != null) {
+    currentCanalId = null;
+    renderFerias();
+  }
+});
 
 function updateFeriaFechasTrigger() {
   const trigger = document.getElementById('feriaFechasTrigger');
@@ -461,6 +859,10 @@ document.getElementById('feriaOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('feriaOverlay')) closeFeriaModal();
 });
 document.getElementById('btnNewFeria').addEventListener('click', () => openFeriaModal(null));
+document.getElementById('btnNewCanal').addEventListener('click', () => {
+  creatingNewCanal = true;
+  renderFerias();
+});
 
 document.getElementById('btnSaveFeria').addEventListener('click', async () => {
   const empresa         = document.getElementById('feriaEmpresa').value.trim();
@@ -475,6 +877,9 @@ document.getElementById('btnSaveFeria').addEventListener('click', async () => {
   if (!empresa) { setFieldError('feriaEmpresa', 'La empresa organizadora es obligatoria.'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
   if (!fechaInicio || !fechaFin) { setFieldError('feriaFechas', 'Las fechas de la feria son obligatorias.', 'feriaFechasTrigger'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
   if (fechaInicio > fechaFin) { setFieldError('feriaFechas', 'La fecha de inicio no puede ser posterior a la de fin.', 'feriaFechasTrigger'); return setFb(fb, 'Revisa los campos marcados en rojo.', 'err'); }
+  // Defensa contra el atajo "+ Nueva feria" de la paleta de comandos, que
+  // puede llegar a este modal sin haber entrado antes a ningún canal.
+  if (!feriaEditId && !currentCanalId) return setFb(fb, 'Entra a un canal de venta antes de crear una feria.', 'err');
 
   const btn = document.getElementById('btnSaveFeria');
   btn.disabled = true; btn.textContent = 'Guardando…';
@@ -490,7 +895,8 @@ document.getElementById('btnSaveFeria').addEventListener('click', async () => {
         id: crypto.randomUUID(), empresa, fechaInicio, fechaFin, horaInicio: '', horaFin: '', precio, lugar,
         fechaImportante: '', observaciones, alineacion: 0, estado: 'confirmada', conteoPersonas: 0,
         planStock: {}, ventas: [], observacionesDiarias: [], conteoProductos: null,
-        conteoMenores30: 0, conteoEntre30y55: 0, conteoMayores55: 0, cerrada: false, muestras: []
+        conteoMenores30: 0, conteoEntre30y55: 0, conteoMayores55: 0, cerrada: false, muestras: [],
+        canalId: currentCanalId || ''
       });
     }
     await loadFerias();

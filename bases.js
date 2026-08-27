@@ -162,7 +162,7 @@ function applyModuleVisibility() {
 
 const MODULE_LABELS = {
   contenido: 'Contenido', tareas: 'Tareas', procesos: 'Procesos', compras: 'Compras',
-  ferias: 'Ferias', stock: 'Stock', informes: 'Informes', qr: 'QR', ideas: 'Ideas'
+  ferias: 'Ventas', stock: 'Stock', informes: 'Informes', qr: 'QR', ideas: 'Ideas'
 };
 
 export function showDbPicker() {

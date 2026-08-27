@@ -10,10 +10,10 @@ Cuando el usuario pida un cambio en un módulo específico, ir directo al archiv
 |---|---|---|
 | Contenido (historias de Instagram) | `contenido.js`  | Stories CRUD, dropzone de archivos, modal de Configuración/WhatsApp, emoji picker |
 | Tareas (Kanban / Gantt / Lista) | `tareas.js` | El módulo más grande. Kanban, Gantt, Lista, modal de tarea, cronómetro por tarea, filtros, detalle de tarea, suscripción a Google Calendar/Calendario de iOS (feed vía Worker) |
-| Procesos (recetas + ejecución de lotes) | `procesos.js` | Recetas, bloques de recetas, ejecución paso a paso con cronómetro, evaluación de lote (Fase 1/2/Sinéresis), notificaciones de WhatsApp por evaluación |
+| Procesos (recetas + ejecución de lotes) | `procesos.js` | Recetas, bloques de recetas, ejecución paso a paso con cronómetro, evaluación de lote (una sola fase: pH, envasado/rendimiento, calificación) |
 | Compras (precios de ingredientes) | `compras.js`    | Registro de compras, historial de precios, costo de producción |
 | Ingredientes (catálogo compartido) | `ingredientes.js` | CRUD de ingredientes, autocomplete — lo usan Compras y Procesos |
-| Ferias (participación en mercados) | `ferias.js`     | Ferias disponibles/confirmadas, plan de stock por día y lote, conteo de personas/ventas |
+| Ventas (canales de venta) | `ferias.js`     | Galería de canales de venta (ferias, Mercado Libre, etc. — tarjetas 4:5 configurables, mismo patrón que los grupos de recetas de Procesos); dentro de cada canal, ferias/eventos con plan de stock, conteo de personas, ventas, muestras, resumen |
 | Stock (inventario) | `stock.js`      | Resumen de inventario, trazabilidad, ajustes manuales, producto testigo |
 | Informes | `informes.js`   | Horas invertidas/pendientes (cruza datos de Tareas y Procesos) |
 | QR | `qr.js`         | Generar y guardar códigos QR |

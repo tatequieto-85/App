@@ -9,7 +9,7 @@ import { loadStories } from './contenido.js';
 import { switchSubTab, openTaskModal, enterTareasView, openDueBadgeDropdown, closeDueBadgeDropdown } from './tareas.js';
 import { loadProcesos, loadRecetasData, loadEjecucionesData } from './procesos.js';
 import { loadCompras, renderComprasList } from './compras.js';
-import { loadFerias, renderFerias, openTodaysFeriaCounterIfAny } from './ferias.js';
+import { loadFerias, loadCanales, renderFerias, openTodaysFeriaCounterIfAny } from './ferias.js';
 import { loadStockTestigos, loadStockMovimientos, renderStockResumen, renderStockTrazabilidad, renderStockTestigoList, openStockAjusteModal } from './stock.js';
 import { renderInformes } from './informes.js';
 import { loadQRs, renderQRList } from './qr.js';
@@ -70,7 +70,7 @@ export function navigateTo(view) {
     safeLoad(loadCompras, 'comprasList').then(ok => { if (ok) renderComprasList(); });
   }
   if (view === 'ferias') {
-    safeLoad(() => Promise.all([loadFerias(), loadRecetasData(), loadEjecucionesData()]), 'feriasList')
+    safeLoad(() => Promise.all([loadFerias(), loadCanales(), loadRecetasData(), loadEjecucionesData()]), 'feriasList')
       .then(ok => { if (ok) { renderFerias(); openTodaysFeriaCounterIfAny(); } });
   }
   if (view === 'stock') {
@@ -348,7 +348,7 @@ const COMMAND_PALETTE_ITEMS = [
   { label: 'Procesos · Recetas',     module: 'procesos',  action: () => { navigateTo('procesos'); document.querySelector('[data-procesostab="recetas"]')?.click(); } },
   { label: 'Procesos · Ejecuciones', module: 'procesos',  action: () => { navigateTo('procesos'); document.querySelector('[data-procesostab="ejecuciones"]')?.click(); } },
   { label: 'Compras',                module: 'compras',   action: () => navigateTo('compras') },
-  { label: 'Ferias',                 module: 'ferias',    action: () => navigateTo('ferias') },
+  { label: 'Ventas',                 module: 'ferias',    action: () => navigateTo('ferias') },
   { label: 'Stock · Resumen',        module: 'stock',     action: () => { navigateTo('stock'); document.querySelector('[data-stocktab="resumen"]')?.click(); } },
   { label: 'Stock · Trazabilidad',   module: 'stock',     action: () => { navigateTo('stock'); document.querySelector('[data-stocktab="trazabilidad"]')?.click(); } },
   { label: 'Stock · Producto testigo', module: 'stock',   action: () => { navigateTo('stock'); document.querySelector('[data-stocktab="testigo"]')?.click(); } },

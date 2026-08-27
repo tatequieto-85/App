@@ -176,8 +176,8 @@
               <div class="app-card-icon app-card-icon--rose">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4a1 1 0 011-1h11l-1.5 4L16 11H5"/></svg>
               </div>
-              <span class="app-card-label">Ferias</span>
-              <span class="app-card-sub">Participación · Conteo</span>
+              <span class="app-card-label">Ventas</span>
+              <span class="app-card-sub">Canales de venta</span>
             </button>
             <button class="app-card" data-nav="stock">
               <div class="app-card-icon app-card-icon--slate">
@@ -377,15 +377,16 @@
           </div>
         </div>
 
-        <!-- FERIAS VIEW -->
+        <!-- FERIAS VIEW (Ventas: galería de canales de venta > detalle por canal) -->
         <div id="viewFerias" class="view" style="display:none">
           <div class="main">
             <section class="card card--flat">
               <div class="section-header">
-                <h2 class="section-title">Ferias</h2>
-                <button class="btn-add-task" id="btnNewFeria">+ Nueva feria</button>
+                <h2 class="section-title" id="feriasSectionTitle">Canales de venta</h2>
+                <button class="btn-add-task" id="btnNewCanal">+ Nuevo canal</button>
+                <button class="btn-add-task" id="btnNewFeria" style="display:none">+ Nueva feria</button>
               </div>
-              <div id="feriasList"><div class="loading-state">Cargando ferias…</div></div>
+              <div id="feriasList"><div class="loading-state">Cargando…</div></div>
             </section>
           </div>
         </div>
@@ -880,7 +881,7 @@
           <label class="base-module-check"><input type="checkbox" value="tareas" checked /> Tareas</label>
           <label class="base-module-check"><input type="checkbox" value="procesos" checked /> Procesos</label>
           <label class="base-module-check"><input type="checkbox" value="compras" checked /> Compras</label>
-          <label class="base-module-check"><input type="checkbox" value="ferias" checked /> Ferias</label>
+          <label class="base-module-check"><input type="checkbox" value="ferias" checked /> Ventas</label>
           <label class="base-module-check"><input type="checkbox" value="stock" checked /> Stock</label>
           <label class="base-module-check"><input type="checkbox" value="informes" checked /> Informes</label>
           <label class="base-module-check"><input type="checkbox" value="qr" checked /> QR</label>
