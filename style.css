@@ -1021,19 +1021,22 @@ input, textarea, [contenteditable], [contenteditable] * {
 
 /* Editar/Borrar de una fila de Lista, ocultos hasta mantener presionada la
    fila (ver renderKanbanList) — mismo estilo que .kanban-card-actions y
-   .receta-group-card-actions: borrar en rojo, separador entre botones. */
-.tasks-row-actions { display: none; margin-left: 4px; vertical-align: middle; }
-tr.tasks-row-actions-open .tasks-row-actions {
-  display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+   .receta-group-card-actions: borrar en rojo, separador entre botones. Acá
+   "debajo de la tarjeta" es literalmente la fila de tabla siguiente (con
+   colspan a todo el ancho), no una columna aparte. */
+.tasks-row-actions-row { display: none; }
+.tasks-row-actions-row.open { display: table-row; }
+.tasks-row-actions-row td { padding: 0 !important; border-bottom: 1px solid var(--border); }
+.tasks-row-actions-bar { display: flex; }
+.tasks-row-actions-bar button {
+  flex: 1; border: none; background: var(--bg); cursor: pointer;
+  padding: 8px; font-size: 12.5px; font-weight: 600; color: var(--text);
+  transition: background .15s;
 }
-.tasks-row-actions button {
-  border: none; background: var(--surface); cursor: pointer;
-  padding: 3px 6px; font-size: 13px; line-height: 1; transition: background .15s;
-}
-.tasks-row-actions button:first-child { border-right: 1px solid var(--border); }
-.tasks-row-actions button:hover { background: var(--bg); }
-.tasks-row-actions button[data-del] { color: #C0392B; }
-.tasks-row-actions button[data-del]:hover { background: #EF444414; }
+.tasks-row-actions-bar button:first-child { border-right: 1px solid var(--border); }
+.tasks-row-actions-bar button:hover { background: var(--gray-100); }
+.tasks-row-actions-bar button[data-del] { color: #C0392B; }
+.tasks-row-actions-bar button[data-del]:hover { background: #EF444414; }
 
 /* ── Gantt view ──────────────────────────────────────────────────────────── */
 .gantt-zoom-switch {

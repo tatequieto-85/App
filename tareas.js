@@ -826,7 +826,7 @@ export function renderKanban() {
 // procesos.js/ferias.js con sus propios paneles de tarjeta.
 document.addEventListener('click', () => {
   document.querySelectorAll('.kanban-card-actions.open').forEach(a => a.classList.remove('open'));
-  document.querySelectorAll('tr.tasks-row-actions-open').forEach(tr => tr.classList.remove('tasks-row-actions-open'));
+  document.querySelectorAll('tr.tasks-row-actions-row.open').forEach(tr => tr.classList.remove('open'));
 });
 
 // ── Lista Render ──────────────────────────────────────────────────────────────
@@ -872,7 +872,7 @@ export function renderKanbanList() {
   const table = document.createElement('table');
   table.className = 'tasks-table';
   table.innerHTML = `<thead><tr>
-    <th>Área</th><th>Tarea</th><th>Estado</th><th>Prioridad</th><th>Fecha límite</th><th>Tiempo</th><th></th>
+    <th>Área / Tarea</th><th>Estado</th><th>Prioridad / Fecha límite</th><th></th>
   </tr></thead><tbody></tbody>`;
 
   const tbody = table.querySelector('tbody');
@@ -884,27 +884,38 @@ export function renderKanbanList() {
     const tr    = document.createElement('tr');
     tr.style.cursor = 'pointer';
     tr.innerHTML = `
-      <td><span style="font-size:12px;color:var(--text-sub)">${esc(task.area)}</span></td>
       <td>
+        <span style="font-size:11px;color:var(--text-sub);display:block">${esc(task.area)}</span>
         <strong style="font-size:13px;color:var(--vinotinto);display:block">${esc(task.title)}</strong>
-        ${task.desc ? `<span style="font-size:11px;color:var(--text-sub)">${esc(task.desc)}</span>` : ''}
         ${stCount ? `<span style="font-size:11px;color:var(--text-sub)">📋 ${stCount} sub-tarea${stCount !== 1 ? 's' : ''}</span>` : ''}
       </td>
       <td><span class="status-pill" style="background:${color}22;color:${color}">${esc(task.status)}</span></td>
-      <td>${task.priority ? `<span class="kanban-card-priority kanban-priority-${esc(task.priority)}">${PRIORITY_LABELS[task.priority] || ''}</span>` : ''}</td>
-      <td><span class="kanban-card-due ${due.cls}" style="font-size:12px">${due.text}</span></td>
-      <td><span style="font-size:12px;color:var(--text-sub)">${(task.timeSessions || []).length ? fmtDuration(getTaskTotalMs(task)) : '—'}</span></td>
+      <td>
+        ${task.priority ? `<span class="kanban-card-priority kanban-priority-${esc(task.priority)}">${PRIORITY_LABELS[task.priority] || ''}</span>` : ''}
+        <span class="kanban-card-due ${due.cls}" style="font-size:12px;display:block">${due.text}</span>
+      </td>
       <td style="white-space:nowrap">
         <button class="task-action-btn" data-view="${task.id}" title="Ver detalle">👁</button>
-        <span class="tasks-row-actions">
-          <button type="button" data-edit="${task.id}" title="Editar">${ICON_EDIT}</button>
-          <button type="button" data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
-        </span>
+      </td>
+    `;
+
+    // Panel Editar/Borrar en una fila propia debajo, ocupando todo el ancho
+    // (no metido en la última columna) — mismo estilo (rojo el borrar,
+    // separador entre botones) que el resto de los paneles de la app, solo
+    // que acá "debajo de la tarjeta" es literalmente la fila siguiente.
+    const actionsRow = document.createElement('tr');
+    actionsRow.className = 'tasks-row-actions-row';
+    actionsRow.innerHTML = `
+      <td colspan="4" style="padding:0">
+        <div class="tasks-row-actions-bar">
+          <button type="button" data-edit="${task.id}">${ICON_EDIT}Editar</button>
+          <button type="button" data-del="${task.id}" data-row="${task.rowIndex}">${ICON_TRASH}Borrar</button>
+        </div>
       </td>
     `;
 
     // Editar/Borrar solo aparecen manteniendo la fila presionada — mismo
-    // patrón y mismo estilo (rojo el borrar) que las tarjetas de grupo en
+    // patrón (550ms, cancela con movimiento) que las tarjetas de grupo en
     // Procesos/Ventas y que las tarjetas del Kanban (ver renderKanban).
     let pressTimer  = null;
     let longPressed = false;
@@ -913,8 +924,8 @@ export function renderKanbanList() {
       longPressed = false;
       pressTimer = setTimeout(() => {
         longPressed = true;
-        tbody.querySelectorAll('tr.tasks-row-actions-open').forEach(r => r.classList.remove('tasks-row-actions-open'));
-        tr.classList.add('tasks-row-actions-open');
+        tbody.querySelectorAll('tr.tasks-row-actions-row.open').forEach(r => r.classList.remove('open'));
+        actionsRow.classList.add('open');
       }, 550);
     };
     const cancelPress = () => clearTimeout(pressTimer);
@@ -939,6 +950,7 @@ export function renderKanbanList() {
       if (now - last < 350) openTaskDetail(task.id);
     });
     tbody.appendChild(tr);
+    tbody.appendChild(actionsRow);
   });
 
   container.innerHTML = '';
