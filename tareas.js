@@ -705,20 +705,44 @@ export function renderKanban() {
         ${due.text   ? `<div class="kanban-card-due ${due.cls}">${due.text}</div>` : ''}
         <div class="kanban-card-footer">
           <span class="kanban-card-hint">doble clic = ver detalle</span>
-          <div style="display:flex;gap:4px">
-            <button data-edit="${task.id}" title="Editar">${ICON_EDIT}</button>
-            <button data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
+          <div class="kanban-card-actions">
+            <button type="button" data-edit="${task.id}">Editar</button>
+            <button type="button" data-del="${task.id}" data-row="${task.rowIndex}">Borrar</button>
           </div>
         </div>
         ${tl ? `<div class="kanban-traffic-bar ${tl.cls}" title="${tl.tip}"></div>` : ''}
       `;
 
-      card.addEventListener('dblclick', (e) => {
+      // Editar/Borrar solo aparecen manteniendo la tarjeta presionada — mismo
+      // patrón (550ms, cancela con movimiento) que las tarjetas de grupo en
+      // Procesos/Ventas. Doble clic/doble toque sigue abriendo el detalle.
+      let pressTimer  = null;
+      let longPressed = false;
+      const openCardActions = () => {
+        board.querySelectorAll('.kanban-card-actions.open').forEach(a => a.classList.remove('open'));
+        card.querySelector('.kanban-card-actions')?.classList.add('open');
+      };
+      const startPress = e => {
         if (e.target.closest('button')) return;
+        longPressed = false;
+        pressTimer = setTimeout(() => { longPressed = true; openCardActions(); }, 550);
+      };
+      const cancelPress = () => clearTimeout(pressTimer);
+      card.addEventListener('mousedown', startPress);
+      card.addEventListener('mouseup', cancelPress);
+      card.addEventListener('mouseleave', cancelPress);
+      card.addEventListener('touchstart', startPress, { passive: true });
+      card.addEventListener('touchmove', cancelPress, { passive: true });
+      card.addEventListener('click', () => { if (longPressed) longPressed = false; });
+
+      card.addEventListener('dblclick', (e) => {
+        if (longPressed || e.target.closest('button')) return;
         openTaskDetail(task.id);
       });
 
       card.addEventListener('touchend', (e) => {
+        cancelPress();
+        if (longPressed) { longPressed = false; return; }
         if (e.target.closest('button') || wasAccidentalTouch()) return;
         const now = Date.now();
         const last = lastTapTime[task.id] || 0;
@@ -797,6 +821,14 @@ export function renderKanban() {
   });
 }
 
+// Clic afuera cierra el panel Editar/Borrar abierto (tarjeta Kanban o fila
+// de Lista) — registrado una sola vez a nivel de módulo, mismo criterio que
+// procesos.js/ferias.js con sus propios paneles de tarjeta.
+document.addEventListener('click', () => {
+  document.querySelectorAll('.kanban-card-actions.open').forEach(a => a.classList.remove('open'));
+  document.querySelectorAll('tr.tasks-row-actions-open').forEach(tr => tr.classList.remove('tasks-row-actions-open'));
+});
+
 // ── Lista Render ──────────────────────────────────────────────────────────────
 
 function listaTerminalToggleBtn(termCount) {
@@ -864,13 +896,47 @@ export function renderKanbanList() {
       <td><span style="font-size:12px;color:var(--text-sub)">${(task.timeSessions || []).length ? fmtDuration(getTaskTotalMs(task)) : '—'}</span></td>
       <td style="white-space:nowrap">
         <button class="task-action-btn" data-view="${task.id}" title="Ver detalle">👁</button>
-        <button class="task-action-btn" data-edit="${task.id}" title="Editar">${ICON_EDIT}</button>
-        <button class="task-action-btn" data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
+        <span class="tasks-row-actions">
+          <button type="button" data-edit="${task.id}" title="Editar">${ICON_EDIT}</button>
+          <button type="button" data-del="${task.id}" data-row="${task.rowIndex}" title="Eliminar">${ICON_TRASH}</button>
+        </span>
       </td>
     `;
-    tr.addEventListener('dblclick', (e) => {
+
+    // Editar/Borrar solo aparecen manteniendo la fila presionada — mismo
+    // patrón y mismo estilo (rojo el borrar) que las tarjetas de grupo en
+    // Procesos/Ventas y que las tarjetas del Kanban (ver renderKanban).
+    let pressTimer  = null;
+    let longPressed = false;
+    const startPress = e => {
       if (e.target.closest('button')) return;
+      longPressed = false;
+      pressTimer = setTimeout(() => {
+        longPressed = true;
+        tbody.querySelectorAll('tr.tasks-row-actions-open').forEach(r => r.classList.remove('tasks-row-actions-open'));
+        tr.classList.add('tasks-row-actions-open');
+      }, 550);
+    };
+    const cancelPress = () => clearTimeout(pressTimer);
+    tr.addEventListener('mousedown', startPress);
+    tr.addEventListener('mouseup', cancelPress);
+    tr.addEventListener('mouseleave', cancelPress);
+    tr.addEventListener('touchstart', startPress, { passive: true });
+    tr.addEventListener('touchmove', cancelPress, { passive: true });
+    tr.addEventListener('click', () => { if (longPressed) longPressed = false; });
+
+    tr.addEventListener('dblclick', (e) => {
+      if (longPressed || e.target.closest('button')) return;
       openTaskDetail(task.id);
+    });
+    tr.addEventListener('touchend', (e) => {
+      cancelPress();
+      if (longPressed) { longPressed = false; return; }
+      if (e.target.closest('button') || wasAccidentalTouch()) return;
+      const now  = Date.now();
+      const last = lastTapTime['lista_' + task.id] || 0;
+      lastTapTime['lista_' + task.id] = now;
+      if (now - last < 350) openTaskDetail(task.id);
     });
     tbody.appendChild(tr);
   });

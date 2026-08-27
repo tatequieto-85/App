@@ -875,13 +875,28 @@ input, textarea, [contenteditable], [contenteditable] * {
 .kanban-priority-media { background: #EAB30822; color: #A6790A; }
 .kanban-priority-baja  { background: #22C55E22; color: #1F7A44; }
 
-.kanban-card-footer { display: flex; justify-content: flex-end; gap: 2px; margin-top: 8px; }
+.kanban-card-footer { display: flex; justify-content: flex-end; gap: 2px; margin-top: 8px; position: relative; }
 .kanban-card-footer button {
   background: none; border: none; cursor: pointer;
   padding: 3px 5px; border-radius: 4px; font-size: 12px;
   transition: background .15s; line-height: 1;
 }
 .kanban-card-footer button:hover { background: rgba(0,0,0,.07); }
+
+/* Panel Editar/Borrar montado sobre el footer de la tarjeta al mantenerla
+   presionada — mismo estilo que .receta-group-card-actions en Procesos. */
+.kanban-card-actions {
+  display: none; position: absolute; inset: 0; background: var(--surface);
+}
+.kanban-card-actions.open { display: flex; }
+.kanban-card-actions button {
+  flex: 1; border: none; background: var(--surface); cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--text); padding: 3px 5px;
+}
+.kanban-card-actions button:first-child { border-right: 1px solid var(--border); }
+.kanban-card-actions button:hover { background: var(--bg); }
+.kanban-card-actions button[data-del] { color: #C0392B; }
+.kanban-card-actions button[data-del]:hover { background: #EF444414; }
 
 .kanban-toggle-terminal {
   flex-shrink: 0; align-self: flex-start; min-width: 150px;
@@ -952,6 +967,22 @@ input, textarea, [contenteditable], [contenteditable] * {
   transition: background .15s;
 }
 .task-action-btn:hover { background: rgba(0,0,0,.07); }
+
+/* Editar/Borrar de una fila de Lista, ocultos hasta mantener presionada la
+   fila (ver renderKanbanList) — mismo estilo que .kanban-card-actions y
+   .receta-group-card-actions: borrar en rojo, separador entre botones. */
+.tasks-row-actions { display: none; margin-left: 4px; vertical-align: middle; }
+tr.tasks-row-actions-open .tasks-row-actions {
+  display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+}
+.tasks-row-actions button {
+  border: none; background: var(--surface); cursor: pointer;
+  padding: 3px 6px; font-size: 13px; line-height: 1; transition: background .15s;
+}
+.tasks-row-actions button:first-child { border-right: 1px solid var(--border); }
+.tasks-row-actions button:hover { background: var(--bg); }
+.tasks-row-actions button[data-del] { color: #C0392B; }
+.tasks-row-actions button[data-del]:hover { background: #EF444414; }
 
 /* ── Gantt view ──────────────────────────────────────────────────────────── */
 .gantt-zoom-switch {
