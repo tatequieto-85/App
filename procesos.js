@@ -50,6 +50,45 @@ function hexToRgba(hex, alpha) {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
+// ── Nivel de picante ─────────────────────────────────────────────────────────
+// Fijo por receta, no por grupo — se detecta solo a partir de qué ají
+// aparece en los ingredientes de la receta (el más picante que encuentra
+// gana si hay varios); sin ninguno de estos, queda "tranqui". De más suave
+// a más fuerte:
+const NIVEL_PICANTE_ORDEN = ['tranqui', 'cayena', 'habanero', 'ghost', 'carolina reaper'];
+const NIVEL_PICANTE_INFO = {
+  tranqui:            { label: 'Tranqui',          color: '#7B4B28' },
+  cayena:             { label: 'Cayena',            color: '#2E7D32' },
+  habanero:           { label: 'Habanero',          color: '#F97316' },
+  ghost:               { label: 'Ghost',             color: '#7B1E3A' },
+  'carolina reaper':  { label: 'Carolina Reaper',   color: '#3B0A0A' }
+};
+
+function normalizeParaPicante(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// Recorre los ingredientes de la receta de más picante a menos y devuelve
+// el primero que encuentre mencionado en algún nombre de ingrediente.
+function detectNivelPicante(ingredientesMaestros) {
+  const nombres = (ingredientesMaestros || []).map(ing => normalizeParaPicante(ing.nombre));
+  for (let i = NIVEL_PICANTE_ORDEN.length - 1; i >= 1; i--) {
+    const nivel = NIVEL_PICANTE_ORDEN[i];
+    if (nombres.some(n => n.includes(nivel))) return nivel;
+  }
+  return 'tranqui';
+}
+
+function nivelPicanteStyle(nivel) {
+  const info = NIVEL_PICANTE_INFO[nivel] || NIVEL_PICANTE_INFO.tranqui;
+  return {
+    bg: hexToRgba(info.color, .14),
+    borderColor: `${info.color}55`,
+    label: info.label,
+    color: info.color
+  };
+}
+
 // Suma de frascos producidos para una receta — la usan tanto Ferias como
 // Stock para calcular disponibilidad, por eso vive aquí (dueño de `ejecuciones`)
 // y no en el módulo donde se llama.
@@ -94,11 +133,17 @@ export async function initRecetasSheets() {
     });
   }
 
-  const rd = await sheetsReq('/values/RecetasPlantillas!A1:G1').catch(() => ({}));
-  if (!rd.values || (rd.values[0] || []).length < 7) {
-    await sheetsReq('/values/RecetasPlantillas!A1:G1?valueInputOption=RAW', {
+  const rd = await sheetsReq('/values/RecetasPlantillas!A1:H1').catch(() => ({}));
+  const rdRow = (rd.values || [])[0] || [];
+  if (rdRow.length < 7) {
+    await sheetsReq('/values/RecetasPlantillas!A1:H1?valueInputOption=RAW', {
       method: 'PUT',
-      body: JSON.stringify({ values: [['ID','Nombre','Descripcion','Etapas','CreadoEn','IngredientesMaestros','BlockId']] })
+      body: JSON.stringify({ values: [['ID','Nombre','Descripcion','Etapas','CreadoEn','IngredientesMaestros','BlockId','NivelPicante']] })
+    });
+  } else if (rdRow.length < 8) {
+    await sheetsReq('/values/RecetasPlantillas!H1?valueInputOption=RAW', {
+      method: 'PUT',
+      body: JSON.stringify({ values: [['NivelPicante']] })
     });
   }
 
@@ -122,12 +167,22 @@ export async function initRecetasSheets() {
       body: JSON.stringify({ values: [['ID','RecetaID','NombreReceta','LoteID','FechaInicio','FechaFin','Estado','DuracionTotal','EtapasData','Evaluacion','CreadoEn']] })
     });
   }
+
+  // Backfill del nivel de picante para recetas que ya existían antes de
+  // esta columna — se detecta con los mismos ingredientes que ya tenían
+  // cargados. Idempotente: solo toca las que todavía no tienen nivel.
+  await loadRecetasData();
+  const sinNivel = recetas.filter(r => !r.nivelPicante);
+  for (const r of sinNivel) {
+    r.nivelPicante = detectNivelPicante(r.ingredientesMaestros);
+    await updateReceta(r);
+  }
 }
 
 // ── Procesos: CRUD ────────────────────────────────────────────────────────────
 
 export async function loadRecetasData() {
-  const data = await sheetsReq('/values/RecetasPlantillas!A:G');
+  const data = await sheetsReq('/values/RecetasPlantillas!A:H');
   const rows = (data.values || []).slice(1);
   recetas = rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0] || '',
@@ -137,26 +192,27 @@ export async function loadRecetasData() {
     creadoEn:             r[4] || '',
     ingredientesMaestros: safeParseJSON(r[5], []),
     blockId:              r[6] || '',
+    nivelPicante:         r[7] || '',
     rowIndex:             i + 2
   }));
 }
 
 async function appendReceta(rec) {
-  await sheetsReq('/values/RecetasPlantillas!A:G:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/RecetasPlantillas!A:H:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       rec.id, rec.nombre, rec.descripcion, JSON.stringify(rec.etapas), rec.creadoEn,
-      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || ''
+      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || '', rec.nivelPicante || ''
     ]]})
   });
 }
 
 async function updateReceta(rec) {
-  await sheetsReq(`/values/RecetasPlantillas!A${rec.rowIndex}:G${rec.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/RecetasPlantillas!A${rec.rowIndex}:H${rec.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
       rec.id, rec.nombre, rec.descripcion, JSON.stringify(rec.etapas), rec.creadoEn,
-      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || ''
+      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || '', rec.nivelPicante || ''
     ]]})
   });
 }
@@ -306,14 +362,15 @@ export async function loadProcesos() {
 // Sin botones visibles — todo es gesto: un clic = ver pasos, doble clic =
 // empezar ejecución, mantener presionado = panel Editar/Borrar montado
 // sobre la tarjeta (mismo patrón que las tarjetas de grupo, ver
-// wireRecetaCardEvents más abajo).
-function recetaCardHTML(r, groupStyle) {
-  const { bg, borderColor } = groupStyle || {};
+// wireRecetaCardEvents más abajo). El color ya no lo hereda del grupo —
+// es fijo por nivel de picante (ver detectNivelPicante).
+function recetaCardHTML(r) {
+  const { bg, borderColor, label } = nivelPicanteStyle(r.nivelPicante);
   return `
-    <div class="receta-card" data-id="${esc(r.id)}" style="${bg ? `background:${bg};` : ''}${borderColor ? `border-color:${borderColor}` : ''}">
+    <div class="receta-card" data-id="${esc(r.id)}" style="background:${bg};border-color:${borderColor}">
       <div class="receta-card-body">
         <div class="receta-card-title">${esc(r.nombre)}</div>
-        <div class="receta-card-meta">🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''}</div>
+        <div class="receta-card-meta">🌶️ ${label} · 🥄 ${r.etapas.length} etapa${r.etapas.length !== 1 ? 's' : ''}</div>
       </div>
       <div class="receta-card-actions">
         <button type="button" data-edit-receta="${esc(r.id)}">Editar</button>
@@ -592,17 +649,15 @@ document.addEventListener('click', () => {
 });
 
 // Recetas de un solo grupo — se llega tocando su tarjeta en la galería.
-// Heredan el mismo color que la tarjeta de ese grupo en la galería (mismo
-// índice, mismo groupColorStyle).
+// El color de la tarjeta ya no es el del grupo, es por nivel de picante
+// (ver recetaCardHTML) — el grupo solo sigue definiendo su propia tarjeta
+// en la galería.
 function renderRecetaGroupDetail(container) {
-  const allSections = recetaGroupSections().filter(s => s.id);
-  const idx = allSections.findIndex(s => s.id === currentRecetaGroupId);
-  const sec = allSections[idx] || recetaGroupSections().find(s => s.id === currentRecetaGroupId);
+  const sec = recetaGroupSections().find(s => s.id === currentRecetaGroupId);
   if (!sec) { currentRecetaGroupId = null; renderRecetasList(); return; }
 
-  const groupStyle = idx >= 0 ? groupColorStyle(sec, idx) : null;
   container.innerHTML = sec.items.length
-    ? `<div class="receta-cards-grid">${sec.items.map(r => recetaCardHTML(r, groupStyle)).join('')}</div>`
+    ? `<div class="receta-cards-grid">${sec.items.map(r => recetaCardHTML(r)).join('')}</div>`
     : '<div class="receta-block-empty">No hay recetas en este grupo todavía.</div>';
 
   wireRecetaCardEvents(container);
@@ -1439,6 +1494,10 @@ document.getElementById('btnSaveReceta').addEventListener('click', async () => {
     || ingredientesMaestros.some(im => im.cantidadTotal < 0);
   if (hayCantidadNegativa) return setFb(fb, 'Las cantidades de insumos no pueden ser negativas.', 'err');
 
+  // El nivel de picante no se elige a mano: sale solo de qué ají aparece
+  // entre los ingredientes de la receta (ver detectNivelPicante).
+  const nivelPicante = detectNivelPicante(ingredientesMaestros);
+
   const btn = document.getElementById('btnSaveReceta');
   btn.disabled = true; btn.textContent = 'Guardando…';
 
@@ -1448,12 +1507,13 @@ document.getElementById('btnSaveReceta').addEventListener('click', async () => {
       if (rec) {
         rec.nombre = nombre; rec.etapas = etapas;
         rec.ingredientesMaestros = ingredientesMaestros;
+        rec.nivelPicante = nivelPicante;
         await updateReceta(rec);
       }
     } else {
       await appendReceta({
         id: crypto.randomUUID(), nombre, descripcion: '', etapas,
-        ingredientesMaestros, blockId: newRecetaBlockId,
+        ingredientesMaestros, blockId: newRecetaBlockId, nivelPicante,
         creadoEn: new Date().toISOString()
       });
     }
