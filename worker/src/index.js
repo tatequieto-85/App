@@ -192,10 +192,24 @@ function icsDate(iso) {
   return (iso || '').replace(/-/g, '');
 }
 
+// Fecha+hora completa en formato ICS (YYYYMMDDTHHMMSSZ) — a diferencia de
+// icsDate() (solo el día, para eventos de día completo como las tareas),
+// esto es para eventos con horario exacto (historias: ScheduledAt ya viene
+// como datetime ISO completo). También sirve para DTSTAMP.
+function icsDateTime(iso) {
+  return (iso || '').replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+}
+
 function addDaysToISO(iso, days) {
   const d = new Date(iso + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+function addMinutesToISO(iso, minutes) {
+  const d = new Date(iso);
+  d.setUTCMinutes(d.getUTCMinutes() + minutes);
+  return d.toISOString();
 }
 
 // Duplica DEFAULT_COLUMNS de tareas.js (el Worker no puede importar del
@@ -204,13 +218,11 @@ function addDaysToISO(iso, days) {
 // del título, no si la tarea aparece o no en el calendario.
 const TERMINAL_STATES = ['Realizado', 'Cancelado', 'Postpuesto'];
 
-function tasksToICS(rows) {
-  const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
-  const lines = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TATEAPP//Tareas//ES',
-    'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
-    'X-WR-CALNAME:TATEAPP — Tareas', 'X-PUBLISHED-TTL:PT1H'
-  ];
+// Arma solo los VEVENT (sin envoltorio VCALENDAR) — handleCalendar combina
+// esto con storiesToEvents() en un único feed.
+function tasksToEvents(rows) {
+  const now = icsDateTime(new Date().toISOString());
+  const lines = [];
   rows.slice(1).forEach(r => {
     const id = r[0];
     if (!id) return;
@@ -239,7 +251,48 @@ function tasksToICS(rows) {
     );
     lines.push('END:VEVENT');
   });
-  lines.push('END:VCALENDAR');
+  return lines;
+}
+
+// Historias de Instagram (Contenido) — a diferencia de las tareas, tienen
+// hora exacta de publicación (ScheduledAt es un datetime ISO completo), así
+// que el evento cae a esa hora en vez de ser de día completo. UID lleva un
+// sufijo "-story" para no colisionar con el UID de una tarea.
+function storiesToEvents(rows) {
+  const now = icsDateTime(new Date().toISOString());
+  const lines = [];
+  rows.slice(1).forEach(r => {
+    const id          = r[0];
+    const scheduledAt = r[3] || '';
+    if (!id || !scheduledAt) return;
+
+    const title  = r[1] || '(sin título)';
+    const actions = r[2] || '';
+    const dtStart = icsDateTime(scheduledAt);
+    const dtEnd   = icsDateTime(addMinutesToISO(scheduledAt, 30));
+
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${id}-story@tateapp`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${dtStart}`,
+      `DTEND:${dtEnd}`,
+      `SUMMARY:${icsEscape('📸 ' + title)}`,
+      `DESCRIPTION:${icsEscape(actions)}`
+    );
+    lines.push('END:VEVENT');
+  });
+  return lines;
+}
+
+function buildICS(eventLines) {
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TATEAPP//Tareas//ES',
+    'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'X-WR-CALNAME:TATEAPP — Tareas', 'X-PUBLISHED-TTL:PT1H',
+    ...eventLines,
+    'END:VCALENDAR'
+  ];
   // RFC 5545 pide plegar líneas largas por octeto, pero eso puede cortar un
   // carácter UTF-8 (tildes, ñ, emoji) a la mitad; Google Calendar acepta
   // líneas largas sin plegar sin problema, así que se deja así.
@@ -260,12 +313,29 @@ async function handleCalendar(url, env) {
   const tokens = await refreshWithGoogle(refreshToken, env);
   if (tokens.error || !tokens.access_token) return new Response('refresh_failed', { status: 401 });
 
-  const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values/KanbanTasks!A:P`;
-  const sheetsResp = await fetch(sheetsUrl, { headers: { Authorization: `Bearer ${tokens.access_token}` } });
-  if (!sheetsResp.ok) return new Response('sheets_error', { status: 502 });
-  const data = await sheetsResp.json();
+  const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(sheetId)}/values`;
+  const authHeaders = { Authorization: `Bearer ${tokens.access_token}` };
 
-  return new Response(tasksToICS(data.values || []), {
+  const tasksResp = await fetch(`${base}/KanbanTasks!A:P`, { headers: authHeaders });
+  if (!tasksResp.ok) return new Response('sheets_error', { status: 502 });
+  const tasksData = await tasksResp.json();
+
+  // Stories es opcional: si la pestaña todavía no existe en una base vieja
+  // (no debería pasar, pero por las dudas) el feed sigue funcionando solo
+  // con tareas en vez de romperse entero.
+  let storiesRows = [];
+  const storiesResp = await fetch(`${base}/Stories!A:K`, { headers: authHeaders });
+  if (storiesResp.ok) {
+    const storiesData = await storiesResp.json();
+    storiesRows = storiesData.values || [];
+  }
+
+  const eventLines = [
+    ...tasksToEvents(tasksData.values || []),
+    ...storiesToEvents(storiesRows)
+  ];
+
+  return new Response(buildICS(eventLines), {
     headers: {
       'Content-Type': 'text/calendar; charset=utf-8',
       'Content-Disposition': 'inline; filename="tateapp-tareas.ics"',

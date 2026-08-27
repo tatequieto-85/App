@@ -518,7 +518,7 @@ function getTasksByDueCategory(cat) {
 // notificaciones. Badging API — soportada en iOS 16.4+ (agregada a
 // pantalla de inicio) y en Chrome/Android; en navegadores sin soporte
 // esto simplemente no hace nada.
-function updateAppIconBadge(count) {
+export function updateAppIconBadge(count) {
   if (!('setAppBadge' in navigator)) return;
   if (count > 0) navigator.setAppBadge(count).catch(() => {});
   else navigator.clearAppBadge().catch(() => {});
@@ -548,13 +548,23 @@ export async function requestAppBadgePermission() {
   return { ok: true, msg: '✅ Contador activado en el ícono.' };
 }
 
+// Cuántas tareas cuentan para el badge del ícono (hoy + atrasadas, sin
+// terminar) — factorizado de updateDueBadgeCounts() para que contenido.js
+// pueda sumarle sus propias historias pendientes al mismo número (ver
+// loadStories() en contenido.js).
+export function getTasksDueBadgeCount() {
+  return getTasksByDueCategory('hoy').length + getTasksByDueCategory('atrasado').length;
+}
+
 function updateDueBadgeCounts() {
   const hoyCount      = getTasksByDueCategory('hoy').length;
   const atrasadoCount = getTasksByDueCategory('atrasado').length;
 
   // El badge del ícono se actualiza sin importar en qué pestaña esté el
   // usuario — a diferencia de los contadores de abajo, que solo existen
-  // en el DOM cuando la pantalla de Tareas está montada.
+  // en el DOM cuando la pantalla de Tareas está montada. Esto deja el badge
+  // con el número de tareas solo; contenido.js lo vuelve a poner con el
+  // total combinado (tareas + historias) cada vez que recarga historias.
   updateAppIconBadge(hoyCount + atrasadoCount);
 
   const hoyEl      = document.getElementById('dueCountHoy');

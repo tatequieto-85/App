@@ -1,6 +1,6 @@
 import { sheetsReq, uploadToDrive, deleteDriveFile, downloadDriveFile, thumbUrl } from './auth.js';
 import { esc, setFb, fmtDate, delay, confirmCloseIfDirty, safeLoad, todayISOBogota, ICON_FILM, ICON_IMAGE, ICON_FOLDER, ICON_DOWNLOAD, ICON_CHECK, ICON_CALENDAR, ICON_TRASH, ICON_EDIT, ICON_SPINNER } from './utils.js';
-import { requestAppBadgePermission } from './tareas.js';
+import { requestAppBadgePermission, updateAppIconBadge, getTasksDueBadgeCount } from './tareas.js';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const dropzone      = document.getElementById('dropzone');
@@ -38,6 +38,7 @@ const settingsFeedback = document.getElementById('settingsFeedback');
 
 let selectedFiles  = [];
 let storiesSheetId = null;
+let storiesCache   = [];
 
 export async function initSheet() {
   const info = await sheetsReq('');
@@ -114,8 +115,17 @@ export async function loadStories() {
       .filter(s => !s.sent)
       .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
 
+    storiesCache = stories;
     renderStories(stories);
+    updateAppIconBadge(getTasksDueBadgeCount() + getStoriesDueBadgeCount());
   }, storiesList);
+}
+
+// Cuántas historias cuentan para el badge del ícono (programadas para hoy
+// o ya vencidas sin publicar) — publicar borra la fila (ver deleteStory),
+// así que todo lo que sigue cargado está, por definición, sin publicar.
+function getStoriesDueBadgeCount() {
+  return storiesCache.filter(s => isToday(s.scheduledAt) || isOverdue(s.scheduledAt)).length;
 }
 
 async function appendStory(story) {
@@ -376,6 +386,12 @@ function isToday(isoDate) {
   if (!isoDate) return false;
   const toDay = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   return toDay(isoDate) === todayISOBogota();
+}
+
+function isOverdue(isoDate) {
+  if (!isoDate) return false;
+  const toDay = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  return toDay(isoDate) < todayISOBogota();
 }
 
 // ── Render stories ────────────────────────────────────────────────────────────
