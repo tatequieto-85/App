@@ -577,45 +577,7 @@ function renderCanalesGallery(container) {
       e.stopPropagation();
       const canal = canales.find(c => c.id === btn.dataset.editCanal);
       if (!canal) return;
-      const card = btn.closest('.canal-venta-card');
-      card.outerHTML = `
-        <div class="canal-venta-card canal-venta-card--form" data-editing-canal="${esc(canal.id)}">
-          <div class="receta-group-new-row">
-            <input type="text" class="receta-group-new-icon" value="${esc(canal.icono || '')}" placeholder="🏪" maxlength="4" />
-            <input type="text" class="receta-group-new-name" value="${esc(canal.nombre)}" placeholder="Nombre del canal…" maxlength="40" />
-          </div>
-          <input type="color" class="receta-group-new-color" value="${esc(canal.color || '#714B67')}" />
-          <div class="receta-group-new-actions">
-            <button type="button" class="btn-primary" data-confirm-edit-canal>Guardar</button>
-            <button type="button" class="btn-outline" data-cancel-edit-canal>Cancelar</button>
-          </div>
-          <div class="feedback" data-edit-canal-feedback></div>
-        </div>`;
-      const formEl    = container.querySelector(`[data-editing-canal="${CSS.escape(canal.id)}"]`);
-      const nameInput = formEl.querySelector('.receta-group-new-name');
-      nameInput.focus();
-      formEl.querySelector('[data-cancel-edit-canal]').addEventListener('click', () => renderFerias());
-      const confirmEdit = async () => {
-        const nombre = nameInput.value.trim();
-        const icono  = formEl.querySelector('.receta-group-new-icon').value.trim();
-        const color  = formEl.querySelector('.receta-group-new-color').value;
-        const fb     = formEl.querySelector('[data-edit-canal-feedback]');
-        if (!nombre) return setFb(fb, 'Ponele un nombre al canal.', 'err');
-        const dup = canales.find(c => c.id !== canal.id && c.nombre.toLowerCase() === nombre.toLowerCase());
-        if (dup) return setFb(fb, 'Ya existe un canal con ese nombre.', 'err');
-        const saveBtn = formEl.querySelector('[data-confirm-edit-canal]');
-        saveBtn.disabled = true;
-        try {
-          await updateCanal({ ...canal, nombre, color, icono });
-          await loadCanales();
-          renderFerias();
-        } catch (err) { setFb(fb, 'Error: ' + err.message, 'err'); saveBtn.disabled = false; }
-      };
-      formEl.querySelector('[data-confirm-edit-canal]').addEventListener('click', confirmEdit);
-      nameInput.addEventListener('keydown', e2 => {
-        if (e2.key === 'Enter')  { e2.preventDefault(); confirmEdit(); }
-        if (e2.key === 'Escape') { e2.preventDefault(); renderFerias(); }
-      });
+      openEditCanalModal(canal);
     });
   });
 
@@ -814,11 +776,16 @@ document.getElementById('feriaOverlay').addEventListener('click', e => {
 });
 document.getElementById('btnNewFeria').addEventListener('click', () => openFeriaModal(null));
 
-// Crear un canal nuevo abre un modal de verdad (antes era un
-// mini-formulario in-place que reemplazaba una tarjeta de la grilla —
-// a pedido del usuario, "no es limpia"). Editar un canal existente
-// sigue siendo in-place, eso no cambió.
+// Crear o editar un canal abre el mismo modal de verdad (antes, editar
+// era un mini-formulario in-place que reemplazaba la tarjeta en la
+// grilla — a pedido del usuario, "no es limpia", igual que crear).
+// editingCanalId null = modo crear; con id = modo editar.
+let editingCanalId = null;
+
 function openNewCanalModal() {
+  editingCanalId = null;
+  document.getElementById('newCanalModalTitle').textContent = 'Nuevo canal de venta';
+  document.getElementById('btnConfirmNewCanal').textContent = 'Crear';
   document.getElementById('newCanalIcon').value = '';
   document.getElementById('newCanalName').value = '';
   document.getElementById('newCanalColor').value = '#714B67';
@@ -827,6 +794,18 @@ function openNewCanalModal() {
   setTimeout(() => document.getElementById('newCanalName').focus(), 100);
 }
 document.getElementById('btnNewCanal').addEventListener('click', openNewCanalModal);
+
+function openEditCanalModal(canal) {
+  editingCanalId = canal.id;
+  document.getElementById('newCanalModalTitle').textContent = 'Editar canal de venta';
+  document.getElementById('btnConfirmNewCanal').textContent = 'Guardar';
+  document.getElementById('newCanalIcon').value = canal.icono || '';
+  document.getElementById('newCanalName').value = canal.nombre;
+  document.getElementById('newCanalColor').value = canal.color || '#714B67';
+  document.getElementById('newCanalFeedback').textContent = '';
+  document.getElementById('newCanalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('newCanalName').focus(), 100);
+}
 
 function isNewCanalFormDirty() {
   return !!document.getElementById('newCanalName')?.value.trim();
@@ -845,12 +824,17 @@ async function confirmNewCanal() {
   const color  = document.getElementById('newCanalColor').value;
   const fb     = document.getElementById('newCanalFeedback');
   if (!nombre) return setFb(fb, 'Ponele un nombre al canal.', 'err');
-  if (canales.find(c => c.nombre.toLowerCase() === nombre.toLowerCase()))
-    return setFb(fb, 'Ya existe un canal con ese nombre.', 'err');
+  const dup = canales.find(c => c.id !== editingCanalId && c.nombre.toLowerCase() === nombre.toLowerCase());
+  if (dup) return setFb(fb, 'Ya existe un canal con ese nombre.', 'err');
   const btn = document.getElementById('btnConfirmNewCanal');
   btn.disabled = true;
   try {
-    await appendCanal({ id: crypto.randomUUID(), nombre, color, icono, creadoEn: new Date().toISOString() });
+    if (editingCanalId) {
+      const canal = canales.find(c => c.id === editingCanalId);
+      await updateCanal({ ...canal, nombre, color, icono });
+    } else {
+      await appendCanal({ id: crypto.randomUUID(), nombre, color, icono, creadoEn: new Date().toISOString() });
+    }
     await loadCanales();
     document.getElementById('newCanalOverlay').classList.remove('open');
     renderFerias();
