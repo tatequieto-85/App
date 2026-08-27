@@ -602,7 +602,7 @@ input, textarea, [contenteditable], [contenteditable] * {
 
 .btn-add-task {
   background: var(--brand); color: #fff; border: none;
-  border-radius: var(--radius-sm); padding: 8px 16px;
+  border-radius: 999px; padding: 10px 20px;
   font-size: 13px; font-weight: 700; cursor: pointer;
   transition: background .2s; white-space: nowrap;
 }
@@ -1671,14 +1671,15 @@ input, textarea, [contenteditable], [contenteditable] * {
    header de la sección, Bloques a la tarjeta de cada grupo (ver arriba). */
 .btn-fab {
   position: fixed; right: 20px; bottom: 24px; z-index: 30;
-  width: 52px; height: 52px; border-radius: 50%; border: none;
-  background: var(--brand); color: #fff; font-size: 28px; font-weight: 400; line-height: 1;
+  height: 52px; padding: 0 22px; border-radius: 999px; border: none;
+  background: var(--brand); color: #fff; font-size: 14px; font-weight: 700; line-height: 1;
   box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: center; gap: 2px;
+  white-space: nowrap;
   transition: background .2s, transform .1s;
 }
 .btn-fab:hover  { background: var(--brand-hover); }
-.btn-fab:active { transform: scale(.95); }
+.btn-fab:active { transform: scale(.97); }
 /* aspect-ratio:auto + overflow:visible: el formulario (ícono+nombre+color+
    botones+feedback) no entra en la altura fija 4:5 de una tarjeta normal —
    con overflow:hidden heredado de .receta-group-card, "Guardar"/"Crear"
