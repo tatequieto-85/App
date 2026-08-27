@@ -205,12 +205,6 @@ function getStockDisponibleLote(ejecucionId, excludeFeriaId) {
   return producido - testigo - getStockComprometidoLote(ejecucionId, excludeFeriaId);
 }
 
-export function getStockComprometido(recetaId, excludeFeriaId) {
-  return ejecuciones
-    .filter(ej => ej.recetaId === recetaId)
-    .reduce((sum, ej) => sum + getStockComprometidoLote(ej.id, excludeFeriaId), 0);
-}
-
 function getFeriaDateList(f) {
   if (!f.fechaInicio || !f.fechaFin) return [];
   const dates = [];

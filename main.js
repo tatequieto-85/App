@@ -10,7 +10,7 @@ import { switchSubTab, openTaskModal, enterTareasView, openDueBadgeDropdown, clo
 import { loadProcesos, loadRecetasData, loadEjecucionesData } from './procesos.js';
 import { loadCompras, renderComprasList } from './compras.js';
 import { loadFerias, renderFerias, openTodaysFeriaCounterIfAny } from './ferias.js';
-import { loadStockTestigos, loadStockMovimientos, renderStockResumen, renderStockTrazabilidad, renderStockTestigoList } from './stock.js';
+import { loadStockTestigos, loadStockMovimientos, renderStockResumen, renderStockTrazabilidad, renderStockTestigoList, openStockAjusteModal } from './stock.js';
 import { renderInformes } from './informes.js';
 import { loadQRs, renderQRList } from './qr.js';
 import { loadIdeas, renderIdeasList, openIdeaModal } from './ideas.js';
@@ -361,7 +361,7 @@ const COMMAND_PALETTE_ITEMS = [
   { label: '+ Registrar compra',     module: 'compras',   action: () => { navigateTo('compras'); document.getElementById('btnNewCompra')?.click(); } },
   { label: '+ Nueva feria',          module: 'ferias',    action: () => { navigateTo('ferias'); document.getElementById('btnNewFeria')?.click(); } },
   { label: 'Abrir contador de hoy',  module: 'ferias',    action: () => { navigateTo('ferias'); openTodaysFeriaCounterIfAny(); } },
-  { label: '+ Ajuste de stock',      module: 'stock',     action: () => { navigateTo('stock'); document.querySelector('[data-stocktab="resumen"]')?.click(); document.getElementById('btnNewStockAjuste')?.click(); } },
+  { label: '+ Ajuste de stock',      module: 'stock',     action: () => { navigateTo('stock'); document.querySelector('[data-stocktab="resumen"]')?.click(); openStockAjusteModal(); } },
   { label: '+ Generar QR',           module: 'qr',        action: () => { navigateTo('qr'); document.getElementById('qrNombre')?.focus(); } },
   { label: '+ Nueva idea',           module: 'ideas',     action: () => { navigateTo('ideas'); openIdeaModal(null); } },
 ];

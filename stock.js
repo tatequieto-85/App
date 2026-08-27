@@ -2,7 +2,7 @@ import { sheetsReq } from './auth.js';
 import { esc, setFb, fmtDate, fmtDateShortEs, toISODate, addDays, ICON_TRASH } from './utils.js';
 import { openCalendarPopover, getDueStatus } from './tareas.js';
 import { ejecuciones, recetas, getStockProducido } from './procesos.js';
-import { ferias, getStockComprometido, getStockComprometidoLote, getStockVendidoLote } from './ferias.js';
+import { ferias, getStockComprometidoLote, getStockVendidoLote } from './ferias.js';
 
 export let stockTestigos        = [];
 let stockMovimientos            = [];
@@ -159,34 +159,17 @@ function getStockVendido(recetaId) {
   , 0);
 }
 
-function getStockTestigoTotal(recetaId) {
-  return stockTestigos
-    .filter(t => t.recetaId === recetaId)
-    .reduce((sum, t) => sum + (t.cantidad || 0), 0);
-}
-
 function getStockAjustesNetos(recetaId) {
   return stockMovimientos
     .filter(m => m.recetaId === recetaId)
     .reduce((sum, m) => sum + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad), 0);
 }
 
+// Disponible = todo lo producido, menos lo vendido, más/menos los ajustes
+// manuales — ya no reserva por lo planeado en ferias ni por testigos
+// apartados (eso vive en Trazabilidad/Producto Testigo, no acá).
 function getStockDisponibleGeneral(recetaId) {
-  return getStockProducido(recetaId)
-    - getStockComprometido(recetaId, null)
-    - getStockTestigoTotal(recetaId)
-    + getStockAjustesNetos(recetaId);
-}
-
-function getStockResumen(recetaId) {
-  return {
-    producido:    getStockProducido(recetaId),
-    comprometido: getStockComprometido(recetaId, null),
-    vendido:      getStockVendido(recetaId),
-    testigo:      getStockTestigoTotal(recetaId),
-    ajustes:      getStockAjustesNetos(recetaId),
-    disponible:   getStockDisponibleGeneral(recetaId)
-  };
+  return getStockProducido(recetaId) - getStockVendido(recetaId) + getStockAjustesNetos(recetaId);
 }
 
 function getLoteResumen(ejecucionId) {
@@ -216,8 +199,6 @@ document.querySelectorAll('[data-stocktab]').forEach(btn => {
     document.getElementById('subTabStockResumen').style.display      = currentStockTab === 'resumen'      ? '' : 'none';
     document.getElementById('subTabStockTrazabilidad').style.display = currentStockTab === 'trazabilidad' ? '' : 'none';
     document.getElementById('subTabStockTestigo').style.display      = currentStockTab === 'testigo'      ? '' : 'none';
-    // btnNewStockAjuste ya no necesita su propio toggle: vive dentro de
-    // subTabStockResumen, así que sigue la visibilidad de ese contenedor.
     document.getElementById('btnNewStockTestigo').style.display = currentStockTab === 'testigo' ? '' : 'none';
   });
 });
@@ -229,29 +210,37 @@ export function renderStockResumen() {
     container.innerHTML = '<div class="empty-state">No hay recetas registradas en Procesos.</div>';
     return;
   }
-  // Tarjeta por receta en vez de tabla: con 6 columnas de datos, una
-  // tabla de ancho fijo siempre terminaba con scroll horizontal en
-  // celular. Acá cada estadística envuelve a la siguiente línea sola.
-  container.innerHTML = recetas.map(r => {
-    const s = getStockResumen(r.id);
-    const stat = (label, value, cls) => `
-      <div class="stock-resumen-stat">
-        <span class="stock-resumen-stat-label">${label}</span>
-        <span class="stock-resumen-stat-value${cls ? ' ' + cls : ''}">${value}</span>
-      </div>`;
+  const rows = recetas.map(r => {
+    const disponible = getStockDisponibleGeneral(r.id);
     return `
-      <div class="stock-resumen-card">
-        <div class="stock-resumen-title">${esc(r.nombre)}</div>
-        <div class="stock-resumen-stats">
-          ${stat('Producido', s.producido)}
-          ${stat('En ferias', s.comprometido)}
-          ${stat('Vendido', s.vendido)}
-          ${stat('Testigo', s.testigo)}
-          ${stat('Ajustes', `${s.ajustes >= 0 ? '+' : ''}${s.ajustes}`)}
-          ${stat('Disponible', s.disponible, 'stock-disponible-cell' + (s.disponible < 0 ? ' stock-disponible-neg' : ''))}
-        </div>
-      </div>`;
+      <tr class="stock-resumen-row" data-receta-id="${esc(r.id)}">
+        <td>${esc(r.nombre)}</td>
+        <td class="stock-disponible-cell${disponible < 0 ? ' stock-disponible-neg' : ''}">${disponible}</td>
+      </tr>`;
   }).join('');
+  container.innerHTML = `
+    <table class="tasks-table">
+      <thead><tr><th>Producto</th><th>Disponible</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="ejecucion-hint">mantener presionada una fila = ajuste manual</div>
+  `;
+
+  // Mantener presionada una fila abre el ajuste manual de ese producto —
+  // mismo patrón de press-and-hold que el resto de la app.
+  container.querySelectorAll('.stock-resumen-row').forEach(row => {
+    let pressTimer = null;
+    const startPress = () => {
+      pressTimer = setTimeout(() => openStockAjusteModal(row.dataset.recetaId), 550);
+    };
+    const cancelPress = () => clearTimeout(pressTimer);
+    row.addEventListener('mousedown', startPress);
+    row.addEventListener('mouseup', cancelPress);
+    row.addEventListener('mouseleave', cancelPress);
+    row.addEventListener('touchstart', startPress, { passive: true });
+    row.addEventListener('touchmove', cancelPress, { passive: true });
+    row.addEventListener('touchend', cancelPress);
+  });
 }
 
 export function renderStockTrazabilidad() {
@@ -355,10 +344,15 @@ async function updateStockTestigoEstado(id, estado) {
 
 // ── Stock: Ajuste manual ──────────────────────────────────────────────────────
 
-function openStockAjusteModal() {
+// Se abre desde el press-and-hold de una fila del resumen (ver
+// renderStockResumen) o desde la paleta de comandos — ya no hay un botón
+// fijo arriba. recetaId preselecciona el producto de esa fila en el
+// desplegable; sin recetaId queda en el primero de la lista.
+export function openStockAjusteModal(recetaId) {
   document.getElementById('stockAjusteFeedback').textContent = '';
   document.getElementById('stockAjusteReceta').innerHTML =
     recetas.map(r => `<option value="${esc(r.id)}">${esc(r.nombre)}</option>`).join('');
+  if (recetaId) document.getElementById('stockAjusteReceta').value = recetaId;
   document.getElementById('stockAjusteTipo').value = 'salida';
   document.getElementById('stockAjusteCantidad').value = '';
   document.getElementById('stockAjusteMotivo').value = 'Frasco promocional';
@@ -366,7 +360,6 @@ function openStockAjusteModal() {
   document.getElementById('stockAjusteMotivoOtro').style.display = 'none';
   document.getElementById('stockAjusteOverlay').classList.add('open');
 }
-document.getElementById('btnNewStockAjuste').addEventListener('click', openStockAjusteModal);
 document.getElementById('btnCloseStockAjuste').addEventListener('click', () => {
   document.getElementById('stockAjusteOverlay').classList.remove('open');
 });

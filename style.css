@@ -1211,21 +1211,7 @@ input, textarea, [contenteditable], [contenteditable] * {
 /* ── Stock: resumen de inventario ─────────────────────────────────────────── */
 .stock-disponible-cell { font-weight: 700; color: var(--brand); }
 .stock-disponible-neg  { color: #C0392B; }
-
-.stock-resumen-card {
-  border: 1.5px solid var(--border); border-radius: var(--radius);
-  padding: 14px 16px; margin-bottom: 10px;
-  background: var(--surface);
-}
-.stock-resumen-card:last-child { margin-bottom: 0; }
-.stock-resumen-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
-.stock-resumen-stats { display: flex; flex-wrap: wrap; gap: 12px 22px; }
-.stock-resumen-stat  { display: flex; flex-direction: column; gap: 2px; }
-.stock-resumen-stat-label {
-  font-size: 10px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .05em; color: var(--text-sub);
-}
-.stock-resumen-stat-value { font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.stock-resumen-row     { cursor: pointer; }
 
 /* ── Stock: producto testigo ──────────────────────────────────────────────── */
 .stock-testigo-card {
