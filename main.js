@@ -6,6 +6,7 @@ import { esc, safeLoad } from './utils.js';
 import { activeBaseModulos } from './db-state.js';
 import { initBasesSheet, bases, connectToDatabase, showDbPicker } from './bases.js';
 import { loadStories } from './contenido.js';
+import { loadIdeasMarketing } from './ideas-marketing.js';
 import { switchSubTab, openTaskModal, enterTareasView, openDueBadgeDropdown, closeDueBadgeDropdown } from './tareas.js';
 import { loadProcesos, loadRecetasData, loadEjecucionesData } from './procesos.js';
 import { loadCompras, renderComprasList } from './compras.js';
@@ -327,7 +328,9 @@ setInterval(async () => {
   if (accessToken && screenApp.style.display !== 'none') await trySilentGoogleAuth();
 }, 50 * 60 * 1000);
 
-setInterval(() => { if (accessToken && currentView === 'contenido') loadStories(); }, 60000);
+setInterval(() => {
+  if (accessToken && currentView === 'contenido') { loadStories(); loadIdeasMarketing(); }
+}, 60000);
 
 // ── Event listeners: navegación genérica ─────────────────────────────────────
 

@@ -9,6 +9,7 @@ Cuando el usuario pida un cambio en un módulo específico, ir directo al archiv
 | Módulo (como lo nombra el usuario) | Archivo         | Qué contiene |
 |---|---|---|
 | Contenido (historias de Instagram) | `contenido.js`  | Stories CRUD, dropzone de archivos, modal de Configuración/WhatsApp, emoji picker |
+| Contenido → Ideas de marketing | `ideas-marketing.js` | Banco de ideas con fotos + notas de voz grabadas en el navegador (MediaRecorder) + descripción; vive dentro de la vista de Contenido, sheet propia `IdeasMarketing` — no confundir con el módulo `ideas.js` (banco de ideas por área, sin fotos/audio) |
 | Tareas (Kanban / Gantt / Lista) | `tareas.js` | El módulo más grande. Kanban, Gantt, Lista, modal de tarea, cronómetro por tarea, filtros, detalle de tarea, suscripción a Google Calendar/Calendario de iOS (feed vía Worker) |
 | Procesos (recetas + ejecución de lotes) | `procesos.js` | Recetas, bloques de recetas, ejecución paso a paso con cronómetro, evaluación de lote (una sola fase: pH, envasado/rendimiento, calificación) |
 | Compras (precios de ingredientes) | `compras.js`    | Registro de compras, historial de precios, costo de producción |

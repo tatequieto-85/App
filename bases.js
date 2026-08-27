@@ -11,6 +11,7 @@ import { initFeriasSheet } from './ferias.js';
 import { initStockSheets } from './stock.js';
 import { initQRSheet } from './qr.js';
 import { initIdeasSheet } from './ideas.js';
+import { initIdeasMarketingSheet, loadIdeasMarketing } from './ideas-marketing.js';
 
 const screenApp      = document.getElementById('screenApp');
 const screenDbPicker = document.getElementById('screenDbPicker');
@@ -106,6 +107,7 @@ async function deleteBaseRow(rowIndex) {
 async function provisionAllTabs() {
   await Promise.all([
     initSheet().then(loadStories),
+    initIdeasMarketingSheet().then(loadIdeasMarketing),
     initKanbanSheets().then(loadKanbanTasks),
     initRecetasSheets(),
     initIngredientesSheet(),

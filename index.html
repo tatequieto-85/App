@@ -267,7 +267,16 @@
                 <div class="loading-state">Cargando desde Google Sheets…</div>
               </div>
             </section>
+            <section class="card card--flat">
+              <div class="section-header">
+                <h2 class="section-title">Ideas de marketing</h2>
+              </div>
+              <div id="ideasMarketingList" class="stories-list">
+                <div class="loading-state">Cargando desde Google Sheets…</div>
+              </div>
+            </section>
           </main>
+          <button type="button" class="btn-fab" id="btnNewIdeaMarketing">+ Idea de marketing</button>
         </div>
 
         <!-- TAREAS VIEW -->
@@ -568,6 +577,58 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal: Nueva idea de marketing -->
+  <div class="modal-overlay" id="ideaMktOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Nueva idea de marketing</h2>
+        <button class="btn-icon" id="btnCloseIdeaMkt"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <label class="field-label" for="ideaMktDescripcion">Descripción *</label>
+        <textarea class="field-textarea" id="ideaMktDescripcion" rows="4" placeholder="Ej: Reel mostrando el proceso de la salsa habanero…"></textarea>
+
+        <label class="field-label">Fotos</label>
+        <input type="file" id="ideaMktPhotoInput" accept="image/*" capture="environment" multiple hidden />
+        <button type="button" class="btn-outline" id="btnAddIdeaMktPhoto">📷 Tomar/agregar foto</button>
+        <div class="dropzone-preview" id="ideaMktPhotoPreview"></div>
+
+        <label class="field-label">Notas de voz</label>
+        <div class="audio-record-row">
+          <button type="button" class="btn-record" id="btnRecordIdeaMktAudio">🎙️ Grabar</button>
+          <span class="audio-record-timer" id="ideaMktRecordTimer" style="display:none">00:00</span>
+        </div>
+        <div class="audio-clip-list" id="ideaMktAudioList"></div>
+
+        <div class="upload-progress" id="ideaMktUploadProgress" style="display:none">
+          <div class="progress-bar"><div class="progress-fill" id="ideaMktProgressFill"></div></div>
+          <div class="progress-text" id="ideaMktProgressText">Subiendo a Drive...</div>
+        </div>
+
+        <button class="btn-primary" id="btnSaveIdeaMkt">Guardar idea</button>
+        <div class="feedback" id="ideaMktFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar idea de marketing -->
+  <div class="modal-overlay" id="editIdeaMktOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Editar idea</h2>
+        <button class="btn-icon" id="btnCloseEditIdeaMkt"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <label class="field-label" for="editIdeaMktDescripcion">Descripción</label>
+        <textarea class="field-textarea" id="editIdeaMktDescripcion" rows="4"></textarea>
+        <button class="btn-primary" id="btnSaveEditIdeaMkt">Guardar cambios</button>
+        <div class="feedback" id="editIdeaMktFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <audio id="ideaMktPlayer" hidden></audio>
 
   <!-- Modal: Tarea (crear / editar) -->
   <div class="modal-overlay" id="taskOverlay">

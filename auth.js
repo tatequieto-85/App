@@ -353,3 +353,17 @@ export async function downloadDriveFile(fileId, origName) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// Usado por Ideas de marketing para reproducir audios ya subidos a Drive —
+// igual que downloadDriveFile pero sin el paso de descarga forzada. Drive no
+// genera thumbnails para audio (thumbUrl es solo para imágenes), así que la
+// única forma de reproducir un clip guardado es traer el blob autenticado.
+export async function streamDriveFile(fileId) {
+  await ensureToken();
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!resp.ok) throw new Error(`Error ${resp.status} al cargar el audio`);
+  return URL.createObjectURL(await resp.blob());
+}

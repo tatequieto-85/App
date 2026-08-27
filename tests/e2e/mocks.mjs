@@ -10,7 +10,7 @@
 // vez de mostrar el selector de bases).
 
 export const ALL_TABS = [
-  'Bases', 'Config', 'Stories', 'KanbanTasks', 'KanbanConfig', 'GanttProjects',
+  'Bases', 'Config', 'Stories', 'IdeasMarketing', 'KanbanTasks', 'KanbanConfig', 'GanttProjects',
   'RecetasPlantillas', 'RecetaBlocks', 'RecetasEjecuciones', 'Ingredientes',
   'Compras', 'Ferias', 'CanalesVenta', 'StockTestigo', 'StockMovimientos', 'QR', 'Ideas'
 ];
@@ -87,6 +87,58 @@ export async function mockGoogleBackend(page) {
     if (isBatchUpdate) return route.fulfill({ json: { replies: [{ addSheet: { properties: { sheetId: 999 } } }] } });
 
     return route.fulfill({ json: {} });
+  });
+}
+
+// Mock de subida/borrado/reproducción de Drive — no existía ningún test que
+// ejercitara uploadToDrive/deleteDriveFile/streamDriveFile antes de Ideas de
+// marketing (el primer feature que sube fotos Y audio en el mismo flujo).
+// Reutilizable para cualquier test futuro que necesite simular archivos.
+export async function mockDriveUpload(page) {
+  let fileCounter = 0;
+
+  await page.route('https://www.googleapis.com/upload/drive/v3/files**', route => {
+    const req = route.request();
+    if (req.method() === 'POST') {
+      // Init de la subida resumable: responde con la URL a la que el cliente
+      // hace el PUT real (mismo host, así el segundo route la intercepta).
+      // Access-Control-Expose-Headers es necesario porque esto es cross-origin
+      // (localhost -> googleapis.com) — sin él, fetch() no deja leer Location
+      // aunque el header esté en la respuesta (mismo motivo por el que la API
+      // real de Drive también lo expone).
+      return route.fulfill({
+        status: 200,
+        headers: {
+          Location: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=fake-upload',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Expose-Headers': 'Location'
+        },
+        body: ''
+      });
+    }
+    fileCounter++;
+    return route.fulfill({
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      json: { id: `fake-file-id-${fileCounter}` }
+    });
+  });
+
+  await page.route('https://www.googleapis.com/drive/v3/files/*/permissions', route =>
+    route.fulfill({ headers: { 'Access-Control-Allow-Origin': '*' }, json: {} })
+  );
+
+  await page.route('https://www.googleapis.com/drive/v3/files/*?alt=media', route =>
+    route.fulfill({
+      status: 200, contentType: 'audio/webm',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: Buffer.from([0, 0, 0, 0])
+    })
+  );
+
+  await page.route(/https:\/\/www\.googleapis\.com\/drive\/v3\/files\/[^/]+$/, route => {
+    if (route.request().method() === 'DELETE')
+      return route.fulfill({ headers: { 'Access-Control-Allow-Origin': '*' }, json: {} });
+    return route.fallback();
   });
 }
 
