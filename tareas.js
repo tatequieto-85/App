@@ -872,7 +872,7 @@ export function renderKanbanList() {
   const table = document.createElement('table');
   table.className = 'tasks-table';
   table.innerHTML = `<thead><tr>
-    <th>Área / Tarea</th><th>Estado</th><th>Prioridad / Fecha límite</th><th></th>
+    <th>Área / Tarea</th><th>Estado</th><th>Fecha límite</th><th>Prioridad</th>
   </tr></thead><tbody></tbody>`;
 
   const tbody = table.querySelector('tbody');
@@ -890,13 +890,8 @@ export function renderKanbanList() {
         ${stCount ? `<span style="font-size:11px;color:var(--text-sub)">📋 ${stCount} sub-tarea${stCount !== 1 ? 's' : ''}</span>` : ''}
       </td>
       <td><span class="status-pill" style="background:${color}22;color:${color}">${esc(task.status)}</span></td>
-      <td>
-        ${task.priority ? `<span class="kanban-card-priority kanban-priority-${esc(task.priority)}">${PRIORITY_LABELS[task.priority] || ''}</span>` : ''}
-        <span class="kanban-card-due ${due.cls}" style="font-size:12px;display:block">${due.text}</span>
-      </td>
-      <td style="white-space:nowrap">
-        <button class="task-action-btn" data-view="${task.id}" title="Ver detalle">👁</button>
-      </td>
+      <td><span class="kanban-card-due ${due.cls}" style="font-size:12px">${due.text}</span></td>
+      <td>${task.priority ? `<span class="kanban-card-priority kanban-priority-${esc(task.priority)}">${PRIORITY_LABELS[task.priority] || ''}</span>` : ''}</td>
     `;
 
     // Panel Editar/Borrar en una fila propia debajo, ocupando todo el ancho
@@ -957,9 +952,6 @@ export function renderKanbanList() {
   container.appendChild(table);
   if (!statusFilter && termCount) container.appendChild(listaTerminalToggleBtn(termCount));
 
-  container.querySelectorAll('[data-view]').forEach(btn => {
-    btn.addEventListener('click', () => openTaskDetail(btn.dataset.view));
-  });
   container.querySelectorAll('[data-edit]').forEach(btn => {
     btn.addEventListener('click', () => openTaskModal(null, btn.dataset.edit));
   });
