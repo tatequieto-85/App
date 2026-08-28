@@ -10,9 +10,11 @@ let contactosSheetId   = null;
 let relacionesSheetId  = null;
 let detailContactoId   = null; // contacto que muestra #contactoDetailOverlay
 let editingContactoId  = null; // null = #contactoOverlay está en modo "crear"
+let contactoSearchQuery = '';
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const contactosList = document.getElementById('contactosList');
+const contactoSearchInput = document.getElementById('contactoSearchInput');
 const btnNewContacto = document.getElementById('btnNewContacto');
 
 const contactoOverlay        = document.getElementById('contactoOverlay');
@@ -295,14 +297,35 @@ function contactoCardHTML(c) {
     </div>`;
 }
 
+// Busca la palabra escrita en nombre, empresa, posición, teléfono y en el
+// texto de cada observación — cualquier campo que matchee alcanza.
+function contactoMatchesSearch(c, query) {
+  if (!query) return true;
+  const obsTexto = (c.observaciones || []).map(o => o.text).join(' ');
+  const campos = [c.nombre, c.empresa, c.posicion, c.telefono, obsTexto];
+  return campos.some(campo => (campo || '').toLowerCase().includes(query));
+}
+
 export function renderContactosList() {
+  const query = contactoSearchQuery.trim().toLowerCase();
+  const visibles = contactos.filter(c => contactoMatchesSearch(c, query));
+
   if (!contactos.length) {
     contactosList.innerHTML = '<div class="empty-state">Aún no hay contactos guardados</div>';
     return;
   }
-  contactosList.innerHTML = contactos.map(contactoCardHTML).join('');
+  if (!visibles.length) {
+    contactosList.innerHTML = '<div class="empty-state">Ningún contacto coincide con la búsqueda</div>';
+    return;
+  }
+  contactosList.innerHTML = visibles.map(contactoCardHTML).join('');
   wireContactoCards();
 }
+
+contactoSearchInput.addEventListener('input', () => {
+  contactoSearchQuery = contactoSearchInput.value;
+  renderContactosList();
+});
 
 // Editar/Borrar solo aparecen manteniendo la tarjeta presionada — mismo
 // patrón (550ms, cancela con movimiento) que el resto de la app. Doble
