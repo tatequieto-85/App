@@ -1,8 +1,8 @@
-const CACHE = 'ss-v141';
+const CACHE = 'ss-v142';
 const ASSETS = [
   './', './index.html', './style.css', './config.js', './vendor-qrcode.js',
   './utils.js', './input-guard.js', './db-state.js', './undo.js', './auth.js',
-  './ingredientes.js', './qr.js', './ideas.js', './ideas-marketing.js', './contenido.js', './tareas.js', './compras.js',
+  './ingredientes.js', './qr.js', './ideas.js', './ideas-marketing.js', './contactos.js', './contenido.js', './tareas.js', './compras.js',
   './procesos.js', './ferias.js', './stock.js', './informes.js', './bases.js', './main.js',
   './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'
 ];

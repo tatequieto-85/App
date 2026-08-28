@@ -15,6 +15,7 @@ import { loadStockTestigos, loadStockMovimientos, renderStockResumen, renderStoc
 import { renderInformes } from './informes.js';
 import { loadQRs, renderQRList } from './qr.js';
 import { loadIdeas, renderIdeasList, openIdeaModal } from './ideas.js';
+import { loadContactos } from './contactos.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentView = 'home';
@@ -38,7 +39,7 @@ const userMenu       = document.getElementById('userMenu');
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
-const VALID_VIEWS = ['home', 'contenido', 'tareas', 'procesos', 'compras', 'ferias', 'stock', 'informes', 'qr', 'ideas'];
+const VALID_VIEWS = ['home', 'contenido', 'tareas', 'procesos', 'compras', 'ferias', 'stock', 'informes', 'qr', 'ideas', 'contactos'];
 let handlingPopState = false; // evita pushear un history entry nuevo al responder a atrás/adelante
 
 export function navigateTo(view) {
@@ -59,6 +60,7 @@ export function navigateTo(view) {
   document.getElementById('viewInformes').style.display  = view === 'informes'  ? '' : 'none';
   document.getElementById('viewQR').style.display        = view === 'qr'        ? '' : 'none';
   document.getElementById('viewIdeas').style.display     = view === 'ideas'     ? '' : 'none';
+  document.getElementById('viewContactos').style.display = view === 'contactos' ? '' : 'none';
 
   // Load data for the selected view
   if (view === 'tareas') {
@@ -86,6 +88,9 @@ export function navigateTo(view) {
   }
   if (view === 'ideas') {
     safeLoad(loadIdeas, 'ideasList').then(ok => { if (ok) renderIdeasList(); });
+  }
+  if (view === 'contactos') {
+    loadContactos();
   }
 
   window.scrollTo(0, 0);
@@ -358,6 +363,7 @@ const COMMAND_PALETTE_ITEMS = [
   { label: 'Informes',               module: 'informes',  action: () => navigateTo('informes') },
   { label: 'QR',                     module: 'qr',        action: () => navigateTo('qr') },
   { label: 'Ideas',                  module: 'ideas',     action: () => navigateTo('ideas') },
+  { label: 'Contactos',              module: 'contactos', action: () => navigateTo('contactos') },
   { label: 'Bases de datos',         action: () => showDbPicker() },
   { label: '+ Nueva tarea',          module: 'tareas',    action: () => { navigateTo('tareas'); openTaskModal(null, null); } },
   { label: '+ Nueva receta',         module: 'procesos',  action: () => { navigateTo('procesos'); document.getElementById('btnNewReceta')?.click(); } },
@@ -367,6 +373,7 @@ const COMMAND_PALETTE_ITEMS = [
   { label: '+ Ajuste de stock',      module: 'stock',     action: () => { navigateTo('stock'); document.querySelector('[data-stocktab="resumen"]')?.click(); openStockAjusteModal(); } },
   { label: '+ Generar QR',           module: 'qr',        action: () => { navigateTo('qr'); document.getElementById('qrNombre')?.focus(); } },
   { label: '+ Nueva idea',           module: 'ideas',     action: () => { navigateTo('ideas'); openIdeaModal(null); } },
+  { label: '+ Nuevo contacto',       module: 'contactos', action: () => { navigateTo('contactos'); document.getElementById('btnNewContacto')?.click(); } },
 ];
 
 let commandPaletteIndex = 0;

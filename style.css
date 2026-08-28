@@ -773,6 +773,20 @@ input, textarea, [contenteditable], [contenteditable] * {
 .audio-clip-duration { font-size: 12px; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .audio-clip-item audio { flex: 1; height: 32px; min-width: 0; }
 
+/* ── Contactos: lista de relaciones dentro del detalle ──────────────────── */
+.contacto-relacion-item {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 8px; margin-bottom: 6px; background: var(--bg);
+}
+.contacto-relacion-nombre { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); }
+.contacto-add-relacion-row {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center;
+}
+.contacto-add-relacion-row .field-select,
+.contacto-add-relacion-row .field-input { flex: 1; min-width: 120px; margin: 0; }
+.contacto-add-relacion-row .btn-outline { white-space: nowrap; }
+
 /* ── Modal ───────────────────────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.45);

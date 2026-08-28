@@ -207,6 +207,13 @@
               <span class="app-card-label">Ideas</span>
               <span class="app-card-sub">Por área</span>
             </button>
+            <button class="app-card" data-nav="contactos">
+              <div class="app-card-icon app-card-icon--rose">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+              </div>
+              <span class="app-card-label">Contactos</span>
+              <span class="app-card-sub">Cumpleaños · Relaciones</span>
+            </button>
           </div>
           <!-- PWA install banner -->
           <div class="install-banner" id="installBanner" style="display:none">
@@ -510,6 +517,21 @@
               <div class="loading-state" style="padding:48px 0">Cargando…</div>
             </div>
           </div>
+        </div>
+
+        <!-- CONTACTOS VIEW -->
+        <div id="viewContactos" class="view" style="display:none">
+          <main class="main">
+            <section class="card card--flat">
+              <div class="section-header">
+                <h2 class="section-title">Contactos</h2>
+              </div>
+              <div id="contactosList" class="stories-list">
+                <div class="loading-state">Cargando desde Google Sheets…</div>
+              </div>
+            </section>
+          </main>
+          <button type="button" class="btn-fab" id="btnNewContacto">+ Contacto</button>
         </div>
 
       </div><!-- /app-content -->
@@ -885,6 +907,72 @@
     </div>
   </div>
 
+  <!-- Modal: Nuevo contacto -->
+  <div class="modal-overlay" id="contactoOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Nuevo contacto</h2>
+        <button class="btn-icon" id="btnCloseContacto"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <label class="field-label" for="contactoNombre">Nombre *</label>
+        <input class="field-input" id="contactoNombre" type="text" placeholder="Nombre del contacto…" />
+        <label class="field-label" for="contactoCumpleanos">Cumpleaños</label>
+        <input class="field-input" id="contactoCumpleanos" type="date" />
+        <label class="field-label" for="contactoEdadIngreso">Edad actual</label>
+        <input class="field-input" id="contactoEdadIngreso" type="number" min="0" placeholder="Ej: 32" />
+        <label class="field-label" for="contactoEmpresa">Empresa</label>
+        <input class="field-input" id="contactoEmpresa" type="text" placeholder="Dónde trabaja…" />
+        <label class="field-label" for="contactoPosicion">Posición</label>
+        <input class="field-input" id="contactoPosicion" type="text" placeholder="Cargo…" />
+        <label class="field-label" for="contactoTelefono">Número de contacto</label>
+        <input class="field-input" id="contactoTelefono" type="tel" inputmode="tel" placeholder="Ej: 3122132279" />
+        <label class="field-label" for="contactoObservaciones">Observaciones</label>
+        <textarea class="field-textarea" id="contactoObservaciones" rows="3"></textarea>
+        <button class="btn-primary" id="btnSaveContacto">Guardar contacto</button>
+        <div class="feedback" id="contactoFeedback"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Detalle de contacto (editar + relaciones) -->
+  <div class="modal-overlay" id="contactoDetailOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="contactoDetailTitle">Contacto</h2>
+        <button class="btn-icon" id="btnCloseContactoDetail"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <label class="field-label" for="contactoDetailNombre">Nombre *</label>
+        <input class="field-input" id="contactoDetailNombre" type="text" />
+        <label class="field-label" for="contactoDetailCumpleanos">Cumpleaños</label>
+        <input class="field-input" id="contactoDetailCumpleanos" type="date" />
+        <label class="field-label" for="contactoDetailEdadIngreso">Edad de ingreso</label>
+        <input class="field-input" id="contactoDetailEdadIngreso" type="number" min="0" />
+        <div class="feedback" id="contactoDetailEdadActual" style="margin-top:-8px"></div>
+        <label class="field-label" for="contactoDetailEmpresa">Empresa</label>
+        <input class="field-input" id="contactoDetailEmpresa" type="text" placeholder="Dónde trabaja…" />
+        <label class="field-label" for="contactoDetailPosicion">Posición</label>
+        <input class="field-input" id="contactoDetailPosicion" type="text" placeholder="Cargo…" />
+        <label class="field-label" for="contactoDetailTelefono">Número de contacto</label>
+        <input class="field-input" id="contactoDetailTelefono" type="tel" inputmode="tel" />
+        <label class="field-label" for="contactoDetailObservaciones">Observaciones</label>
+        <textarea class="field-textarea" id="contactoDetailObservaciones" rows="3"></textarea>
+        <button class="btn-primary" id="btnSaveContactoDetail">Guardar cambios</button>
+        <div class="feedback" id="contactoDetailFeedback"></div>
+
+        <p class="mgmt-section-title">Relaciones</p>
+        <div id="contactoRelacionesList"></div>
+        <div class="contacto-add-relacion-row">
+          <select class="field-select" id="contactoRelacionSelect"></select>
+          <input class="field-input" id="contactoRelacionCategoria" list="contactoRelacionCategoriaList" placeholder="Categoría (ej: Amigos)" />
+          <datalist id="contactoRelacionCategoriaList"></datalist>
+          <button type="button" class="btn-outline" id="btnAddRelacion">+ Vincular</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Registrar nuevo insumo (agrega el ingrediente al catálogo, sin
        cantidad ni precio — eso se registra después con doble clic en su fila) -->
   <div class="modal-overlay" id="insumoOverlay">
@@ -967,6 +1055,7 @@
           <label class="base-module-check"><input type="checkbox" value="informes" checked /> Informes</label>
           <label class="base-module-check"><input type="checkbox" value="qr" checked /> QR</label>
           <label class="base-module-check"><input type="checkbox" value="ideas" checked /> Ideas</label>
+          <label class="base-module-check"><input type="checkbox" value="contactos" checked /> Contactos</label>
         </div>
         <small class="field-error" id="baseModulosErr"></small>
         <button class="btn-primary" id="btnSaveBase">Crear base de datos</button>

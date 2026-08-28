@@ -19,6 +19,7 @@ Cuando el usuario pida un cambio en un módulo específico, ir directo al archiv
 | Informes | `informes.js`   | Horas invertidas/pendientes (cruza datos de Tareas y Procesos) |
 | QR | `qr.js`         | Generar y guardar códigos QR |
 | Ideas (banco de ideas por área) | `ideas.js`      | Ideas agrupadas por área — reutiliza las mismas áreas que administra Tareas (`kanbanAreas`/`getAreaColor`, importadas de `tareas.js`) |
+| Contactos (cumpleaños, empresa/posición, relaciones) | `contactos.js` | Nombre, cumpleaños (día/mes, sin año), edad calculada en vivo a partir de "edad de ingreso" + tiempo transcurrido (nunca se guarda la edad en sí), empresa/posición, teléfono, observaciones; vínculos entre contactos bajo categorías libres (`ContactosRelaciones`, muchos-a-muchos, categorías no fijas) |
 | Bases de datos (multi-empresa) | `bases.js`      | Selector/creación/edición de bases de datos (cada una un Google Sheet distinto) |
 
 ## Capa base compartida (tocar solo si el cambio es transversal)
