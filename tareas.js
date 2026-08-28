@@ -8,6 +8,7 @@ import { pushUndo } from './undo.js';
 import { wasAccidentalTouch } from './input-guard.js';
 import { navigateTo } from './main.js';
 import { dbEpoch, activeSheetId } from './db-state.js';
+import { contactos, appendObservacionAContacto, openContactoDetail } from './contactos.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 export let kanbanTasks  = [];
@@ -69,6 +70,7 @@ export function getAreaColor(area) {
 export function renderCurrentSubTab() {
   if (currentSubTab === 'kanban') renderKanban();
   else if (currentSubTab === 'gantt') renderGanttChart();
+  else if (currentSubTab === 'historial') renderHistorial();
   else renderKanbanList();
 }
 
@@ -93,9 +95,10 @@ export async function switchSubTab(subtab) {
   document.getElementById('subTabKanban').style.display     = subtab === 'kanban'     ? '' : 'none';
   document.getElementById('subTabLista').style.display      = subtab === 'lista'      ? '' : 'none';
   document.getElementById('subTabGantt').style.display      = subtab === 'gantt'      ? '' : 'none';
+  document.getElementById('subTabHistorial').style.display  = subtab === 'historial'  ? '' : 'none';
   document.getElementById('kanbanToolbar').style.display    = subtab === 'kanban'     ? '' : 'none';
   document.getElementById('ganttToolbar').style.display     = subtab === 'gantt'      ? '' : 'none';
-  document.getElementById('btnManageBoard').style.display   = subtab === 'gantt'      ? 'none' : '';
+  document.getElementById('btnManageBoard').style.display   = (subtab === 'gantt' || subtab === 'historial') ? 'none' : '';
   updateSyncCalendarBtnVisibility();
 
   // Kanban/Lista/Gantt comparten los mismos kanbanTasks/columnas —
@@ -115,10 +118,12 @@ export async function switchSubTab(subtab) {
   populateAreaSelects();
   populateStatusSelects();
   if (subtab === 'gantt' && !ganttProjectsLoaded) await loadGanttProjects();
+  if (subtab === 'historial' && !tareaHistorialLoaded) await loadTareaHistorial();
   populateProjectSelects();
 
   if (subtab === 'kanban') renderKanban();
   else if (subtab === 'gantt') renderGanttChart();
+  else if (subtab === 'historial') renderHistorial();
   else renderKanbanList();
 }
 
@@ -281,6 +286,216 @@ export async function initKanbanSheets() {
   } else {
     await loadKanbanConfig();
   }
+}
+
+// ── Historial (tareas archivadas al completarlas/cancelarlas) ────────────────
+// Distinto de TERMINAL_STATES (que sigue incluyendo Postpuesto, sin tocar su
+// uso existente en el resto del archivo) — solo Realizado y Cancelado sacan
+// la tarea del tablero activo y la mandan a este archivo permanente.
+const ARCHIVABLE_STATES = ['Realizado', 'Cancelado'];
+
+let tareaHistorial       = [];
+let tareaHistorialSheetId = null;
+let tareaHistorialLoaded = false;
+
+export async function initTareasHistorialSheet() {
+  const info = await sheetsReq('');
+  const tabs = info.sheets || [];
+  const has  = tabs.find(s => s.properties.title === 'TareasHistorial');
+  if (has) tareaHistorialSheetId = has.properties.sheetId;
+
+  if (!has) {
+    const res = await sheetsReq(':batchUpdate', {
+      method: 'POST',
+      body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'TareasHistorial' } } }] })
+    });
+    res.replies?.forEach(r => {
+      if (r.addSheet?.properties?.title === 'TareasHistorial') tareaHistorialSheetId = r.addSheet.properties.sheetId;
+    });
+  }
+
+  const hd = await sheetsReq('/values/TareasHistorial!A1').catch(() => ({}));
+  if (!hd.values) {
+    await sheetsReq('/values/TareasHistorial!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+      method: 'POST',
+      body: JSON.stringify({ values: [[
+        'ID', 'NombrePersonalizado', 'Area', 'Title', 'Status', 'DueDate', 'StartDate',
+        'Observations', 'TimeSessions', 'Subtasks', 'CreatedAt', 'CompletadoEn'
+      ]] })
+    });
+  }
+}
+
+export async function loadTareaHistorial() {
+  const data = await sheetsReq('/values/TareasHistorial!A:L');
+  const rows = (data.values || []).slice(1);
+  tareaHistorial = rows.filter(r => r[0]).map((r, i) => ({
+    id:                r[0]  || '',
+    nombrePersonalizado: r[1] || '',
+    area:              r[2]  || '',
+    title:             r[3]  || '',
+    status:            r[4]  || '',
+    dueDate:           r[5]  || '',
+    startDate:         r[6]  || '',
+    observations:      safeParseJSON(r[7], []),
+    timeSessions:      safeParseJSON(r[8], []),
+    subtasks:          safeParseJSON(r[9], []),
+    createdAt:         r[10] || '',
+    completadoEn:      r[11] || '',
+    rowIndex:          i + 2
+  })).sort((a, b) => new Date(b.completadoEn) - new Date(a.completadoEn));
+  tareaHistorialLoaded = true;
+}
+
+async function appendTareaHistorial(t) {
+  await sheetsReq('/values/TareasHistorial!A:L:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
+    method: 'POST',
+    body: JSON.stringify({ values: [[
+      t.id, '', t.area, t.title, t.status, t.dueDate, t.startDate || '',
+      JSON.stringify(t.observations || []), JSON.stringify(t.timeSessions || []), JSON.stringify(t.subtasks || []),
+      t.createdAt, t.completadoEn
+    ]] })
+  });
+}
+
+async function updateTareaHistorialNombre(rowIndex, nombre) {
+  await sheetsReq(`/values/TareasHistorial!B${rowIndex}:B${rowIndex}?valueInputOption=USER_ENTERED`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[nombre]] })
+  });
+}
+
+// Saca una tarea del tablero activo para siempre y la deja en el archivo
+// permanente — sin pushUndo() a propósito: deshacerlo significaría
+// "desarchivar" (recrear la fila con su rowIndex original, que ya no
+// existe), una operación bastante más compleja que no se pidió.
+async function archiveTask(task, newStatus) {
+  task.status = newStatus;
+  stopTaskTimer(task);
+  await appendTareaHistorial({ ...task, completadoEn: new Date().toISOString() });
+  await deleteKanbanTaskRow(task.rowIndex);
+  kanbanTasks = kanbanTasks.filter(t => t.id !== task.id);
+}
+
+// Migración retroactiva: tareas que ya estaban en Realizado/Cancelado antes
+// de que existiera este archivo también pasan a TareasHistorial. Se llama
+// una vez por conexión a una base (provisionAllTabs en bases.js) — es
+// idempotente porque solo mira lo que sigue en KanbanTasks con estado
+// archivable, así que una vez migradas no las vuelve a tocar.
+export async function migrateTerminalTasksToHistorial() {
+  const toMigrate = kanbanTasks
+    .filter(t => ARCHIVABLE_STATES.includes(t.status))
+    .sort((a, b) => b.rowIndex - a.rowIndex); // de abajo hacia arriba: borrar no corre los índices que faltan
+  if (!toMigrate.length) return;
+  for (const t of toMigrate) {
+    await appendTareaHistorial({ ...t, completadoEn: new Date().toISOString() });
+    await deleteKanbanTaskRow(t.rowIndex);
+  }
+  await loadKanbanTasks();
+}
+
+// Vista de solo lectura, deliberadamente simple — no reutiliza el motor del
+// Gantt en vivo (atado a updateKanbanTask/projectId/drag de tareas vivas):
+// una barra por tarea archivada, posicionada en % sobre un eje de tiempo
+// común, sin zoom ni drag. Ordenadas por CompletadoEn descendente (ver
+// loadTareaHistorial), lo más reciente arriba.
+function renderHistorial() {
+  const container = document.getElementById('historialList');
+  if (!container) return;
+  if (!tareaHistorial.length) {
+    container.innerHTML = '<div class="empty-state">Aún no hay tareas archivadas</div>';
+    return;
+  }
+
+  const allDates = [];
+  tareaHistorial.forEach(t => {
+    if (t.startDate) allDates.push(t.startDate);
+    if (t.dueDate)   allDates.push(t.dueDate);
+  });
+  const minDate = allDates.length ? allDates.reduce((a, b) => (a < b ? a : b)) : null;
+  const maxDate = allDates.length ? allDates.reduce((a, b) => (a > b ? a : b)) : null;
+  const totalDays = minDate && maxDate ? Math.max(1, diffDays(parseISODate(minDate), parseISODate(maxDate)) + 1) : 1;
+
+  container.innerHTML = tareaHistorial.map(t => {
+    const label = t.nombrePersonalizado || t.title;
+    const start = t.startDate || t.dueDate;
+    const end   = t.dueDate || t.startDate;
+    let barStyle = '';
+    if (start && end && minDate) {
+      const leftDays = diffDays(parseISODate(minDate), parseISODate(start));
+      const spanDays = Math.max(1, diffDays(parseISODate(start), parseISODate(end)) + 1);
+      const leftPct  = (leftDays / totalDays) * 100;
+      const widthPct = Math.max(2, (spanDays / totalDays) * 100);
+      barStyle = `left:${leftPct}%;width:${widthPct}%`;
+    }
+    const statusCls  = t.status === 'Realizado' ? 'historial-bar--done' : 'historial-bar--cancel';
+    const statusIcon = t.status === 'Realizado' ? '✓' : '✕';
+    const dateRangeText = start && end
+      ? (start === end ? fmtDateShortEs(start) : `${fmtDateShortEs(start)} – ${fmtDateShortEs(end)}`)
+      : '—';
+
+    return `
+      <div class="historial-row" data-historial-row="${t.rowIndex}">
+        <div class="historial-row-head">
+          <span class="historial-row-name" data-rename="${t.rowIndex}" title="Tocá para renombrar">${esc(label)}</span>
+          <span class="historial-row-area">${esc(t.area)}</span>
+          <span class="historial-row-status ${statusCls}">${statusIcon} ${esc(t.status)}</span>
+          <span class="historial-row-dates">${dateRangeText}</span>
+        </div>
+        <div class="historial-row-track"><div class="historial-bar ${statusCls}" style="${barStyle}"></div></div>
+        <div class="historial-row-obs" id="historialObs${t.rowIndex}" style="display:none"></div>
+      </div>`;
+  }).join('');
+
+  wireHistorialRows();
+}
+
+function wireHistorialRows() {
+  const container = document.getElementById('historialList');
+  container.querySelectorAll('.historial-row').forEach(row => {
+    const rowIndex = +row.dataset.historialRow;
+    const t = tareaHistorial.find(x => x.rowIndex === rowIndex);
+    if (!t) return;
+
+    row.addEventListener('click', e => {
+      if (e.target.closest('[data-rename]') || e.target.closest('input')) return;
+      const obsEl = document.getElementById(`historialObs${rowIndex}`);
+      const wasOpen = obsEl.style.display !== 'none';
+      container.querySelectorAll('.historial-row-obs').forEach(el => { el.style.display = 'none'; });
+      if (!wasOpen) {
+        obsEl.innerHTML = (t.observations || []).length
+          ? t.observations.map(obsItemHTML).join('')
+          : '<div class="obs-empty">Sin observaciones</div>';
+        wireObsContactoChips(obsEl);
+        obsEl.style.display = '';
+      }
+    });
+
+    row.querySelector('[data-rename]').addEventListener('click', e => {
+      e.stopPropagation();
+      const nameEl = e.currentTarget;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'field-input historial-rename-input';
+      input.value = t.nombrePersonalizado || t.title;
+      nameEl.replaceWith(input);
+      input.focus();
+      input.select();
+      const save = async () => {
+        const nuevo = input.value.trim();
+        try {
+          await updateTareaHistorialNombre(rowIndex, nuevo);
+          t.nombrePersonalizado = nuevo;
+        } catch (err) { alert('Error: ' + err.message); }
+        renderHistorial();
+      };
+      input.addEventListener('blur', save);
+      input.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') input.blur();
+        if (ev.key === 'Escape') { input.value = t.nombrePersonalizado || t.title; input.blur(); }
+      });
+    });
+  });
 }
 
 // ── Kanban Config ─────────────────────────────────────────────────────────────
@@ -784,6 +999,13 @@ export function renderKanban() {
       const newStatus = col.name;
       const task = kanbanTasks.find(t => t.id === draggedId);
       if (!task || task.status === newStatus) return;
+
+      if (ARCHIVABLE_STATES.includes(newStatus)) {
+        try { await archiveTask(task, newStatus); renderKanban(); }
+        catch (err) { alert('Error al guardar: ' + err.message); await loadKanbanTasks(); renderKanban(); }
+        return;
+      }
+
       const prevStatus = task.status;
       task.status = newStatus;
       if (TERMINAL_STATES.includes(newStatus)) stopTaskTimer(task);
@@ -1352,20 +1574,10 @@ function wireGanttBarInteractions(tasks, unitWidth) {
     barEl.querySelector('.gantt-bar-done')?.addEventListener('click', async e => {
       e.stopPropagation();
       if (task.status === 'Realizado') return;
-      const prevStatus = task.status;
-      task.status = 'Realizado';
-      stopTaskTimer(task);
       try {
-        await updateKanbanTask(task);
+        await archiveTask(task, 'Realizado');
         renderGanttChart();
         if (currentSubTab === 'kanban') renderKanban();
-        pushUndo(async () => {
-          const t = kanbanTasks.find(x => x.id === task.id);
-          if (!t) return;
-          t.status = prevStatus;
-          await updateKanbanTask(t);
-          renderCurrentSubTab();
-        });
       } catch (err) { alert('Error al guardar: ' + err.message); await loadKanbanTasks(); renderGanttChart(); }
     });
   });
@@ -2026,20 +2238,27 @@ document.getElementById('btnSaveTask').addEventListener('click', async () => {
     if (kanbanEditId) {
       const task = kanbanTasks.find(t => t.id === kanbanEditId);
       if (task) {
-        const prevSnapshot = JSON.parse(JSON.stringify(task));
+        // El resto de los campos se aplican primero, así el archivo se
+        // lleva la versión recién editada de la tarea (no la de antes).
         task.area = area; task.title = title; task.desc = desc;
-        task.dueDate = due; task.status = status; task.subtasks = subtasks;
+        task.dueDate = due; task.subtasks = subtasks;
         task.priority = priority; task.projectId = projectId; task.startDate = projectId ? startDate : '';
         task.dependsOn = dependsOn;
-        if (TERMINAL_STATES.includes(status)) stopTaskTimer(task);
-        await updateKanbanTask(task);
-        undoSaveFn = async () => {
-          const t = kanbanTasks.find(x => x.id === prevSnapshot.id);
-          if (!t) return;
-          Object.assign(t, prevSnapshot);
-          await updateKanbanTask(t);
-          renderCurrentSubTab();
-        };
+        if (ARCHIVABLE_STATES.includes(status)) {
+          await archiveTask(task, status);
+        } else {
+          const prevSnapshot = JSON.parse(JSON.stringify(task));
+          task.status = status;
+          if (TERMINAL_STATES.includes(status)) stopTaskTimer(task);
+          await updateKanbanTask(task);
+          undoSaveFn = async () => {
+            const t = kanbanTasks.find(x => x.id === prevSnapshot.id);
+            if (!t) return;
+            Object.assign(t, prevSnapshot);
+            await updateKanbanTask(t);
+            renderCurrentSubTab();
+          };
+        }
       }
     } else {
       const now = new Date().toISOString();
@@ -2471,11 +2690,18 @@ function openTaskDetail(taskId) {
       const t = kanbanTasks.find(x => x.id === taskDetailId);
       if (!t || t.status === newStatus) return;
       const prev = t.status;
-      t.status   = newStatus;
-      if (TERMINAL_STATES.includes(newStatus)) stopTaskTimer(t);
       const savingEl = document.getElementById('detailStatusSaving');
       if (savingEl) savingEl.style.display = '';
       try {
+        if (ARCHIVABLE_STATES.includes(newStatus)) {
+          await archiveTask(t, newStatus);
+          stopTaskTimerClock();
+          document.getElementById('taskDetailOverlay').classList.remove('open');
+          renderCurrentSubTab();
+          return;
+        }
+        t.status = newStatus;
+        if (TERMINAL_STATES.includes(newStatus)) stopTaskTimer(t);
         await updateKanbanTask(t);
         openTaskDetail(taskDetailId);
         renderCurrentSubTab();
@@ -2569,6 +2795,42 @@ function openTaskDetail(taskId) {
   document.getElementById('taskDetailOverlay').classList.add('open');
 }
 
+// Compartido entre el detalle de tarea (observationsList) y una fila
+// expandida del Historial (ver renderHistorial) — un solo lugar arma el
+// marcado de una observación (texto, adjuntos, fecha, chip de contacto
+// vinculado) en vez de duplicarlo.
+function obsItemHTML(o) {
+  const attachmentsHTML = (o.attachments || []).map(a => {
+    const isImage = (a.mimeType || '').startsWith('image/');
+    const viewUrl = `https://drive.google.com/file/d/${a.fileId}/view`;
+    return isImage
+      ? `<a class="obs-attachment obs-attachment--img" href="${viewUrl}" target="_blank" rel="noopener"><img src="${thumbUrl(a.fileId)}" alt="${esc(a.name)}" /></a>`
+      : `<a class="obs-attachment obs-attachment--file" href="${viewUrl}" target="_blank" rel="noopener">📄 ${esc(a.name)}</a>`;
+  }).join('');
+  const contactoChip = o.contactoId && o.contactoNombre
+    ? `<button type="button" class="obs-contacto-chip" data-abrir-contacto="${esc(o.contactoId)}">@${esc(o.contactoNombre)}</button>` : '';
+  return `
+    <div class="obs-item">
+      ${o.text ? `<div class="obs-text">${esc(o.text)}</div>` : ''}
+      ${attachmentsHTML ? `<div class="obs-attachments">${attachmentsHTML}</div>` : ''}
+      ${contactoChip}
+      <div class="obs-date">${fmtDate(o.createdAt)}</div>
+    </div>
+  `;
+}
+
+function wireObsContactoChips(container) {
+  container.querySelectorAll('[data-abrir-contacto]').forEach(chip => {
+    chip.addEventListener('click', e => {
+      e.stopPropagation();
+      stopTaskTimerClock();
+      document.getElementById('taskDetailOverlay').classList.remove('open');
+      navigateTo('contactos');
+      openContactoDetail(chip.dataset.abrirContacto);
+    });
+  });
+}
+
 function renderObservations(task) {
   const list = document.getElementById('observationsList');
   const obs  = task.observations || [];
@@ -2576,22 +2838,8 @@ function renderObservations(task) {
     list.innerHTML = '<div class="obs-empty">Aún sin observaciones</div>';
     return;
   }
-  list.innerHTML = obs.map(o => {
-    const attachmentsHTML = (o.attachments || []).map(a => {
-      const isImage = (a.mimeType || '').startsWith('image/');
-      const viewUrl = `https://drive.google.com/file/d/${a.fileId}/view`;
-      return isImage
-        ? `<a class="obs-attachment obs-attachment--img" href="${viewUrl}" target="_blank" rel="noopener"><img src="${thumbUrl(a.fileId)}" alt="${esc(a.name)}" /></a>`
-        : `<a class="obs-attachment obs-attachment--file" href="${viewUrl}" target="_blank" rel="noopener">📄 ${esc(a.name)}</a>`;
-    }).join('');
-    return `
-      <div class="obs-item">
-        ${o.text ? `<div class="obs-text">${esc(o.text)}</div>` : ''}
-        ${attachmentsHTML ? `<div class="obs-attachments">${attachmentsHTML}</div>` : ''}
-        <div class="obs-date">${fmtDate(o.createdAt)}</div>
-      </div>
-    `;
-  }).join('');
+  list.innerHTML = obs.map(obsItemHTML).join('');
+  wireObsContactoChips(list);
   list.scrollTop = list.scrollHeight;
 }
 
@@ -2612,6 +2860,51 @@ document.getElementById('btnEditFromDetail').addEventListener('click', () => {
   openTaskModal(null, taskDetailId);
 });
 
+// ── Mención "@contacto" en una observación ────────────────────────────────
+// Al elegir un contacto de la lista, la observación queda etiquetada; al
+// guardarla, además de quedar en la tarea se agrega como una línea más al
+// campo Observaciones del contacto (ver appendObservacionAContacto en
+// contactos.js — texto libre, no una lista estructurada como la de acá).
+const obsInputEl = document.getElementById('obsInput');
+const obsMentionDropdown = document.getElementById('obsMentionDropdown');
+let obsTaggedContactId = null;
+let obsTaggedContactNombre = null;
+
+obsInputEl.addEventListener('input', () => {
+  if (obsTaggedContactId && !obsInputEl.value.includes(`@${obsTaggedContactNombre}`)) {
+    obsTaggedContactId = null;
+    obsTaggedContactNombre = null;
+  }
+  const cursor = obsInputEl.selectionStart;
+  const before = obsInputEl.value.slice(0, cursor);
+  const match  = before.match(/@([^\s@]*)$/);
+  if (!match) { obsMentionDropdown.style.display = 'none'; return; }
+  const query   = match[1].toLowerCase();
+  const matches = contactos.filter(c => c.nombre.toLowerCase().includes(query)).slice(0, 6);
+  if (!matches.length) { obsMentionDropdown.style.display = 'none'; return; }
+  obsMentionDropdown.innerHTML = matches.map(c =>
+    `<div class="obs-mention-item" data-contacto-id="${esc(c.id)}" data-contacto-nombre="${esc(c.nombre)}">${esc(c.nombre)}</div>`
+  ).join('');
+  obsMentionDropdown.style.display = '';
+});
+
+obsMentionDropdown.addEventListener('click', e => {
+  const item = e.target.closest('.obs-mention-item');
+  if (!item) return;
+  const cursor = obsInputEl.selectionStart;
+  const before = obsInputEl.value.slice(0, cursor).replace(/@([^\s@]*)$/, `@${item.dataset.contactoNombre} `);
+  const after  = obsInputEl.value.slice(cursor);
+  obsInputEl.value = before + after;
+  obsTaggedContactId     = item.dataset.contactoId;
+  obsTaggedContactNombre = item.dataset.contactoNombre;
+  obsMentionDropdown.style.display = 'none';
+  obsInputEl.focus();
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.obs-input-wrap')) obsMentionDropdown.style.display = 'none';
+});
+
 document.getElementById('btnAddObs').addEventListener('click', async () => {
   const text = document.getElementById('obsInput').value.trim();
   if (!text) return;
@@ -2621,10 +2914,23 @@ document.getElementById('btnAddObs').addEventListener('click', async () => {
   const btn = document.getElementById('btnAddObs');
   btn.disabled = true;
   try {
+    const nuevaObs = { text, createdAt: new Date().toISOString() };
+    if (obsTaggedContactId) {
+      nuevaObs.contactoId     = obsTaggedContactId;
+      nuevaObs.contactoNombre = obsTaggedContactNombre;
+    }
     task.observations = task.observations || [];
-    task.observations.push({ text, createdAt: new Date().toISOString() });
+    task.observations.push(nuevaObs);
     await updateKanbanTask(task);
+    if (obsTaggedContactId) {
+      await appendObservacionAContacto(
+        obsTaggedContactId,
+        `[${fmtDate(nuevaObs.createdAt)}] (desde tarea "${task.title}"): ${text}`
+      );
+    }
     document.getElementById('obsInput').value = '';
+    obsTaggedContactId = null;
+    obsTaggedContactNombre = null;
     renderObservations(task);
     pushUndo(async () => {
       const t = kanbanTasks.find(x => x.id === task.id);

@@ -2,7 +2,9 @@ import { sheetsReq } from './auth.js';
 import { esc, setFb, fmtDate, confirmCloseIfDirty, safeLoad } from './utils.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let contactos          = [];
+// Exportado para que tareas.js pueda armar el picker "@" de menciones en
+// observaciones sin duplicar una carga propia de contactos.
+export let contactos    = [];
 let relaciones         = [];
 let contactosSheetId   = null;
 let relacionesSheetId  = null;
@@ -71,7 +73,7 @@ export async function initContactosSheets() {
   }
 
   const cd = await sheetsReq('/values/Contactos!A1').catch(() => ({}));
-  if (!cd.values) {
+  if (!cd.values || !cd.values.length) {
     await sheetsReq('/values/Contactos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
       body: JSON.stringify({ values: [['ID', 'Nombre', 'Cumpleanos', 'EdadIngreso', 'FechaIngreso', 'Observaciones', 'CreadoEn', 'Empresa', 'Posicion', 'Telefono']] })
@@ -193,6 +195,21 @@ async function appendRelacion(contactoAId, contactoBId, categoria) {
     method: 'POST',
     body: JSON.stringify({ values: [[crypto.randomUUID(), contactoAId, contactoBId, categoria, new Date().toISOString()]] })
   });
+}
+
+// Usado por tareas.js cuando se etiqueta un contacto con "@" en una
+// observación de tarea — se agrega como una línea más al campo de
+// observaciones (texto libre) del contacto, no se rediseña Contactos para
+// tener una lista estructurada como la de Tareas (con adjuntos, etc.).
+export async function appendObservacionAContacto(contactoId, entryText) {
+  const c = contactos.find(x => x.id === contactoId);
+  if (!c) return;
+  const nuevas = c.observaciones ? `${c.observaciones}\n\n${entryText}` : entryText;
+  await sheetsReq(`/values/Contactos!F${c.rowIndex}:F${c.rowIndex}?valueInputOption=USER_ENTERED`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[nuevas]] })
+  });
+  c.observaciones = nuevas;
 }
 
 // ── Edad calculada (nunca se guarda — se recalcula cada vez que se muestra) ──

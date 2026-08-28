@@ -3,7 +3,7 @@ import { esc, setFb, setFieldError, ICON_FOLDER, ICON_EDIT, ICON_TRASH } from '.
 import { setActiveBase, activeBaseModulos } from './db-state.js';
 import { navigateTo } from './main.js';
 import { initSheet, setDefaultDateTime, loadStories } from './contenido.js';
-import { initKanbanSheets, loadKanbanTasks } from './tareas.js';
+import { initKanbanSheets, loadKanbanTasks, initTareasHistorialSheet, migrateTerminalTasksToHistorial } from './tareas.js';
 import { initRecetasSheets } from './procesos.js';
 import { initIngredientesSheet } from './ingredientes.js';
 import { initComprasSheet } from './compras.js';
@@ -109,7 +109,8 @@ async function provisionAllTabs() {
   await Promise.all([
     initSheet().then(loadStories),
     initIdeasMarketingSheet().then(loadIdeasMarketing),
-    initKanbanSheets().then(loadKanbanTasks),
+    Promise.all([initKanbanSheets().then(loadKanbanTasks), initTareasHistorialSheet()])
+      .then(migrateTerminalTasksToHistorial),
     initRecetasSheets(),
     initIngredientesSheet(),
     initComprasSheet(),

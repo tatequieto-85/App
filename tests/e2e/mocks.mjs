@@ -11,7 +11,7 @@
 
 export const ALL_TABS = [
   'Bases', 'Config', 'Stories', 'IdeasMarketing', 'KanbanTasks', 'KanbanConfig', 'GanttProjects',
-  'RecetasPlantillas', 'RecetaBlocks', 'RecetasEjecuciones', 'Ingredientes',
+  'TareasHistorial', 'RecetasPlantillas', 'RecetaBlocks', 'RecetasEjecuciones', 'Ingredientes',
   'Compras', 'Ferias', 'CanalesVenta', 'StockTestigo', 'StockMovimientos', 'QR', 'Ideas',
   'Contactos', 'ContactosRelaciones'
 ];

@@ -294,6 +294,7 @@
                 <button class="sub-tab-btn active" data-subtab="kanban">Kanban</button>
                 <button class="sub-tab-btn" data-subtab="gantt">Gantt</button>
                 <button class="sub-tab-btn" data-subtab="lista">Lista</button>
+                <button class="sub-tab-btn" data-subtab="historial">Historial</button>
               </div>
               <div class="sub-tab-actions">
                 <div id="kanbanToolbar">
@@ -338,6 +339,18 @@
                   <button type="button" class="btn-outline filter-btn" id="listaFilterBtn">Filtros</button>
                 </div>
                 <div id="tasksList"><div class="loading-state">Cargando tareas…</div></div>
+              </section>
+            </div>
+          </div>
+
+          <div id="subTabHistorial" style="display:none">
+            <div class="main">
+              <section class="card">
+                <div class="section-header">
+                  <h2 class="section-title">Historial</h2>
+                </div>
+                <p class="mgmt-note">Tareas que ya se completaron o se cancelaron — quedan acá para siempre, con sus observaciones. Tocá el nombre para renombrar la fila; tocá el resto para ver sus observaciones.</p>
+                <div id="historialList"><div class="loading-state">Cargando historial…</div></div>
               </section>
             </div>
           </div>
@@ -781,8 +794,9 @@
             <h3 class="obs-title">Observaciones</h3>
           </div>
           <div id="observationsList" class="obs-list"></div>
-          <div class="obs-input-wrap">
-            <textarea class="field-textarea obs-textarea" id="obsInput" rows="2" placeholder="Escribe una observación…"></textarea>
+          <div class="obs-input-wrap" style="position:relative">
+            <div class="obs-mention-dropdown" id="obsMentionDropdown" style="display:none"></div>
+            <textarea class="field-textarea obs-textarea" id="obsInput" rows="2" placeholder="Escribe una observación… (escribí @ para vincular un contacto)"></textarea>
             <div class="obs-input-actions">
               <button class="btn-outline btn-sm" id="btnAttachObs" type="button" title="Adjuntar archivo o foto">📎 Adjuntar</button>
               <button class="btn-primary obs-btn" id="btnAddObs">Agregar</button>
