@@ -2864,7 +2864,7 @@ document.getElementById('btnEditFromDetail').addEventListener('click', () => {
 // Al elegir un contacto de la lista, la observación queda etiquetada; al
 // guardarla, además de quedar en la tarea se agrega como una línea más al
 // campo Observaciones del contacto (ver appendObservacionAContacto en
-// contactos.js — texto libre, no una lista estructurada como la de acá).
+// contactos.js — mismo shape {text, createdAt} que las de acá).
 const obsInputEl = document.getElementById('obsInput');
 const obsMentionDropdown = document.getElementById('obsMentionDropdown');
 let obsTaggedContactId = null;
@@ -2923,10 +2923,7 @@ document.getElementById('btnAddObs').addEventListener('click', async () => {
     task.observations.push(nuevaObs);
     await updateKanbanTask(task);
     if (obsTaggedContactId) {
-      await appendObservacionAContacto(
-        obsTaggedContactId,
-        `[${fmtDate(nuevaObs.createdAt)}] (desde tarea "${task.title}"): ${text}`
-      );
+      await appendObservacionAContacto(obsTaggedContactId, `(desde tarea "${task.title}"): ${text}`);
     }
     document.getElementById('obsInput').value = '';
     obsTaggedContactId = null;

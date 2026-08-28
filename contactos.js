@@ -9,12 +9,14 @@ let relaciones         = [];
 let contactosSheetId   = null;
 let relacionesSheetId  = null;
 let detailContactoId   = null; // contacto que muestra #contactoDetailOverlay
+let editingContactoId  = null; // null = #contactoOverlay está en modo "crear"
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const contactosList = document.getElementById('contactosList');
 const btnNewContacto = document.getElementById('btnNewContacto');
 
 const contactoOverlay        = document.getElementById('contactoOverlay');
+const contactoModalTitle     = document.getElementById('contactoModalTitle');
 const btnCloseContacto       = document.getElementById('btnCloseContacto');
 const contactoNombre         = document.getElementById('contactoNombre');
 const contactoCumpleanos     = document.getElementById('contactoCumpleanos');
@@ -22,28 +24,25 @@ const contactoEdadIngreso    = document.getElementById('contactoEdadIngreso');
 const contactoEmpresa        = document.getElementById('contactoEmpresa');
 const contactoPosicion       = document.getElementById('contactoPosicion');
 const contactoTelefono       = document.getElementById('contactoTelefono');
-const contactoObservaciones  = document.getElementById('contactoObservaciones');
 const btnSaveContacto        = document.getElementById('btnSaveContacto');
 const contactoFeedback       = document.getElementById('contactoFeedback');
 
 const contactoDetailOverlay       = document.getElementById('contactoDetailOverlay');
 const btnCloseContactoDetail      = document.getElementById('btnCloseContactoDetail');
 const contactoDetailTitle         = document.getElementById('contactoDetailTitle');
-const contactoDetailNombre        = document.getElementById('contactoDetailNombre');
-const contactoDetailCumpleanos    = document.getElementById('contactoDetailCumpleanos');
-const contactoDetailEdadIngreso   = document.getElementById('contactoDetailEdadIngreso');
-const contactoDetailEdadActual    = document.getElementById('contactoDetailEdadActual');
-const contactoDetailEmpresa       = document.getElementById('contactoDetailEmpresa');
-const contactoDetailPosicion      = document.getElementById('contactoDetailPosicion');
-const contactoDetailTelefono      = document.getElementById('contactoDetailTelefono');
-const contactoDetailObservaciones = document.getElementById('contactoDetailObservaciones');
-const btnSaveContactoDetail       = document.getElementById('btnSaveContactoDetail');
+const contactoDetailCumpleanosView = document.getElementById('contactoDetailCumpleanosView');
+const contactoDetailEdadView      = document.getElementById('contactoDetailEdadView');
+const contactoDetailEmpresaView   = document.getElementById('contactoDetailEmpresaView');
+const contactoDetailTelefonoView  = document.getElementById('contactoDetailTelefonoView');
 const contactoDetailFeedback      = document.getElementById('contactoDetailFeedback');
 const contactoRelacionesList      = document.getElementById('contactoRelacionesList');
 const contactoRelacionSelect      = document.getElementById('contactoRelacionSelect');
 const contactoRelacionCategoria   = document.getElementById('contactoRelacionCategoria');
 const contactoRelacionCategoriaList = document.getElementById('contactoRelacionCategoriaList');
 const btnAddRelacion              = document.getElementById('btnAddRelacion');
+const contactoObsList             = document.getElementById('contactoObsList');
+const contactoObsInput            = document.getElementById('contactoObsInput');
+const btnAddContactoObs           = document.getElementById('btnAddContactoObs');
 
 const DEFAULT_CATEGORIAS = ['Amigos', 'Trabajo', 'Familia'];
 
@@ -73,12 +72,12 @@ export async function initContactosSheets() {
   }
 
   const cd = await sheetsReq('/values/Contactos!A1').catch(() => ({}));
-  if (!cd.values || !cd.values.length) {
+  if (!cd.values) {
     await sheetsReq('/values/Contactos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
       body: JSON.stringify({ values: [['ID', 'Nombre', 'Cumpleanos', 'EdadIngreso', 'FechaIngreso', 'Observaciones', 'CreadoEn', 'Empresa', 'Posicion', 'Telefono']] })
     });
-  } else if (cd.values[0].length < 10) {
+  } else if (cd.values[0] && cd.values[0].length < 10) {
     // Base ya existente creada antes de agregar Empresa/Posicion/Telefono —
     // las columnas nuevas siempre van al final, se parchea el header si falta.
     await sheetsReq('/values/Contactos!H1:J1?valueInputOption=RAW', {
@@ -109,7 +108,7 @@ export async function loadContactos() {
       cumpleanos:    r[2] || '',
       edadIngreso:   r[3] !== undefined && r[3] !== '' ? +r[3] : null,
       fechaIngreso:  r[4] || '',
-      observaciones: r[5] || '',
+      observaciones: parseObservaciones(r[5]),
       creadoEn:      r[6] || '',
       empresa:       r[7] || '',
       posicion:      r[8] || '',
@@ -135,19 +134,34 @@ async function appendContacto(c) {
     method: 'POST',
     body: JSON.stringify({ values: [[
       crypto.randomUUID(), c.nombre, c.cumpleanos, c.edadIngreso ?? '', new Date().toISOString(),
-      c.observaciones, new Date().toISOString(), c.empresa || '', c.posicion || '', c.telefono || ''
+      '[]', new Date().toISOString(), c.empresa || '', c.posicion || '', c.telefono || ''
     ]] })
   });
 }
 
+// El rango B:J incluye la columna F (observaciones) — se manda el valor
+// que ya esté cacheado en memoria sin tocarlo (este modal no edita
+// observaciones, eso vive en el detalle) para no pisarlas.
 async function updateContacto(c) {
   await sheetsReq(`/values/Contactos!B${c.rowIndex}:J${c.rowIndex}?valueInputOption=USER_ENTERED`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
-      c.nombre, c.cumpleanos, c.edadIngreso ?? '', c.fechaIngreso, c.observaciones,
+      c.nombre, c.cumpleanos, c.edadIngreso ?? '', c.fechaIngreso, JSON.stringify(c.observaciones || []),
       c.creadoEn, c.empresa || '', c.posicion || '', c.telefono || ''
     ]] })
   });
+}
+
+// Datos viejos (de antes de este cambio) tenían Observaciones como texto
+// plano, no un JSON de lista — se migran solas al leer: un string no-JSON
+// se envuelve como una única observación sin fecha conocida.
+function parseObservaciones(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+  return [{ text: raw, createdAt: '' }];
 }
 
 async function deleteContactoRow(rowIndex) {
@@ -197,19 +211,19 @@ async function appendRelacion(contactoAId, contactoBId, categoria) {
   });
 }
 
-// Usado por tareas.js cuando se etiqueta un contacto con "@" en una
-// observación de tarea — se agrega como una línea más al campo de
-// observaciones (texto libre) del contacto, no se rediseña Contactos para
-// tener una lista estructurada como la de Tareas (con adjuntos, etc.).
-export async function appendObservacionAContacto(contactoId, entryText) {
+// Agrega una observación al historial del contacto — mismo shape que las
+// observaciones de Tareas ({text, createdAt}), sin adjuntos. La usa tanto
+// el botón "Agregar" del detalle de contacto como tareas.js cuando se
+// etiqueta un contacto con "@" en una observación de tarea.
+export async function appendObservacionAContacto(contactoId, text) {
   const c = contactos.find(x => x.id === contactoId);
   if (!c) return;
-  const nuevas = c.observaciones ? `${c.observaciones}\n\n${entryText}` : entryText;
+  c.observaciones = c.observaciones || [];
+  c.observaciones.push({ text, createdAt: new Date().toISOString() });
   await sheetsReq(`/values/Contactos!F${c.rowIndex}:F${c.rowIndex}?valueInputOption=USER_ENTERED`, {
     method: 'PUT',
-    body: JSON.stringify({ values: [[nuevas]] })
+    body: JSON.stringify({ values: [[JSON.stringify(c.observaciones)]] })
   });
-  c.observaciones = nuevas;
 }
 
 // ── Edad calculada (nunca se guarda — se recalcula cada vez que se muestra) ──
@@ -253,11 +267,14 @@ function relacionesDe(contactoId) {
 function contactoCardHTML(c) {
   const edad = edadActual(c);
   const nRelaciones = relacionesDe(c.id).length;
+  const obs = c.observaciones || [];
   const metaParts = [];
   if (edad !== null && edad !== undefined) metaParts.push(`${edad} años`);
   if (c.cumpleanos) metaParts.push(`🎂 ${fmtCumpleanos(c.cumpleanos)}`);
   if (nRelaciones) metaParts.push(`🔗 ${nRelaciones} relación${nRelaciones !== 1 ? 'es' : ''}`);
+  if (obs.length) metaParts.push(`📝 ${obs.length} observación${obs.length !== 1 ? 'es' : ''}`);
   const puesto = [c.posicion, c.empresa].filter(Boolean).join(' en ');
+  const ultimaObs = obs.length ? obs[obs.length - 1] : null;
 
   return `
     <div class="story-card contacto-card" data-contacto-id="${esc(c.id)}" data-row="${c.rowIndex}">
@@ -266,7 +283,7 @@ function contactoCardHTML(c) {
         ${puesto ? `<div class="story-date" style="color:var(--text-sub)">${esc(puesto)}</div>` : ''}
         ${metaParts.length ? `<div class="story-date">${esc(metaParts.join(' · '))}</div>` : ''}
         ${c.telefono ? `<div class="story-date">📞 ${esc(c.telefono)}</div>` : ''}
-        ${c.observaciones ? `<div class="story-actions">${esc(c.observaciones)}</div>` : ''}
+        ${ultimaObs ? `<div class="story-actions">${esc(ultimaObs.text)}</div>` : ''}
       </div>
       <div class="idea-mkt-footer">
         <span class="kanban-card-hint">mantén presionado</span>
@@ -324,7 +341,11 @@ function wireContactoCards() {
   });
 
   contactosList.querySelectorAll('[data-edit-contacto]').forEach(btn => {
-    btn.addEventListener('click', e => { e.stopPropagation(); openContactoDetail(btn.dataset.editContacto); });
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const c = contactos.find(x => x.id === btn.dataset.editContacto);
+      if (c) openEditContactoModal(c);
+    });
   });
   contactosList.querySelectorAll('[data-del-contacto]').forEach(btn => {
     btn.addEventListener('click', async e => {
@@ -343,27 +364,46 @@ document.addEventListener('click', () => {
   document.querySelectorAll('#contactosList .kanban-card-actions.open').forEach(a => a.classList.remove('open'));
 });
 
-// ── Modal: nuevo contacto ──────────────────────────────────────────────────────
+// ── Modal: nuevo/editar contacto ──────────────────────────────────────────────
+// Mismo patrón que los grupos de recetas/canales de venta: un solo modal,
+// editingContactoId null = crear. Solo edita los datos — observaciones y
+// relaciones viven en el detalle (ver openContactoDetail).
 
 function openContactoModal() {
+  editingContactoId = null;
+  contactoModalTitle.textContent = 'Nuevo contacto';
+  btnSaveContacto.textContent = 'Guardar contacto';
   contactoNombre.value = '';
   contactoCumpleanos.value = '';
   contactoEdadIngreso.value = '';
   contactoEmpresa.value = '';
   contactoPosicion.value = '';
   contactoTelefono.value = '';
-  contactoObservaciones.value = '';
   setFb(contactoFeedback, '', '');
   contactoOverlay.classList.add('open');
   setTimeout(() => contactoNombre.focus(), 100);
 }
 btnNewContacto.addEventListener('click', openContactoModal);
 
+function openEditContactoModal(c) {
+  editingContactoId = c.id;
+  contactoModalTitle.textContent = 'Editar contacto';
+  btnSaveContacto.textContent = 'Guardar cambios';
+  contactoNombre.value = c.nombre;
+  contactoCumpleanos.value = c.cumpleanos ? `2000-${c.cumpleanos}` : '';
+  contactoEdadIngreso.value = c.edadIngreso ?? '';
+  contactoEmpresa.value = c.empresa;
+  contactoPosicion.value = c.posicion;
+  contactoTelefono.value = c.telefono;
+  setFb(contactoFeedback, '', '');
+  contactoOverlay.classList.add('open');
+  setTimeout(() => contactoNombre.focus(), 100);
+}
+
 function isContactoFormDirty() {
   return !!contactoNombre.value.trim() || !!contactoCumpleanos.value
     || !!contactoEdadIngreso.value.trim() || !!contactoEmpresa.value.trim()
-    || !!contactoPosicion.value.trim() || !!contactoTelefono.value.trim()
-    || !!contactoObservaciones.value.trim();
+    || !!contactoPosicion.value.trim() || !!contactoTelefono.value.trim();
 }
 function closeContactoModal() {
   confirmCloseIfDirty('contactoOverlay', isContactoFormDirty);
@@ -375,17 +415,23 @@ btnSaveContacto.addEventListener('click', async () => {
   const nombre = contactoNombre.value.trim();
   if (!nombre) return setFb(contactoFeedback, 'El nombre es obligatorio.', 'err');
 
+  const datos = {
+    nombre,
+    cumpleanos:  contactoCumpleanos.value ? contactoCumpleanos.value.slice(5) : '',
+    edadIngreso: contactoEdadIngreso.value.trim() ? +contactoEdadIngreso.value : null,
+    empresa:     contactoEmpresa.value.trim(),
+    posicion:    contactoPosicion.value.trim(),
+    telefono:    contactoTelefono.value.trim()
+  };
+
   btnSaveContacto.disabled = true;
   try {
-    await appendContacto({
-      nombre,
-      cumpleanos:    contactoCumpleanos.value ? contactoCumpleanos.value.slice(5) : '',
-      edadIngreso:   contactoEdadIngreso.value.trim() ? +contactoEdadIngreso.value : null,
-      empresa:       contactoEmpresa.value.trim(),
-      posicion:      contactoPosicion.value.trim(),
-      telefono:      contactoTelefono.value.trim(),
-      observaciones: contactoObservaciones.value.trim()
-    });
+    if (editingContactoId) {
+      const existente = contactos.find(x => x.id === editingContactoId);
+      if (existente) await updateContacto({ ...existente, ...datos });
+    } else {
+      await appendContacto(datos);
+    }
     contactoOverlay.classList.remove('open');
     await loadContactos();
   } catch (e) {
@@ -432,27 +478,39 @@ function renderRelacionesList() {
     .map(cat => `<option value="${esc(cat)}"></option>`).join('');
 }
 
+function renderContactoObs(contacto) {
+  const obs = contacto.observaciones || [];
+  contactoObsList.innerHTML = obs.length
+    ? obs.map(o => `
+        <div class="obs-item">
+          <div class="obs-text">${esc(o.text)}</div>
+          <div class="obs-date">${o.createdAt ? fmtDate(o.createdAt) : ''}</div>
+        </div>`).join('')
+    : '<div class="obs-empty">Aún sin observaciones</div>';
+  contactoObsList.scrollTop = contactoObsList.scrollHeight;
+}
+
+// Doble clic/doble toque en la tarjeta abre esto: un resumen de solo
+// lectura (los datos se editan desde "Editar", ver openEditContactoModal)
+// más el historial completo de observaciones con su fecha, y las
+// relaciones con otros contactos.
 export function openContactoDetail(id) {
   const contacto = contactos.find(c => c.id === id);
   if (!contacto) return;
   detailContactoId = id;
 
   contactoDetailTitle.textContent = contacto.nombre;
-  contactoDetailNombre.value = contacto.nombre;
-  contactoDetailCumpleanos.value = contacto.cumpleanos ? `2000-${contacto.cumpleanos}` : '';
-  contactoDetailEdadIngreso.value = contacto.edadIngreso ?? '';
-  contactoDetailEmpresa.value = contacto.empresa;
-  contactoDetailPosicion.value = contacto.posicion;
-  contactoDetailTelefono.value = contacto.telefono;
-  contactoDetailObservaciones.value = contacto.observaciones;
-
+  contactoDetailCumpleanosView.textContent = contacto.cumpleanos ? fmtCumpleanos(contacto.cumpleanos) : '—';
   const edad = edadActual(contacto);
-  contactoDetailEdadActual.textContent = edad !== null && edad !== undefined
-    ? `Edad actual calculada: ${edad} años (desde que se cargó el ${fmtDate(contacto.fechaIngreso)})`
-    : '';
+  contactoDetailEdadView.textContent = edad !== null && edad !== undefined ? `${edad} años` : '—';
+  const puesto = [contacto.posicion, contacto.empresa].filter(Boolean).join(' en ');
+  contactoDetailEmpresaView.textContent = puesto || '—';
+  contactoDetailTelefonoView.textContent = contacto.telefono || '—';
 
   setFb(contactoDetailFeedback, '', '');
+  contactoObsInput.value = '';
   renderRelacionesList();
+  renderContactoObs(contacto);
   contactoDetailOverlay.classList.add('open');
 }
 
@@ -462,31 +520,22 @@ function closeContactoDetail() {
 btnCloseContactoDetail.addEventListener('click', closeContactoDetail);
 contactoDetailOverlay.addEventListener('click', e => { if (e.target === contactoDetailOverlay) closeContactoDetail(); });
 
-btnSaveContactoDetail.addEventListener('click', async () => {
+btnAddContactoObs.addEventListener('click', async () => {
+  const text = contactoObsInput.value.trim();
+  if (!text) return;
   const contacto = contactos.find(c => c.id === detailContactoId);
   if (!contacto) return;
-  const nombre = contactoDetailNombre.value.trim();
-  if (!nombre) return setFb(contactoDetailFeedback, 'El nombre es obligatorio.', 'err');
 
-  btnSaveContactoDetail.disabled = true;
+  btnAddContactoObs.disabled = true;
   try {
-    await updateContacto({
-      ...contacto,
-      nombre,
-      cumpleanos:    contactoDetailCumpleanos.value ? contactoDetailCumpleanos.value.slice(5) : '',
-      edadIngreso:   contactoDetailEdadIngreso.value.trim() ? +contactoDetailEdadIngreso.value : null,
-      empresa:       contactoDetailEmpresa.value.trim(),
-      posicion:      contactoDetailPosicion.value.trim(),
-      telefono:      contactoDetailTelefono.value.trim(),
-      observaciones: contactoDetailObservaciones.value.trim()
-    });
-    await loadContactos();
-    openContactoDetail(detailContactoId);
-    setFb(contactoDetailFeedback, '✅ Guardado.', 'ok');
+    await appendObservacionAContacto(contacto.id, text);
+    contactoObsInput.value = '';
+    renderContactoObs(contacto);
+    renderContactosList();
   } catch (e) {
     setFb(contactoDetailFeedback, 'Error: ' + e.message, 'err');
   } finally {
-    btnSaveContactoDetail.disabled = false;
+    btnAddContactoObs.disabled = false;
   }
 });
 
