@@ -200,13 +200,6 @@
               <span class="app-card-label">QR</span>
               <span class="app-card-sub">Generar · Guardar links</span>
             </button>
-            <button class="app-card" data-nav="ideas">
-              <div class="app-card-icon app-card-icon--yellow">
-                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5.6.6 1.17 1.35 1.41 2.5"/></svg>
-              </div>
-              <span class="app-card-label">Ideas</span>
-              <span class="app-card-sub">Por área</span>
-            </button>
             <button class="app-card" data-nav="contactos">
               <div class="app-card-icon app-card-icon--rose">
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
@@ -520,18 +513,6 @@
           </div>
         </div>
 
-        <!-- IDEAS VIEW -->
-        <div id="viewIdeas" class="view" style="display:none">
-          <div class="idea-board-header">
-            <h2 class="section-title">Ideas</h2>
-          </div>
-          <div class="idea-board-wrap">
-            <div class="idea-board-grid" id="ideasList">
-              <div class="loading-state" style="padding:48px 0">Cargando…</div>
-            </div>
-          </div>
-        </div>
-
         <!-- CONTACTOS VIEW -->
         <div id="viewContactos" class="view" style="display:none">
           <main class="main">
@@ -624,6 +605,15 @@
       <div class="modal-body modal-body-scroll">
         <label class="field-label" for="ideaMktDescripcion">Descripción *</label>
         <textarea class="field-textarea" id="ideaMktDescripcion" rows="4" placeholder="Ej: Reel mostrando el proceso de la salsa habanero…"></textarea>
+
+        <label class="field-label" for="ideaMktCategoria">Categoría *</label>
+        <select class="field-select" id="ideaMktCategoria">
+          <option value="" disabled selected>Elegí una…</option>
+          <option value="Campo">Campo</option>
+          <option value="Oficina">Oficina</option>
+          <option value="Tercero">Tercero</option>
+          <option value="Personal">Personal</option>
+        </select>
 
         <label class="field-label">Fotos</label>
         <input type="file" id="ideaMktPhotoInput" accept="image/*" capture="environment" multiple hidden />
@@ -893,46 +883,6 @@
     </div>
   </div>
 
-  <!-- Modal: Nueva/Editar idea -->
-  <div class="modal-overlay" id="ideaOverlay">
-    <div class="modal" style="max-width:460px">
-      <div class="modal-header">
-        <h2 id="ideaModalTitle">Nueva idea</h2>
-        <button class="btn-icon" id="btnCloseIdea"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      </div>
-      <div class="modal-body modal-body-scroll">
-        <label class="field-label" for="ideaDescripcion">Descripción *</label>
-        <textarea class="field-textarea" id="ideaDescripcion" rows="4" placeholder="Ej: Salsa de mango biche…"></textarea>
-        <label class="field-label" for="ideaProposito">Propósito</label>
-        <textarea class="field-textarea" id="ideaProposito" rows="2" placeholder="¿Para qué serviría esta idea?"></textarea>
-        <label class="field-label" for="ideaArea">Área *</label>
-        <select class="field-select" id="ideaArea"></select>
-        <label class="field-label">Alineación con TateQuieto</label>
-        <div class="alineacion-picker" id="ideaAlineacionPicker">
-          <label class="alineacion-option">
-            <input type="radio" name="ideaAlineacion" value="Poco" />
-            <span class="alineacion-dot alineacion-dot--poco"></span>Poco
-          </label>
-          <label class="alineacion-option">
-            <input type="radio" name="ideaAlineacion" value="Moderado" />
-            <span class="alineacion-dot alineacion-dot--moderado"></span>Moderado
-          </label>
-          <label class="alineacion-option">
-            <input type="radio" name="ideaAlineacion" value="Afín" />
-            <span class="alineacion-dot alineacion-dot--afin"></span>Afín
-          </label>
-        </div>
-        <div class="idea-archivo-row">
-          <button type="button" class="btn-outline btn-sm" id="btnAttachIdea">📎 Subir archivo</button>
-          <input type="file" id="ideaFileInput" hidden />
-          <div id="ideaArchivoPreview" class="idea-archivo-preview"></div>
-        </div>
-        <button class="btn-primary" id="btnSaveIdea" style="margin-top:14px">Guardar idea</button>
-        <div class="feedback" id="ideaFeedback"></div>
-      </div>
-    </div>
-  </div>
-
   <!-- Modal: Nuevo/Editar contacto (solo los datos — observaciones y
        relaciones se manejan desde el detalle, ver contactoDetailOverlay) -->
   <div class="modal-overlay" id="contactoOverlay">
@@ -1081,7 +1031,6 @@
           <label class="base-module-check"><input type="checkbox" value="stock" checked /> Stock</label>
           <label class="base-module-check"><input type="checkbox" value="informes" checked /> Informes</label>
           <label class="base-module-check"><input type="checkbox" value="qr" checked /> QR</label>
-          <label class="base-module-check"><input type="checkbox" value="ideas" checked /> Ideas</label>
           <label class="base-module-check"><input type="checkbox" value="contactos" checked /> Contactos</label>
         </div>
         <small class="field-error" id="baseModulosErr"></small>

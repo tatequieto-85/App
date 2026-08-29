@@ -16,7 +16,7 @@ export const ALL_TABS = [
   'Contactos', 'ContactosRelaciones'
 ];
 
-const ALL_MODULE_KEYS = ['contenido', 'tareas', 'procesos', 'compras', 'ferias', 'stock', 'informes', 'qr', 'ideas', 'contactos'];
+const ALL_MODULE_KEYS = ['contenido', 'tareas', 'procesos', 'compras', 'ferias', 'stock', 'informes', 'qr', 'contactos'];
 
 // Deja `window.google.accounts.oauth2` definido antes de que main.js lo
 // consulte (main.js hace polling de window.google?.accounts?.oauth2 antes de

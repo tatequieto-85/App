@@ -11,6 +11,7 @@ const btnNewIdeaMarketing = document.getElementById('btnNewIdeaMarketing');
 const ideaMktOverlay        = document.getElementById('ideaMktOverlay');
 const btnCloseIdeaMkt       = document.getElementById('btnCloseIdeaMkt');
 const ideaMktDescripcion    = document.getElementById('ideaMktDescripcion');
+const ideaMktCategoria      = document.getElementById('ideaMktCategoria');
 const ideaMktPhotoInput     = document.getElementById('ideaMktPhotoInput');
 const btnAddIdeaMktPhoto    = document.getElementById('btnAddIdeaMktPhoto');
 const ideaMktPhotoPreview   = document.getElementById('ideaMktPhotoPreview');
@@ -54,21 +55,90 @@ export async function initIdeasMarketingSheet() {
     });
   }
 
-  const sd = await sheetsReq('/values/IdeasMarketing!A1').catch(() => ({}));
+  const sd = await sheetsReq('/values/IdeasMarketing!A1:L1').catch(() => ({}));
   if (!sd.values) {
     await sheetsReq('/values/IdeasMarketing!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
       body: JSON.stringify({ values: [[
         'ID', 'Descripcion', 'PhotoFileIds', 'PhotoNames', 'PhotoMimeTypes', 'PhotoThumbUrls',
-        'AudioFileIds', 'AudioNames', 'AudioMimeTypes', 'AudioDurations', 'CreatedAt'
+        'AudioFileIds', 'AudioNames', 'AudioMimeTypes', 'AudioDurations', 'CreatedAt', 'Categoria'
       ]] })
+    });
+  } else if ((sd.values[0] || []).length < 12) {
+    // Base ya existente creada antes de agregar Categoria — la columna
+    // nueva va al final, se parchea el header si falta.
+    await sheetsReq('/values/IdeasMarketing!L1?valueInputOption=RAW', {
+      method: 'PUT',
+      body: JSON.stringify({ values: [['Categoria']] })
+    });
+  }
+}
+
+// Ideas de marketing absorbió al viejo módulo Ideas (banco de ideas por
+// área, con propósito/alineación) — se llama una sola vez por conexión a
+// una base (provisionAllTabs en bases.js). Lee la pestaña Ideas directo
+// por sheetsReq, sin depender de ideas.js (que se borró): el área,
+// propósito y alineación no tienen columna equivalente acá, así que se
+// anexan como texto extra a la descripción en vez de perderse. Al
+// terminar, vacía las filas migradas (no borra la pestaña entera) para
+// que la próxima conexión no las vuelva a migrar.
+export async function migrateOldIdeasToMarketing() {
+  const data = await sheetsReq('/values/Ideas!A:H').catch(() => ({}));
+  const rows = (data.values || []).slice(1).filter(r => r[0]);
+  if (!rows.length) return;
+
+  for (const r of rows) {
+    const descripcion = r[2] || '';
+    const area        = r[3] || '';
+    const proposito    = r[5] || '';
+    const alineacion   = r[6] || '';
+    const archivo      = safeParseJSON(r[7], null);
+
+    const extra = [];
+    if (area)       extra.push(`Área: ${area}`);
+    if (proposito)   extra.push(`Propósito: ${proposito}`);
+    if (alineacion)  extra.push(`Alineación: ${alineacion}`);
+    const descripcionFinal = extra.length ? `${descripcion}\n\n${extra.join('\n')}` : descripcion;
+
+    const photoFileIds = [], photoNames = [], photoMimeTypes = [], photoThumbUrls = [];
+    if (archivo && archivo.fileId) {
+      photoFileIds.push(archivo.fileId);
+      photoNames.push(archivo.name || '');
+      photoMimeTypes.push(archivo.mimeType || '');
+      photoThumbUrls.push(thumbUrl(archivo.fileId));
+    }
+
+    await appendIdeaMarketing({
+      id: crypto.randomUUID(),
+      descripcion: descripcionFinal,
+      photoFileIds, photoNames, photoMimeTypes, photoThumbUrls,
+      audioFileIds: [], audioNames: [], audioMimeTypes: [], audioDurations: [],
+      categoria: '',
+      createdAt: r[4] || new Date().toISOString()
+    });
+  }
+
+  // De abajo hacia arriba: borrar una fila corre hacia arriba el índice
+  // de las que quedan, mismo motivo que el resto de las migraciones de
+  // esta app (Historial de tareas, cascade de Contactos).
+  const info = await sheetsReq('');
+  const tab  = info.sheets.find(s => s.properties.title === 'Ideas');
+  if (!tab) return;
+  const ideasSheetId = tab.properties.sheetId;
+  const rowIndexes = rows.map((_, i) => i + 2).sort((a, b) => b - a);
+  for (const rowIndex of rowIndexes) {
+    await sheetsReq(':batchUpdate', {
+      method: 'POST',
+      body: JSON.stringify({ requests: [{
+        deleteDimension: { range: { sheetId: ideasSheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex } }
+      }] })
     });
   }
 }
 
 export async function loadIdeasMarketing() {
   await safeLoad(async () => {
-    const data = await sheetsReq('/values/IdeasMarketing!A:K');
+    const data = await sheetsReq('/values/IdeasMarketing!A:L');
     const rows = (data.values || []).slice(1);
 
     ideasMkt = rows
@@ -85,6 +155,7 @@ export async function loadIdeasMarketing() {
         audioMimeTypes: safeParseJSON(r[8], []),
         audioDurations: safeParseJSON(r[9], []),
         createdAt:      r[10] || '',
+        categoria:      r[11] || '',
         rowIndex:       i + 2
       }))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -94,7 +165,7 @@ export async function loadIdeasMarketing() {
 }
 
 async function appendIdeaMarketing(idea) {
-  await sheetsReq('/values/IdeasMarketing!A:K:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/IdeasMarketing!A:L:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       idea.id, idea.descripcion,
@@ -102,7 +173,7 @@ async function appendIdeaMarketing(idea) {
       JSON.stringify(idea.photoMimeTypes), JSON.stringify(idea.photoThumbUrls),
       JSON.stringify(idea.audioFileIds), JSON.stringify(idea.audioNames),
       JSON.stringify(idea.audioMimeTypes), JSON.stringify(idea.audioDurations),
-      idea.createdAt
+      idea.createdAt, idea.categoria || ''
     ]] })
   });
 }
@@ -288,6 +359,7 @@ function extFromAudioMime(m) {
 
 function openIdeaMktModal() {
   ideaMktDescripcion.value = '';
+  ideaMktCategoria.value = '';
   clearIdeaPhotos();
   clearIdeaAudioClips();
   setFb(ideaMktFeedback, '', '');
@@ -297,7 +369,8 @@ function openIdeaMktModal() {
 btnNewIdeaMarketing.addEventListener('click', openIdeaMktModal);
 
 function isIdeaMktFormDirty() {
-  return ideaMktDescripcion.value.trim() !== '' || ideaPhotos.length > 0 || ideaAudioClips.length > 0;
+  return ideaMktDescripcion.value.trim() !== '' || !!ideaMktCategoria.value
+    || ideaPhotos.length > 0 || ideaAudioClips.length > 0;
 }
 
 // Si el modal se cierra mientras graba, hay que parar la grabación primero
@@ -311,7 +384,9 @@ ideaMktOverlay.addEventListener('click', e => { if (e.target === ideaMktOverlay)
 
 btnSaveIdeaMkt.addEventListener('click', async () => {
   const descripcion = ideaMktDescripcion.value.trim();
+  const categoria = ideaMktCategoria.value;
   if (!descripcion) return setFb(ideaMktFeedback, 'La descripción es obligatoria.', 'err');
+  if (!categoria) return setFb(ideaMktFeedback, 'Elegí una categoría.', 'err');
   if (mediaRecorder && mediaRecorder.state === 'recording') stopIdeaAudioRecording();
 
   btnSaveIdeaMkt.disabled = true;
@@ -361,7 +436,7 @@ btnSaveIdeaMkt.addEventListener('click', async () => {
 
     await appendIdeaMarketing({
       id: crypto.randomUUID(),
-      descripcion,
+      descripcion, categoria,
       photoFileIds, photoNames, photoMimeTypes, photoThumbUrls,
       audioFileIds, audioNames, audioMimeTypes, audioDurations,
       createdAt: new Date().toISOString()
@@ -427,6 +502,7 @@ function ideaMktCardHTML(idea) {
   return `
     <div class="story-card idea-mkt-card" data-idea-row="${idea.rowIndex}">
       <div class="story-body" style="padding:14px">
+        ${idea.categoria ? `<span class="idea-mkt-categoria">${esc(idea.categoria)}</span>` : ''}
         <div class="story-actions" style="max-height:none;-webkit-line-clamp:6">${esc(idea.descripcion)}</div>
         ${photosHTML ? `<div class="idea-mkt-photos">${photosHTML}${extraPhotos}</div>` : ''}
         ${audioHTML  ? `<div class="idea-mkt-audios">${audioHTML}</div>` : ''}

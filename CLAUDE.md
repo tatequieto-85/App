@@ -9,7 +9,7 @@ Cuando el usuario pida un cambio en un módulo específico, ir directo al archiv
 | Módulo (como lo nombra el usuario) | Archivo         | Qué contiene |
 |---|---|---|
 | Contenido (historias de Instagram) | `contenido.js`  | Stories CRUD, dropzone de archivos, modal de Configuración/WhatsApp, emoji picker |
-| Contenido → Ideas de marketing | `ideas-marketing.js` | Banco de ideas con fotos + notas de voz grabadas en el navegador (MediaRecorder) + descripción; vive dentro de la vista de Contenido, sheet propia `IdeasMarketing` — no confundir con el módulo `ideas.js` (banco de ideas por área, sin fotos/audio) |
+| Contenido → Ideas de marketing | `ideas-marketing.js` | Banco de ideas con fotos + notas de voz grabadas en el navegador (MediaRecorder) + descripción + categoría obligatoria (Campo/Oficina/Tercero/Personal); vive dentro de la vista de Contenido, sheet propia `IdeasMarketing`. Absorbió al viejo módulo `ideas.js` (banco de ideas por área) — se eliminó y su contenido se migró acá |
 | Tareas (Kanban / Gantt / Lista) | `tareas.js` | El módulo más grande. Kanban, Gantt, Lista, modal de tarea, cronómetro por tarea, filtros, detalle de tarea, suscripción a Google Calendar/Calendario de iOS (feed vía Worker) |
 | Procesos (recetas + ejecución de lotes) | `procesos.js` | Recetas, bloques de recetas, ejecución paso a paso con cronómetro, evaluación de lote (una sola fase: pH, envasado/rendimiento, calificación) |
 | Compras (precios de ingredientes) | `compras.js`    | Registro de compras, historial de precios, costo de producción |
@@ -18,7 +18,6 @@ Cuando el usuario pida un cambio en un módulo específico, ir directo al archiv
 | Stock (inventario) | `stock.js`      | Resumen de inventario, trazabilidad, ajustes manuales, producto testigo |
 | Informes | `informes.js`   | Horas invertidas/pendientes (cruza datos de Tareas y Procesos) |
 | QR | `qr.js`         | Generar y guardar códigos QR |
-| Ideas (banco de ideas por área) | `ideas.js`      | Ideas agrupadas por área — reutiliza las mismas áreas que administra Tareas (`kanbanAreas`/`getAreaColor`, importadas de `tareas.js`) |
 | Contactos (cumpleaños, empresa/posición, relaciones) | `contactos.js` | Nombre, cumpleaños (día/mes, sin año), edad calculada en vivo a partir de "edad de ingreso" + tiempo transcurrido (nunca se guarda la edad en sí), empresa/posición, teléfono, observaciones; vínculos entre contactos bajo categorías libres (`ContactosRelaciones`, muchos-a-muchos, categorías no fijas) |
 | Bases de datos (multi-empresa) | `bases.js`      | Selector/creación/edición de bases de datos (cada una un Google Sheet distinto) |
 
