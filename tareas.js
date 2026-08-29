@@ -2689,13 +2689,13 @@ function openTaskDetail(taskId) {
   const color = col ? col.color : '#999';
   const due   = fmtDue(task.dueDate);
 
-  const subtasksHTML = (task.subtasks || []).map(s => {
+  const subtasksHTML = (task.subtasks || []).map((s, i) => {
     const range = s.startDate && s.dueDate && s.startDate !== s.dueDate
       ? `${fmtDueShort(s.startDate)} → ${fmtDueShort(s.dueDate)}`
       : (s.dueDate ? fmtDueShort(s.dueDate) : '');
     const sd = range ? `<span class="subtask-bullet-date">${range}</span>` : '';
     return `<div class="detail-subtask-item${s.done ? ' done' : ''}">
-      <span class="detail-subtask-bullet">•</span>
+      <button type="button" class="detail-subtask-check" data-subtask-idx="${i}" title="${s.done ? 'Marcar como pendiente' : 'Marcar como realizada'}">${s.done ? '✓' : ''}</button>
       <span>${esc(s.text)}</span>${sd}
     </div>`;
   }).join('');
@@ -2739,6 +2739,25 @@ function openTaskDetail(taskId) {
     <div class="detail-row detail-row--meta"><span class="detail-label">Creada</span><span class="detail-value">${fmtDate(task.createdAt)}</span></div>
     <div class="detail-row detail-row--meta"><span class="detail-label">Actualizada</span><span class="detail-value">${fmtDate(task.updatedAt)}</span></div>
   `;
+
+  document.querySelectorAll('.detail-subtask-check').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const t = kanbanTasks.find(x => x.id === taskDetailId);
+      const sub = t?.subtasks?.[+btn.dataset.subtaskIdx];
+      if (!sub) return;
+      sub.done = !sub.done;
+      btn.disabled = true;
+      try {
+        await updateKanbanTask(t);
+        openTaskDetail(taskDetailId);
+        renderCurrentSubTab();
+      } catch (e) {
+        sub.done = !sub.done;
+        alert('Error al guardar: ' + e.message);
+        btn.disabled = false;
+      }
+    });
+  });
 
   const detailStatusSel = document.getElementById('detailStatusSelect');
   if (detailStatusSel) {

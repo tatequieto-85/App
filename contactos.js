@@ -26,6 +26,9 @@ const contactoEdadIngreso    = document.getElementById('contactoEdadIngreso');
 const contactoEmpresa        = document.getElementById('contactoEmpresa');
 const contactoPosicion       = document.getElementById('contactoPosicion');
 const contactoTelefono       = document.getElementById('contactoTelefono');
+const contactoCiudad         = document.getElementById('contactoCiudad');
+const contactoEmpresaList    = document.getElementById('contactoEmpresaList');
+const contactoCiudadList     = document.getElementById('contactoCiudadList');
 const btnSaveContacto        = document.getElementById('btnSaveContacto');
 const contactoFeedback       = document.getElementById('contactoFeedback');
 
@@ -36,6 +39,7 @@ const contactoDetailCumpleanosView = document.getElementById('contactoDetailCump
 const contactoDetailEdadView      = document.getElementById('contactoDetailEdadView');
 const contactoDetailEmpresaView   = document.getElementById('contactoDetailEmpresaView');
 const contactoDetailTelefonoView  = document.getElementById('contactoDetailTelefonoView');
+const contactoDetailCiudadView    = document.getElementById('contactoDetailCiudadView');
 const contactoDetailFeedback      = document.getElementById('contactoDetailFeedback');
 const contactoRelacionesList      = document.getElementById('contactoRelacionesList');
 const contactoRelacionSelect      = document.getElementById('contactoRelacionSelect');
@@ -73,19 +77,28 @@ export async function initContactosSheets() {
     });
   }
 
-  const cd = await sheetsReq('/values/Contactos!A1').catch(() => ({}));
+  const cd = await sheetsReq('/values/Contactos!A1:K1').catch(() => ({}));
   if (!cd.values) {
     await sheetsReq('/values/Contactos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID', 'Nombre', 'Cumpleanos', 'EdadIngreso', 'FechaIngreso', 'Observaciones', 'CreadoEn', 'Empresa', 'Posicion', 'Telefono']] })
+      body: JSON.stringify({ values: [['ID', 'Nombre', 'Cumpleanos', 'EdadIngreso', 'FechaIngreso', 'Observaciones', 'CreadoEn', 'Empresa', 'Posicion', 'Telefono', 'Ciudad']] })
     });
-  } else if (cd.values[0] && cd.values[0].length < 10) {
-    // Base ya existente creada antes de agregar Empresa/Posicion/Telefono —
-    // las columnas nuevas siempre van al final, se parchea el header si falta.
-    await sheetsReq('/values/Contactos!H1:J1?valueInputOption=RAW', {
-      method: 'PUT',
-      body: JSON.stringify({ values: [['Empresa', 'Posicion', 'Telefono']] })
-    });
+  } else {
+    // Bases ya existentes, creadas antes de agregar estas columnas — las
+    // columnas nuevas siempre van al final, se parchea el header si falta.
+    const header = cd.values[0] || [];
+    if (header.length < 10) {
+      await sheetsReq('/values/Contactos!H1:J1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [['Empresa', 'Posicion', 'Telefono']] })
+      });
+    }
+    if (header.length < 11) {
+      await sheetsReq('/values/Contactos!K1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [['Ciudad']] })
+      });
+    }
   }
 
   const rd = await sheetsReq('/values/ContactosRelaciones!A1').catch(() => ({}));
@@ -100,7 +113,7 @@ export async function initContactosSheets() {
 export async function loadContactos() {
   await safeLoad(async () => {
     const [cData, rData] = await Promise.all([
-      sheetsReq('/values/Contactos!A:J'),
+      sheetsReq('/values/Contactos!A:K'),
       sheetsReq('/values/ContactosRelaciones!A:E')
     ]);
 
@@ -115,6 +128,7 @@ export async function loadContactos() {
       empresa:       r[7] || '',
       posicion:      r[8] || '',
       telefono:      r[9] || '',
+      ciudad:        r[10] || '',
       rowIndex:      i + 2
     })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
@@ -132,11 +146,11 @@ export async function loadContactos() {
 }
 
 async function appendContacto(c) {
-  await sheetsReq('/values/Contactos!A:J:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Contactos!A:K:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       crypto.randomUUID(), c.nombre, c.cumpleanos, c.edadIngreso ?? '', new Date().toISOString(),
-      '[]', new Date().toISOString(), c.empresa || '', c.posicion || '', c.telefono || ''
+      '[]', new Date().toISOString(), c.empresa || '', c.posicion || '', c.telefono || '', c.ciudad || ''
     ]] })
   });
 }
@@ -145,11 +159,11 @@ async function appendContacto(c) {
 // que ya esté cacheado en memoria sin tocarlo (este modal no edita
 // observaciones, eso vive en el detalle) para no pisarlas.
 async function updateContacto(c) {
-  await sheetsReq(`/values/Contactos!B${c.rowIndex}:J${c.rowIndex}?valueInputOption=USER_ENTERED`, {
+  await sheetsReq(`/values/Contactos!B${c.rowIndex}:K${c.rowIndex}?valueInputOption=USER_ENTERED`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
       c.nombre, c.cumpleanos, c.edadIngreso ?? '', c.fechaIngreso, JSON.stringify(c.observaciones || []),
-      c.creadoEn, c.empresa || '', c.posicion || '', c.telefono || ''
+      c.creadoEn, c.empresa || '', c.posicion || '', c.telefono || '', c.ciudad || ''
     ]] })
   });
 }
@@ -266,33 +280,28 @@ function relacionesDe(contactoId) {
 
 // ── Lista principal ───────────────────────────────────────────────────────────
 
+// Tarjeta cuadrada (1x1) — compacta a propósito, no entra todo: nombre,
+// empresa/posición, y un renglón chico de badges. El resto (teléfono,
+// cumpleaños, observaciones completas) se ve en el detalle (doble clic).
 function contactoCardHTML(c) {
   const edad = edadActual(c);
   const nRelaciones = relacionesDe(c.id).length;
   const obs = c.observaciones || [];
-  const metaParts = [];
-  if (edad !== null && edad !== undefined) metaParts.push(`${edad} años`);
-  if (c.cumpleanos) metaParts.push(`🎂 ${fmtCumpleanos(c.cumpleanos)}`);
-  if (nRelaciones) metaParts.push(`🔗 ${nRelaciones} relación${nRelaciones !== 1 ? 'es' : ''}`);
-  if (obs.length) metaParts.push(`📝 ${obs.length} observación${obs.length !== 1 ? 'es' : ''}`);
   const puesto = [c.posicion, c.empresa].filter(Boolean).join(' en ');
-  const ultimaObs = obs.length ? obs[obs.length - 1] : null;
+  const badges = [];
+  if (edad !== null && edad !== undefined) badges.push(`${edad} años`);
+  if (c.ciudad) badges.push(`📍${c.ciudad}`);
+  if (nRelaciones) badges.push(`🔗${nRelaciones}`);
+  if (obs.length) badges.push(`📝${obs.length}`);
 
   return `
-    <div class="story-card contacto-card" data-contacto-id="${esc(c.id)}" data-row="${c.rowIndex}">
-      <div class="story-body">
-        <div class="story-title" style="padding-right:0">${esc(c.nombre)}</div>
-        ${puesto ? `<div class="story-date" style="color:var(--text-sub)">${esc(puesto)}</div>` : ''}
-        ${metaParts.length ? `<div class="story-date">${esc(metaParts.join(' · '))}</div>` : ''}
-        ${c.telefono ? `<div class="story-date">📞 ${esc(c.telefono)}</div>` : ''}
-        ${ultimaObs ? `<div class="story-actions">${esc(ultimaObs.text)}</div>` : ''}
-      </div>
-      <div class="idea-mkt-footer">
-        <span class="kanban-card-hint">mantén presionado</span>
-        <div class="kanban-card-actions">
-          <button type="button" data-edit-contacto="${esc(c.id)}">Editar</button>
-          <button type="button" data-del-contacto="${esc(c.id)}">Borrar</button>
-        </div>
+    <div class="contacto-card" data-contacto-id="${esc(c.id)}" data-row="${c.rowIndex}">
+      <div class="contacto-card-name">${esc(c.nombre)}</div>
+      ${puesto ? `<div class="contacto-card-meta">${esc(puesto)}</div>` : ''}
+      ${badges.length ? `<div class="contacto-card-badges">${esc(badges.join(' · '))}</div>` : ''}
+      <div class="contacto-card-actions">
+        <button type="button" data-edit-contacto="${esc(c.id)}">Editar</button>
+        <button type="button" data-del-contacto="${esc(c.id)}">Borrar</button>
       </div>
     </div>`;
 }
@@ -318,7 +327,7 @@ export function renderContactosList() {
     contactosList.innerHTML = '<div class="empty-state">Ningún contacto coincide con la búsqueda</div>';
     return;
   }
-  contactosList.innerHTML = visibles.map(contactoCardHTML).join('');
+  contactosList.innerHTML = `<div class="contactos-grid">${visibles.map(contactoCardHTML).join('')}</div>`;
   wireContactoCards();
 }
 
@@ -336,8 +345,8 @@ function wireContactoCards() {
     let pressTimer  = null;
     let longPressed = false;
     const openCardActions = () => {
-      contactosList.querySelectorAll('.kanban-card-actions.open').forEach(a => a.classList.remove('open'));
-      card.querySelector('.kanban-card-actions')?.classList.add('open');
+      contactosList.querySelectorAll('.contacto-card-actions.open').forEach(a => a.classList.remove('open'));
+      card.querySelector('.contacto-card-actions')?.classList.add('open');
     };
     const startPress = e => {
       if (e.target.closest('button')) return;
@@ -384,13 +393,22 @@ function wireContactoCards() {
 }
 
 document.addEventListener('click', () => {
-  document.querySelectorAll('#contactosList .kanban-card-actions.open').forEach(a => a.classList.remove('open'));
+  document.querySelectorAll('#contactosList .contacto-card-actions.open').forEach(a => a.classList.remove('open'));
 });
 
 // ── Modal: nuevo/editar contacto ──────────────────────────────────────────────
 // Mismo patrón que los grupos de recetas/canales de venta: un solo modal,
 // editingContactoId null = crear. Solo edita los datos — observaciones y
 // relaciones viven en el detalle (ver openContactoDetail).
+
+// Texto predictivo de Empresa/Ciudad — sugiere lo que ya se cargó en otros
+// contactos (datalist nativo), sin bloquear escribir algo nuevo.
+function populateContactoDatalists() {
+  const empresas = [...new Set(contactos.map(c => c.empresa).filter(Boolean))].sort();
+  const ciudades = [...new Set(contactos.map(c => c.ciudad).filter(Boolean))].sort();
+  contactoEmpresaList.innerHTML = empresas.map(v => `<option value="${esc(v)}"></option>`).join('');
+  contactoCiudadList.innerHTML  = ciudades.map(v => `<option value="${esc(v)}"></option>`).join('');
+}
 
 function openContactoModal() {
   editingContactoId = null;
@@ -402,7 +420,9 @@ function openContactoModal() {
   contactoEmpresa.value = '';
   contactoPosicion.value = '';
   contactoTelefono.value = '';
+  contactoCiudad.value = '';
   setFb(contactoFeedback, '', '');
+  populateContactoDatalists();
   contactoOverlay.classList.add('open');
   setTimeout(() => contactoNombre.focus(), 100);
 }
@@ -418,7 +438,9 @@ function openEditContactoModal(c) {
   contactoEmpresa.value = c.empresa;
   contactoPosicion.value = c.posicion;
   contactoTelefono.value = c.telefono;
+  contactoCiudad.value = c.ciudad;
   setFb(contactoFeedback, '', '');
+  populateContactoDatalists();
   contactoOverlay.classList.add('open');
   setTimeout(() => contactoNombre.focus(), 100);
 }
@@ -426,7 +448,8 @@ function openEditContactoModal(c) {
 function isContactoFormDirty() {
   return !!contactoNombre.value.trim() || !!contactoCumpleanos.value
     || !!contactoEdadIngreso.value.trim() || !!contactoEmpresa.value.trim()
-    || !!contactoPosicion.value.trim() || !!contactoTelefono.value.trim();
+    || !!contactoPosicion.value.trim() || !!contactoTelefono.value.trim()
+    || !!contactoCiudad.value.trim();
 }
 function closeContactoModal() {
   confirmCloseIfDirty('contactoOverlay', isContactoFormDirty);
@@ -444,7 +467,8 @@ btnSaveContacto.addEventListener('click', async () => {
     edadIngreso: contactoEdadIngreso.value.trim() ? +contactoEdadIngreso.value : null,
     empresa:     contactoEmpresa.value.trim(),
     posicion:    contactoPosicion.value.trim(),
-    telefono:    contactoTelefono.value.trim()
+    telefono:    contactoTelefono.value.trim(),
+    ciudad:      contactoCiudad.value.trim()
   };
 
   btnSaveContacto.disabled = true;
@@ -529,6 +553,7 @@ export function openContactoDetail(id) {
   const puesto = [contacto.posicion, contacto.empresa].filter(Boolean).join(' en ');
   contactoDetailEmpresaView.textContent = puesto || '—';
   contactoDetailTelefonoView.textContent = contacto.telefono || '—';
+  contactoDetailCiudadView.textContent = contacto.ciudad || '—';
 
   setFb(contactoDetailFeedback, '', '');
   contactoObsInput.value = '';
