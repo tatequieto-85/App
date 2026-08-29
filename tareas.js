@@ -1321,6 +1321,7 @@ export function renderGanttChart() {
 
   projectsBar.querySelectorAll('[data-project]').forEach(btn => {
     btn.addEventListener('click', () => { currentGanttProjectId = btn.dataset.project; renderGanttChart(); });
+    btn.addEventListener('dblclick', e => { e.stopPropagation(); openProjectSummary(btn.dataset.project); });
   });
   document.getElementById('ganttAddProjectChip').addEventListener('click', () => document.getElementById('btnManageGanttProjects').click());
 
@@ -2485,6 +2486,62 @@ document.getElementById('btnAddArea').addEventListener('click', async () => {
     populateAreaSelects();
     setFb(fb, `✅ Área "${name}" agregada.`, 'ok');
   } catch (e) { setFb(fb, 'Error: ' + e.message, 'err'); }
+});
+
+// ── Resumen de proyecto (doble clic en el nombre del proyecto, en el Gantt) ──
+// Lista todas las tareas del proyecto con su estado/fecha y, debajo de cada
+// una, sus observaciones — para verlo todo junto sin entrar tarea por tarea.
+// Solo cubre tareas vivas (kanbanTasks): al archivarse (Historial) una tarea
+// pierde su projectId a propósito (ver archiveTask), así que el resumen de
+// un proyecto no incluye lo que ya se completó/canceló de ese proyecto.
+function openProjectSummary(projectId) {
+  const project = ganttProjects.find(p => p.id === projectId);
+  if (!project) return;
+
+  const tasks = kanbanTasks
+    .filter(t => t.projectId === projectId)
+    .slice()
+    .sort((a, b) => {
+      const hasA = a.sortOrder !== null && a.sortOrder !== undefined;
+      const hasB = b.sortOrder !== null && b.sortOrder !== undefined;
+      if (hasA && hasB) return a.sortOrder - b.sortOrder;
+      if (hasA) return -1;
+      if (hasB) return 1;
+      return (a.startDate || '9999') < (b.startDate || '9999') ? -1 : 1;
+    });
+
+  document.getElementById('projectSummaryTitle').innerHTML =
+    `<span class="gantt-project-chip-dot" style="background:${esc(project.color)};display:inline-block;margin-right:6px"></span>${esc(project.name)}`;
+
+  const body = document.getElementById('projectSummaryBody');
+  body.innerHTML = tasks.length
+    ? tasks.map(t => {
+        const col = kanbanColumns.find(c => c.name === t.status);
+        const color = col ? col.color : '#999';
+        const due = fmtDue(t.dueDate);
+        const obs = t.observations || [];
+        return `
+          <div class="project-summary-task">
+            <div class="project-summary-task-head">
+              <strong>${esc(t.title)}</strong>
+              <span class="status-pill" style="background:${color}22;color:${color}">${esc(t.status)}</span>
+              ${due.text ? `<span class="kanban-card-due ${due.cls}">${due.text}</span>` : ''}
+            </div>
+            ${obs.length ? obs.map(obsItemHTML).join('') : '<div class="obs-empty">Sin observaciones</div>'}
+          </div>`;
+      }).join('')
+    : '<div class="empty-state">Este proyecto aún no tiene tareas.</div>';
+  wireObsContactoChips(body);
+
+  document.getElementById('projectSummaryOverlay').classList.add('open');
+}
+document.getElementById('btnCloseProjectSummary').addEventListener('click', () => {
+  document.getElementById('projectSummaryOverlay').classList.remove('open');
+});
+document.getElementById('projectSummaryOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('projectSummaryOverlay')) {
+    document.getElementById('projectSummaryOverlay').classList.remove('open');
+  }
 });
 
 // ── Gantt projects management modal ─────────────────────────────────────────
