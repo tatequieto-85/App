@@ -306,12 +306,11 @@ function contactoCardHTML(c) {
     </div>`;
 }
 
-// Busca la palabra escrita en nombre, empresa, posición, teléfono y en el
-// texto de cada observación — cualquier campo que matchee alcanza.
+// Busca la palabra escrita en nombre, empresa, posición y teléfono —
+// cualquier campo que matchee alcanza.
 function contactoMatchesSearch(c, query) {
   if (!query) return true;
-  const obsTexto = (c.observaciones || []).map(o => o.text).join(' ');
-  const campos = [c.nombre, c.empresa, c.posicion, c.telefono, obsTexto];
+  const campos = [c.nombre, c.empresa, c.posicion, c.telefono];
   return campos.some(campo => (campo || '').toLowerCase().includes(query));
 }
 
