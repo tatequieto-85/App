@@ -130,6 +130,18 @@ async function provisionAllTabs() {
 // golpe. Quien llama a connectToDatabase decide si corresponde ir a "home"
 // (p. ej. al crear/cambiar de base desde el selector de pantalla completa).
 export async function connectToDatabase(base) {
+  // Un módulo nuevo agregado a la app después de que esta base ya existía
+  // (ej. Contactos) no vivía en su lista guardada de "Modulos" — quedaba
+  // oculto para siempre en el inicio (applyModuleVisibility lo escondía) a
+  // menos que el usuario entrara a "Editar" la base y lo tildara a mano. Se
+  // habilita solo, mismo criterio que una base nueva (todos arrancan
+  // prendidos), en vez de requerir ese paso manual.
+  const modulosFaltantes = ALL_MODULE_KEYS.filter(m => !base.modulos.includes(m));
+  if (modulosFaltantes.length) {
+    base.modulos = [...base.modulos, ...modulosFaltantes];
+    await updateBaseRow(base, { nombre: base.nombre, modulos: base.modulos });
+  }
+
   setActiveBase(base);
   localStorage.setItem(ACTIVE_BASE_KEY, JSON.stringify(base));
 
