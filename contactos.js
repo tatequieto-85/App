@@ -39,14 +39,12 @@ const btnCloseContactoDetail      = document.getElementById('btnCloseContactoDet
 const contactoDetailTitle         = document.getElementById('contactoDetailTitle');
 const contactoDetailCumpleanosRow = document.getElementById('contactoDetailCumpleanosRow');
 const contactoDetailCumpleanosView = document.getElementById('contactoDetailCumpleanosView');
-const contactoDetailEdadRow       = document.getElementById('contactoDetailEdadRow');
-const contactoDetailEdadView      = document.getElementById('contactoDetailEdadView');
 const contactoDetailEmpresaRow    = document.getElementById('contactoDetailEmpresaRow');
 const contactoDetailEmpresaView   = document.getElementById('contactoDetailEmpresaView');
-const contactoDetailTelefonoRow   = document.getElementById('contactoDetailTelefonoRow');
-const contactoDetailTelefonoView  = document.getElementById('contactoDetailTelefonoView');
-const contactoDetailCiudadRow     = document.getElementById('contactoDetailCiudadRow');
-const contactoDetailCiudadView    = document.getElementById('contactoDetailCiudadView');
+const contactoDetailRelacionesRow = document.getElementById('contactoDetailRelacionesRow');
+const contactoDetailRelacionesView = document.getElementById('contactoDetailRelacionesView');
+const contactoDetailUbicacionRow  = document.getElementById('contactoDetailUbicacionRow');
+const contactoDetailUbicacionView = document.getElementById('contactoDetailUbicacionView');
 const contactoDetailFeedback      = document.getElementById('contactoDetailFeedback');
 const contactoRelacionSelect      = document.getElementById('contactoRelacionSelect');
 const contactoRelacionTipo        = document.getElementById('contactoRelacionTipo');
@@ -301,27 +299,16 @@ function relacionesDe(contactoId) {
 
 // ── Lista principal ───────────────────────────────────────────────────────────
 
-// Cuatro líneas, cada una ausente por completo si no hay dato: nombre +
-// edad, empresa + posición, un renglón por cada vínculo, y ubicación +
-// teléfono. Los datos completos (cumpleaños, observaciones) siguen en el
-// detalle (doble clic).
+// Tarjeta de presentación — compacta a propósito: nombre, empresa y
+// posición, cada renglón ausente por completo si no hay dato. El resto
+// (edad, vínculos, ubicación, teléfono, observaciones) vive en el
+// resumen (doble clic), ver openContactoDetail.
 function contactoCardHTML(c) {
-  const edad = edadActual(c);
-  const nombreLinea = edad !== null && edad !== undefined ? `${c.nombre}, ${edad} años` : c.nombre;
-
-  const empresaLinea = [c.empresa, c.posicion].filter(Boolean).join('. ');
-
-  const relacionesLineas = relacionesDe(c.id)
-    .map(r => `${r.tipo === 'trabajo' ? '💼 ' : ''}${esc(r.categoria)} de ${esc(r.otro.nombre)}`);
-
-  const ubicacionLinea = [c.ciudad, c.telefono].filter(Boolean).join(', ');
-
   return `
     <div class="contacto-card" data-contacto-id="${esc(c.id)}" data-row="${c.rowIndex}">
-      <div class="contacto-card-name">${esc(nombreLinea)}</div>
-      ${empresaLinea ? `<div class="contacto-card-meta">${esc(empresaLinea)}</div>` : ''}
-      ${relacionesLineas.length ? `<div class="contacto-card-relaciones">${relacionesLineas.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
-      ${ubicacionLinea ? `<div class="contacto-card-meta">${esc(ubicacionLinea)}</div>` : ''}
+      <div class="contacto-card-name">${esc(c.nombre)}</div>
+      ${c.empresa ? `<div class="contacto-card-meta">${esc(c.empresa)}</div>` : ''}
+      ${c.posicion ? `<div class="contacto-card-meta">${esc(c.posicion)}</div>` : ''}
       <div class="contacto-card-actions">
         <button type="button" data-edit-contacto="${esc(c.id)}">Editar</button>
         <button type="button" data-del-contacto="${esc(c.id)}">Borrar</button>
@@ -566,25 +553,25 @@ export function openContactoDetail(id) {
   if (!contacto) return;
   detailContactoId = id;
 
-  contactoDetailTitle.textContent = contacto.nombre;
+  const edad = edadActual(contacto);
+  contactoDetailTitle.textContent = (edad !== null && edad !== undefined)
+    ? `${contacto.nombre}, ${edad} años` : contacto.nombre;
 
   contactoDetailCumpleanosView.textContent = contacto.cumpleanos ? fmtCumpleanos(contacto.cumpleanos) : '';
   contactoDetailCumpleanosRow.hidden = !contacto.cumpleanos;
 
-  const edad = edadActual(contacto);
-  const tieneEdad = edad !== null && edad !== undefined;
-  contactoDetailEdadView.textContent = tieneEdad ? `${edad} años` : '';
-  contactoDetailEdadRow.hidden = !tieneEdad;
+  const empresaLinea = [contacto.empresa, contacto.posicion].filter(Boolean).join('. ');
+  contactoDetailEmpresaView.textContent = empresaLinea;
+  contactoDetailEmpresaRow.hidden = !empresaLinea;
 
-  const puesto = [contacto.posicion, contacto.empresa].filter(Boolean).join(' en ');
-  contactoDetailEmpresaView.textContent = puesto;
-  contactoDetailEmpresaRow.hidden = !puesto;
+  const relacionesLineas = relacionesDe(contacto.id)
+    .map(r => `${r.tipo === 'trabajo' ? '💼 ' : ''}${esc(r.categoria)} de ${esc(r.otro.nombre)}`);
+  contactoDetailRelacionesView.innerHTML = relacionesLineas.map(l => `<div>${l}</div>`).join('');
+  contactoDetailRelacionesRow.hidden = !relacionesLineas.length;
 
-  contactoDetailTelefonoView.textContent = contacto.telefono || '';
-  contactoDetailTelefonoRow.hidden = !contacto.telefono;
-
-  contactoDetailCiudadView.textContent = contacto.ciudad || '';
-  contactoDetailCiudadRow.hidden = !contacto.ciudad;
+  const ubicacionLinea = [contacto.ciudad, contacto.telefono].filter(Boolean).join(', ');
+  contactoDetailUbicacionView.textContent = ubicacionLinea;
+  contactoDetailUbicacionRow.hidden = !ubicacionLinea;
 
   setFb(contactoDetailFeedback, '', '');
   contactoObsInput.value = '';

@@ -1648,36 +1648,32 @@ input, textarea, [contenteditable], [contenteditable] * {
 .canal-venta-card-actions button[data-del-canal] { color: #C0392B; }
 .canal-venta-card-actions button[data-del-canal]:hover { background: #EF444414; }
 
-/* ── Contactos: tarjetas ──────────────────────────────────────────────────── */
-/* Altura variable, no cuadrada — el número de vínculos cambia cuántas
-   líneas entran. align-items:start evita que una tarjeta corta se estire
-   para igualar a una más alta en la misma fila. */
+/* ── Contactos: tarjetas 1x1 ──────────────────────────────────────────────── */
 .contactos-grid {
   display: grid; grid-template-columns: repeat(2, 1fr);
-  gap: 14px; align-items: start;
+  gap: 14px;
 }
 .contacto-card {
   position: relative; overflow: hidden;
   border: 1.5px solid var(--border); border-radius: var(--radius);
-  padding: 14px 16px; background: var(--surface); cursor: pointer;
-  box-sizing: border-box;
-  display: flex; flex-direction: column; gap: 4px;
+  padding: 16px 16px 0; background: var(--surface); cursor: pointer;
+  aspect-ratio: 1 / 1; box-sizing: border-box;
+  display: flex; flex-direction: column; justify-content: center; gap: 4px;
   transition: box-shadow .2s, border-color .2s;
 }
 .contacto-card:hover { box-shadow: var(--shadow); }
 .contacto-card-name { font-size: 14.5px; font-weight: 700; color: var(--text); line-height: 1.3; }
-.contacto-card-meta { font-size: 12px; color: var(--text-sub); line-height: 1.4; }
-.contacto-card-relaciones { font-size: 12px; color: var(--text-sub); line-height: 1.4; }
+.contacto-card-meta { font-size: 12px; color: var(--text-sub); padding-bottom: 16px; }
+.contacto-card-meta:not(:last-of-type) { padding-bottom: 0; }
 
-/* Cubre toda la tarjeta al mantenerla presionada — mismo patrón que
-   .kanban-card-actions, necesario acá porque el alto ya no es fijo. */
 .contacto-card-actions {
-  display: none; position: absolute; inset: 0; background: var(--surface);
+  display: none; position: absolute; left: 0; right: 0; bottom: 0;
+  border-top: 1px solid var(--border);
 }
 .contacto-card-actions.open { display: flex; }
 .contacto-card-actions button {
   flex: 1; border: none; background: var(--surface); cursor: pointer;
-  font-size: 12.5px; font-weight: 600; color: var(--text);
+  padding: 10px 8px; font-size: 12.5px; font-weight: 600; color: var(--text);
 }
 .contacto-card-actions button:first-child { border-right: 1px solid var(--border); }
 .contacto-card-actions button:hover { background: var(--bg); }
