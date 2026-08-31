@@ -35,10 +35,15 @@ const contactoFeedback       = document.getElementById('contactoFeedback');
 const contactoDetailOverlay       = document.getElementById('contactoDetailOverlay');
 const btnCloseContactoDetail      = document.getElementById('btnCloseContactoDetail');
 const contactoDetailTitle         = document.getElementById('contactoDetailTitle');
+const contactoDetailCumpleanosRow = document.getElementById('contactoDetailCumpleanosRow');
 const contactoDetailCumpleanosView = document.getElementById('contactoDetailCumpleanosView');
+const contactoDetailEdadRow       = document.getElementById('contactoDetailEdadRow');
 const contactoDetailEdadView      = document.getElementById('contactoDetailEdadView');
+const contactoDetailEmpresaRow    = document.getElementById('contactoDetailEmpresaRow');
 const contactoDetailEmpresaView   = document.getElementById('contactoDetailEmpresaView');
+const contactoDetailTelefonoRow   = document.getElementById('contactoDetailTelefonoRow');
 const contactoDetailTelefonoView  = document.getElementById('contactoDetailTelefonoView');
+const contactoDetailCiudadRow     = document.getElementById('contactoDetailCiudadRow');
 const contactoDetailCiudadView    = document.getElementById('contactoDetailCiudadView');
 const contactoDetailFeedback      = document.getElementById('contactoDetailFeedback');
 const contactoRelacionesList      = document.getElementById('contactoRelacionesList');
@@ -564,13 +569,24 @@ export function openContactoDetail(id) {
   detailContactoId = id;
 
   contactoDetailTitle.textContent = contacto.nombre;
-  contactoDetailCumpleanosView.textContent = contacto.cumpleanos ? fmtCumpleanos(contacto.cumpleanos) : '—';
+
+  contactoDetailCumpleanosView.textContent = contacto.cumpleanos ? fmtCumpleanos(contacto.cumpleanos) : '';
+  contactoDetailCumpleanosRow.hidden = !contacto.cumpleanos;
+
   const edad = edadActual(contacto);
-  contactoDetailEdadView.textContent = edad !== null && edad !== undefined ? `${edad} años` : '—';
+  const tieneEdad = edad !== null && edad !== undefined;
+  contactoDetailEdadView.textContent = tieneEdad ? `${edad} años` : '';
+  contactoDetailEdadRow.hidden = !tieneEdad;
+
   const puesto = [contacto.posicion, contacto.empresa].filter(Boolean).join(' en ');
-  contactoDetailEmpresaView.textContent = puesto || '—';
-  contactoDetailTelefonoView.textContent = contacto.telefono || '—';
-  contactoDetailCiudadView.textContent = contacto.ciudad || '—';
+  contactoDetailEmpresaView.textContent = puesto;
+  contactoDetailEmpresaRow.hidden = !puesto;
+
+  contactoDetailTelefonoView.textContent = contacto.telefono || '';
+  contactoDetailTelefonoRow.hidden = !contacto.telefono;
+
+  contactoDetailCiudadView.textContent = contacto.ciudad || '';
+  contactoDetailCiudadRow.hidden = !contacto.ciudad;
 
   setFb(contactoDetailFeedback, '', '');
   contactoObsInput.value = '';
