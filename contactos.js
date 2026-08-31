@@ -43,6 +43,7 @@ const contactoDetailCiudadView    = document.getElementById('contactoDetailCiuda
 const contactoDetailFeedback      = document.getElementById('contactoDetailFeedback');
 const contactoRelacionesList      = document.getElementById('contactoRelacionesList');
 const contactoRelacionSelect      = document.getElementById('contactoRelacionSelect');
+const contactoRelacionTipo        = document.getElementById('contactoRelacionTipo');
 const contactoRelacionCategoria   = document.getElementById('contactoRelacionCategoria');
 const contactoRelacionCategoriaList = document.getElementById('contactoRelacionCategoriaList');
 const btnAddRelacion              = document.getElementById('btnAddRelacion');
@@ -50,7 +51,10 @@ const contactoObsList             = document.getElementById('contactoObsList');
 const contactoObsInput            = document.getElementById('contactoObsInput');
 const btnAddContactoObs           = document.getElementById('btnAddContactoObs');
 
-const DEFAULT_CATEGORIAS = ['Amigos', 'Trabajo', 'Familia'];
+// "Trabajo" ya no es una categoría más de relación/parentesco — es su
+// propio tipo de vínculo (ver contactoRelacionTipo), con predictivo de
+// empresas ya inscritas en vez de categorías libres.
+const DEFAULT_CATEGORIAS = ['Amigos', 'Familia'];
 
 // ── Sheets: Contactos + ContactosRelaciones ───────────────────────────────────
 
@@ -101,11 +105,17 @@ export async function initContactosSheets() {
     }
   }
 
-  const rd = await sheetsReq('/values/ContactosRelaciones!A1').catch(() => ({}));
+  const rd = await sheetsReq('/values/ContactosRelaciones!A1:F1').catch(() => ({}));
   if (!rd.values) {
     await sheetsReq('/values/ContactosRelaciones!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID', 'ContactoAId', 'ContactoBId', 'Categoria', 'CreadoEn']] })
+      body: JSON.stringify({ values: [['ID', 'ContactoAId', 'ContactoBId', 'Categoria', 'CreadoEn', 'Tipo']] })
+    });
+  } else if ((rd.values[0] || []).length < 6) {
+    // Bases ya existentes, de antes de separar "Trabajo" en su propio tipo.
+    await sheetsReq('/values/ContactosRelaciones!F1?valueInputOption=RAW', {
+      method: 'PUT',
+      body: JSON.stringify({ values: [['Tipo']] })
     });
   }
 }
@@ -114,7 +124,7 @@ export async function loadContactos() {
   await safeLoad(async () => {
     const [cData, rData] = await Promise.all([
       sheetsReq('/values/Contactos!A:K'),
-      sheetsReq('/values/ContactosRelaciones!A:E')
+      sheetsReq('/values/ContactosRelaciones!A:F')
     ]);
 
     contactos = (cData.values || []).slice(1).filter(r => r[0]).map((r, i) => ({
@@ -138,6 +148,9 @@ export async function loadContactos() {
       contactoBId:  r[2] || '',
       categoria:    r[3] || '',
       creadoEn:     r[4] || '',
+      // Vínculos guardados antes de separar "Trabajo" no tienen tipo — se
+      // tratan como relación/parentesco, que es lo que eran hasta ahora.
+      tipo:         r[5] || 'relacion',
       rowIndex:     i + 2
     }));
 
@@ -220,10 +233,10 @@ async function deleteContacto(c) {
   await deleteContactoRow(c.rowIndex);
 }
 
-async function appendRelacion(contactoAId, contactoBId, categoria) {
-  await sheetsReq('/values/ContactosRelaciones!A:E:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
+async function appendRelacion(contactoAId, contactoBId, categoria, tipo) {
+  await sheetsReq('/values/ContactosRelaciones!A:F:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
     method: 'POST',
-    body: JSON.stringify({ values: [[crypto.randomUUID(), contactoAId, contactoBId, categoria, new Date().toISOString()]] })
+    body: JSON.stringify({ values: [[crypto.randomUUID(), contactoAId, contactoBId, categoria, new Date().toISOString(), tipo]] })
   });
 }
 
@@ -262,8 +275,10 @@ function fmtCumpleanos(mmdd) {
   return `${+dia} ${meses[+mes - 1] || ''}`;
 }
 
+// Solo categorías de vínculos tipo "relación" — las de "trabajo" son
+// nombres de empresa, no deberían mezclarse en este predictivo.
 function todasLasCategorias() {
-  const usadas = [...new Set(relaciones.map(r => r.categoria).filter(Boolean))];
+  const usadas = [...new Set(relaciones.filter(r => r.tipo !== 'trabajo').map(r => r.categoria).filter(Boolean))];
   return [...new Set([...DEFAULT_CATEGORIAS, ...usadas])];
 }
 
@@ -497,7 +512,7 @@ function renderRelacionesList() {
   contactoRelacionesList.innerHTML = rels.length
     ? rels.map(r => `
         <div class="contacto-relacion-item">
-          <span class="audio-chip">${esc(r.categoria)}</span>
+          <span class="audio-chip">${r.tipo === 'trabajo' ? '💼 ' : ''}${esc(r.categoria)}</span>
           <span class="contacto-relacion-nombre">${esc(r.otro.nombre)}</span>
         </div>`).join('')
     : '<div class="empty-state" style="padding:12px 0">Sin relaciones todavía</div>';
@@ -511,9 +526,21 @@ function renderRelacionesList() {
     .map(c => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`)
     .join('') || '<option value="" disabled>No hay otros contactos todavía</option>';
 
-  contactoRelacionCategoriaList.innerHTML = todasLasCategorias()
-    .map(cat => `<option value="${esc(cat)}"></option>`).join('');
+  refreshRelacionCategoriaOptions();
 }
+
+// Predictivo del campo "categoría" del vínculo: si el tipo es "trabajo"
+// sugiere empresas ya inscritas en algún contacto (mismas que el campo
+// Empresa del formulario); si es "relación" sugiere categorías ya usadas.
+function refreshRelacionCategoriaOptions() {
+  const opciones = contactoRelacionTipo.value === 'trabajo'
+    ? [...new Set(contactos.map(c => c.empresa).filter(Boolean))].sort()
+    : todasLasCategorias();
+  contactoRelacionCategoriaList.innerHTML = opciones.map(v => `<option value="${esc(v)}"></option>`).join('');
+  contactoRelacionCategoria.placeholder = contactoRelacionTipo.value === 'trabajo'
+    ? 'Empresa (ej: Acme)' : 'Categoría (ej: Amigos)';
+}
+contactoRelacionTipo.addEventListener('change', refreshRelacionCategoriaOptions);
 
 function renderContactoObs(contacto) {
   const obs = contacto.observaciones || [];
@@ -547,6 +574,7 @@ export function openContactoDetail(id) {
 
   setFb(contactoDetailFeedback, '', '');
   contactoObsInput.value = '';
+  contactoRelacionTipo.value = 'relacion';
   renderRelacionesList();
   renderContactoObs(contacto);
   contactoDetailOverlay.classList.add('open');
@@ -585,7 +613,7 @@ btnAddRelacion.addEventListener('click', async () => {
 
   btnAddRelacion.disabled = true;
   try {
-    await appendRelacion(detailContactoId, otroId, categoria);
+    await appendRelacion(detailContactoId, otroId, categoria, contactoRelacionTipo.value);
     contactoRelacionCategoria.value = '';
     await loadContactos();
     openContactoDetail(detailContactoId);
