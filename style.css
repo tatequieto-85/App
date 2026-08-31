@@ -1496,6 +1496,10 @@ input, textarea, [contenteditable], [contenteditable] * {
   padding: 8px 0; border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
+/* Sin esto, [hidden] no alcanza a esconder la fila: .detail-row ya fija
+   display:flex con la misma especificidad que el estilo por defecto del
+   navegador para [hidden], así que gana el que está declarado acá. */
+.detail-row[hidden] { display: none; }
 .detail-row:last-child { border-bottom: none; }
 .detail-row--col { flex-direction: column; align-items: flex-start; gap: 6px; }
 .detail-row--meta { opacity: .6; }

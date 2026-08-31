@@ -31,6 +31,12 @@ const contactoTelefono       = document.getElementById('contactoTelefono');
 const contactoCiudad         = document.getElementById('contactoCiudad');
 const contactoEmpresaList    = document.getElementById('contactoEmpresaList');
 const contactoCiudadList     = document.getElementById('contactoCiudadList');
+const contactoAgregarVinculoSection = document.getElementById('contactoAgregarVinculoSection');
+const contactoRelacionSelect = document.getElementById('contactoRelacionSelect');
+const contactoRelacionTipo   = document.getElementById('contactoRelacionTipo');
+const contactoRelacionCategoria = document.getElementById('contactoRelacionCategoria');
+const contactoRelacionCategoriaList = document.getElementById('contactoRelacionCategoriaList');
+const btnAddRelacion         = document.getElementById('btnAddRelacion');
 const btnSaveContacto        = document.getElementById('btnSaveContacto');
 const contactoFeedback       = document.getElementById('contactoFeedback');
 
@@ -46,11 +52,6 @@ const contactoDetailRelacionesView = document.getElementById('contactoDetailRela
 const contactoDetailUbicacionRow  = document.getElementById('contactoDetailUbicacionRow');
 const contactoDetailUbicacionView = document.getElementById('contactoDetailUbicacionView');
 const contactoDetailFeedback      = document.getElementById('contactoDetailFeedback');
-const contactoRelacionSelect      = document.getElementById('contactoRelacionSelect');
-const contactoRelacionTipo        = document.getElementById('contactoRelacionTipo');
-const contactoRelacionCategoria   = document.getElementById('contactoRelacionCategoria');
-const contactoRelacionCategoriaList = document.getElementById('contactoRelacionCategoriaList');
-const btnAddRelacion              = document.getElementById('btnAddRelacion');
 const contactoObsList             = document.getElementById('contactoObsList');
 const contactoObsInput            = document.getElementById('contactoObsInput');
 const btnAddContactoObs           = document.getElementById('btnAddContactoObs');
@@ -411,8 +412,9 @@ document.addEventListener('click', () => {
 
 // ── Modal: nuevo/editar contacto ──────────────────────────────────────────────
 // Mismo patrón que los grupos de recetas/canales de venta: un solo modal,
-// editingContactoId null = crear. Solo edita los datos — observaciones y
-// relaciones viven en el detalle (ver openContactoDetail).
+// editingContactoId null = crear. Edita los datos y, solo si ya existe el
+// contacto, deja agregar vínculos (ver renderAgregarRelacion más abajo).
+// Observaciones siguen viviendo en el detalle (ver openContactoDetail).
 
 // Texto predictivo de Empresa/Ciudad — sugiere lo que ya se cargó en otros
 // contactos (datalist nativo), sin bloquear escribir algo nuevo.
@@ -436,6 +438,7 @@ function openContactoModal() {
   contactoCiudad.value = '';
   setFb(contactoFeedback, '', '');
   populateContactoDatalists();
+  contactoAgregarVinculoSection.hidden = true;
   contactoOverlay.classList.add('open');
   setTimeout(() => contactoNombre.focus(), 100);
 }
@@ -454,6 +457,9 @@ function openEditContactoModal(c) {
   contactoCiudad.value = c.ciudad;
   setFb(contactoFeedback, '', '');
   populateContactoDatalists();
+  contactoAgregarVinculoSection.hidden = false;
+  contactoRelacionTipo.value = 'relacion';
+  renderAgregarRelacion();
   contactoOverlay.classList.add('open');
   setTimeout(() => contactoNombre.focus(), 100);
 }
@@ -501,13 +507,14 @@ btnSaveContacto.addEventListener('click', async () => {
   }
 });
 
-// ── Detalle de contacto (editar + relaciones) ─────────────────────────────────
-// La lista de vínculos existentes ya no se repite acá — se ve directo en
-// la tarjeta de cada contacto (ver contactoCardHTML). Esta sección solo
-// sirve para agregar uno nuevo.
+// ── Agregar vínculo (dentro del modal Editar contacto) ─────────────────────────
+// La lista de vínculos existentes no se repite acá — se ve directo en la
+// tarjeta de cada contacto (ver contactoCardHTML). Esto solo sirve para
+// agregar uno nuevo, y solo tiene sentido editando (ver
+// contactoAgregarVinculoSection.hidden en openContactoModal/openEditContactoModal).
 
 function renderAgregarRelacion() {
-  const contacto = contactos.find(c => c.id === detailContactoId);
+  const contacto = contactos.find(c => c.id === editingContactoId);
   if (!contacto) return;
 
   // Selector de "con quién vincular" — todos los contactos menos el actual.
@@ -532,6 +539,8 @@ function refreshRelacionCategoriaOptions() {
 }
 contactoRelacionTipo.addEventListener('change', refreshRelacionCategoriaOptions);
 
+// ── Detalle de contacto (resumen de solo lectura + observaciones) ──────────────
+
 function renderContactoObs(contacto) {
   const obs = contacto.observaciones || [];
   contactoObsList.innerHTML = obs.length
@@ -545,9 +554,8 @@ function renderContactoObs(contacto) {
 }
 
 // Doble clic/doble toque en la tarjeta abre esto: un resumen de solo
-// lectura (los datos se editan desde "Editar", ver openEditContactoModal)
-// más el historial completo de observaciones con su fecha, y las
-// relaciones con otros contactos.
+// lectura (los datos y los vínculos se editan/agregan desde "Editar", ver
+// openEditContactoModal) más el historial completo de observaciones.
 export function openContactoDetail(id) {
   const contacto = contactos.find(c => c.id === id);
   if (!contacto) return;
@@ -575,8 +583,6 @@ export function openContactoDetail(id) {
 
   setFb(contactoDetailFeedback, '', '');
   contactoObsInput.value = '';
-  contactoRelacionTipo.value = 'relacion';
-  renderAgregarRelacion();
   renderContactoObs(contacto);
   contactoDetailOverlay.classList.add('open');
 }
@@ -609,17 +615,18 @@ btnAddContactoObs.addEventListener('click', async () => {
 btnAddRelacion.addEventListener('click', async () => {
   const otroId = contactoRelacionSelect.value;
   const categoria = contactoRelacionCategoria.value.trim();
-  if (!otroId) return setFb(contactoDetailFeedback, 'Elegí con quién vincularlo.', 'err');
-  if (!categoria) return setFb(contactoDetailFeedback, 'Ponele una categoría al vínculo.', 'err');
+  if (!otroId) return setFb(contactoFeedback, 'Elegí con quién vincularlo.', 'err');
+  if (!categoria) return setFb(contactoFeedback, 'Ponele una categoría al vínculo.', 'err');
 
   btnAddRelacion.disabled = true;
   try {
-    await appendRelacion(detailContactoId, otroId, categoria, contactoRelacionTipo.value);
+    await appendRelacion(editingContactoId, otroId, categoria, contactoRelacionTipo.value);
     contactoRelacionCategoria.value = '';
     await loadContactos();
-    openContactoDetail(detailContactoId);
+    renderAgregarRelacion();
+    setFb(contactoFeedback, 'Vínculo agregado.', 'ok');
   } catch (e) {
-    setFb(contactoDetailFeedback, 'Error: ' + e.message, 'err');
+    setFb(contactoFeedback, 'Error: ' + e.message, 'err');
   } finally {
     btnAddRelacion.disabled = false;
   }

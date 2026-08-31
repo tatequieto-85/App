@@ -883,8 +883,9 @@
     </div>
   </div>
 
-  <!-- Modal: Nuevo/Editar contacto (solo los datos — observaciones y
-       relaciones se manejan desde el detalle, ver contactoDetailOverlay) -->
+  <!-- Modal: Nuevo/Editar contacto — datos + agregar vínculo (esto último
+       solo editando, ver contactoAgregarVinculoSection). Observaciones se
+       manejan desde el detalle, ver contactoDetailOverlay. -->
   <div class="modal-overlay" id="contactoOverlay">
     <div class="modal">
       <div class="modal-header">
@@ -908,14 +909,31 @@
         <label class="field-label" for="contactoCiudad">Ubicación (ciudad)</label>
         <input class="field-input" id="contactoCiudad" type="text" list="contactoCiudadList" placeholder="Ciudad…" autocomplete="off" />
         <datalist id="contactoCiudadList"></datalist>
+
+        <!-- Solo visible editando un contacto ya guardado — uno nuevo
+             todavía no tiene ID con el que vincularlo a otro. -->
+        <div id="contactoAgregarVinculoSection" hidden>
+          <p class="mgmt-section-title">Agregar vínculo</p>
+          <div class="contacto-add-relacion-row">
+            <select class="field-select" id="contactoRelacionSelect"></select>
+            <select class="field-select" id="contactoRelacionTipo">
+              <option value="relacion">Relación / parentesco</option>
+              <option value="trabajo">Trabajo</option>
+            </select>
+            <input class="field-input" id="contactoRelacionCategoria" list="contactoRelacionCategoriaList" placeholder="Categoría (ej: Amigos)" />
+            <datalist id="contactoRelacionCategoriaList"></datalist>
+            <button type="button" class="btn-outline" id="btnAddRelacion">+ Vincular</button>
+          </div>
+        </div>
+
         <button class="btn-primary" id="btnSaveContacto">Guardar contacto</button>
         <div class="feedback" id="contactoFeedback"></div>
       </div>
     </div>
   </div>
 
-  <!-- Modal: Detalle de contacto — resumen + historial de observaciones +
-       relaciones. Se abre con doble clic/doble toque (Editar, desde
+  <!-- Modal: Detalle de contacto — resumen de solo lectura + historial de
+       observaciones. Se abre con doble clic/doble toque (Editar, desde
        mantener presionada la tarjeta, abre contactoOverlay en vez de este). -->
   <div class="modal-overlay" id="contactoDetailOverlay">
     <div class="modal">
@@ -928,18 +946,6 @@
         <div class="detail-row" id="contactoDetailEmpresaRow"><span class="detail-value" id="contactoDetailEmpresaView"></span></div>
         <div class="detail-row" id="contactoDetailRelacionesRow"><div class="detail-value" id="contactoDetailRelacionesView"></div></div>
         <div class="detail-row" id="contactoDetailUbicacionRow"><span class="detail-value" id="contactoDetailUbicacionView"></span></div>
-
-        <p class="mgmt-section-title">Agregar vínculo</p>
-        <div class="contacto-add-relacion-row">
-          <select class="field-select" id="contactoRelacionSelect"></select>
-          <select class="field-select" id="contactoRelacionTipo">
-            <option value="relacion">Relación / parentesco</option>
-            <option value="trabajo">Trabajo</option>
-          </select>
-          <input class="field-input" id="contactoRelacionCategoria" list="contactoRelacionCategoriaList" placeholder="Categoría (ej: Amigos)" />
-          <datalist id="contactoRelacionCategoriaList"></datalist>
-          <button type="button" class="btn-outline" id="btnAddRelacion">+ Vincular</button>
-        </div>
 
         <p class="mgmt-section-title">Observaciones</p>
         <div id="contactoObsList" class="obs-list" style="max-height:none;overflow:visible"></div>
