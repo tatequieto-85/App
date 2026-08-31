@@ -1,5 +1,6 @@
 import { sheetsReq } from './auth.js';
 import { esc, setFb, fmtDate, confirmCloseIfDirty, safeLoad } from './utils.js';
+import { wasAccidentalTouch } from './input-guard.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 // Exportado para que tareas.js pueda armar el picker "@" de menciones en
@@ -11,6 +12,7 @@ let relacionesSheetId  = null;
 let detailContactoId   = null; // contacto que muestra #contactoDetailOverlay
 let editingContactoId  = null; // null = #contactoOverlay está en modo "crear"
 let contactoSearchQuery = '';
+let lastTapTime         = {}; // para detección de doble-toque en móvil
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const contactosList = document.getElementById('contactosList');
@@ -387,7 +389,11 @@ function wireContactoCards() {
     card.addEventListener('touchend', e => {
       cancelPress();
       if (longPressed) { longPressed = false; return; }
-      if (e.target.closest('button')) return;
+      if (e.target.closest('button') || wasAccidentalTouch()) return;
+      const now = Date.now();
+      const last = lastTapTime[id] || 0;
+      lastTapTime[id] = now;
+      if (now - last < 350) openContactoDetail(id);
     });
   });
 
