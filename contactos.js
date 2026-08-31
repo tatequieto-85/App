@@ -32,6 +32,7 @@ const contactoCiudad         = document.getElementById('contactoCiudad');
 const contactoEmpresaList    = document.getElementById('contactoEmpresaList');
 const contactoCiudadList     = document.getElementById('contactoCiudadList');
 const contactoAgregarVinculoSection = document.getElementById('contactoAgregarVinculoSection');
+const contactoVinculosList   = document.getElementById('contactoVinculosList');
 const contactoRelacionSelect = document.getElementById('contactoRelacionSelect');
 const contactoRelacionTipo   = document.getElementById('contactoRelacionTipo');
 const contactoRelacionCategoria = document.getElementById('contactoRelacionCategoria');
@@ -301,14 +302,22 @@ function relacionesDe(contactoId) {
 // ── Lista principal ───────────────────────────────────────────────────────────
 
 // Tarjeta de presentación — compacta a propósito: nombre, empresa y
-// posición, cada renglón ausente por completo si no hay dato. El resto
-// (edad, vínculos, ubicación, teléfono, observaciones) vive en el
-// resumen (doble clic), ver openContactoDetail.
+// posición, cada renglón ausente por completo si no hay dato. Si no hay
+// ni empresa ni posición, se muestra el primer vínculo en su lugar (más
+// útil que dejar la tarjeta casi vacía). El resto (edad, ubicación,
+// teléfono, observaciones) vive en el resumen (doble clic).
 function contactoCardHTML(c) {
+  let segundaLinea = '';
+  if (c.empresa) segundaLinea = c.empresa;
+  else if (!c.posicion) {
+    const primerVinculo = relacionesDe(c.id)[0];
+    if (primerVinculo) segundaLinea = `${primerVinculo.categoria} de ${primerVinculo.otro.nombre}`;
+  }
+
   return `
     <div class="contacto-card" data-contacto-id="${esc(c.id)}" data-row="${c.rowIndex}">
       <div class="contacto-card-name">${esc(c.nombre)}</div>
-      ${c.empresa ? `<div class="contacto-card-meta">${esc(c.empresa)}</div>` : ''}
+      ${segundaLinea ? `<div class="contacto-card-meta">${esc(segundaLinea)}</div>` : ''}
       ${c.posicion ? `<div class="contacto-card-meta">${esc(c.posicion)}</div>` : ''}
       <div class="contacto-card-actions">
         <button type="button" data-edit-contacto="${esc(c.id)}">Editar</button>
@@ -507,15 +516,39 @@ btnSaveContacto.addEventListener('click', async () => {
   }
 });
 
-// ── Agregar vínculo (dentro del modal Editar contacto) ─────────────────────────
-// La lista de vínculos existentes no se repite acá — se ve directo en la
-// tarjeta de cada contacto (ver contactoCardHTML). Esto solo sirve para
-// agregar uno nuevo, y solo tiene sentido editando (ver
+// ── Vínculos (dentro del modal Editar contacto) ─────────────────────────────
+// Solo tiene sentido editando un contacto ya guardado (ver
 // contactoAgregarVinculoSection.hidden en openContactoModal/openEditContactoModal).
+// Cada vínculo es una única fila compartida entre los dos contactos
+// (ver appendRelacion/relacionesDe) — quitarlo acá lo quita para ambos.
 
 function renderAgregarRelacion() {
   const contacto = contactos.find(c => c.id === editingContactoId);
   if (!contacto) return;
+
+  const vinculos = relacionesDe(contacto.id);
+  contactoVinculosList.innerHTML = vinculos.length
+    ? vinculos.map(r => `
+        <div class="contacto-relacion-item">
+          <span class="audio-chip">${r.tipo === 'trabajo' ? '💼 ' : ''}${esc(r.categoria)}</span>
+          <span class="contacto-relacion-nombre">${esc(r.otro.nombre)}</span>
+          <button type="button" data-quitar-relacion="${r.rowIndex}">Quitar</button>
+        </div>`).join('')
+    : '<div class="empty-state" style="padding:8px 0">Sin vínculos todavía</div>';
+
+  contactoVinculosList.querySelectorAll('[data-quitar-relacion]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await deleteRelacionRow(+btn.dataset.quitarRelacion);
+        await loadContactos();
+        renderAgregarRelacion();
+      } catch (e) {
+        setFb(contactoFeedback, 'Error: ' + e.message, 'err');
+        btn.disabled = false;
+      }
+    });
+  });
 
   // Selector de "con quién vincular" — todos los contactos menos el actual.
   contactoRelacionSelect.innerHTML = contactos

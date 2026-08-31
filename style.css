@@ -779,13 +779,32 @@ input, textarea, [contenteditable], [contenteditable] * {
 .audio-clip-duration { font-size: 12px; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .audio-clip-item audio { flex: 1; height: 32px; min-width: 0; }
 
-/* ── Contactos: agregar vínculo dentro del detalle ────────────────────────── */
+/* ── Contactos: vínculos dentro de Editar contacto ────────────────────────── */
+.contacto-relacion-item {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 8px; margin-bottom: 6px; background: var(--bg);
+}
+.contacto-relacion-nombre { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); }
+.contacto-relacion-item button {
+  border: none; background: none; cursor: pointer;
+  font-size: 11.5px; font-weight: 600; color: #C0392B; padding: 4px 6px;
+}
+.contacto-relacion-item button:hover { text-decoration: underline; }
 .contacto-add-relacion-row {
   display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center;
 }
 .contacto-add-relacion-row .field-select,
 .contacto-add-relacion-row .field-input { flex: 1; min-width: 120px; margin: 0; }
 .contacto-add-relacion-row .btn-outline { white-space: nowrap; }
+
+/* ── Contactos: resumen (detalle de solo lectura) ─────────────────────────── */
+/* Más compacto que un .detail-row genérico y sin líneas divisorias — es
+   prosa (nombre+edad, empresa. posición, vínculos, ubicación+teléfono),
+   no una lista de campos de formulario. */
+#contactoDetailOverlay .detail-row {
+  padding: 3px 0; border-bottom: none; gap: 6px;
+}
 
 /* ── Modal ───────────────────────────────────────────────────────────────── */
 .modal-overlay {
