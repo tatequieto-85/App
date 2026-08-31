@@ -48,7 +48,6 @@ const contactoDetailTelefonoView  = document.getElementById('contactoDetailTelef
 const contactoDetailCiudadRow     = document.getElementById('contactoDetailCiudadRow');
 const contactoDetailCiudadView    = document.getElementById('contactoDetailCiudadView');
 const contactoDetailFeedback      = document.getElementById('contactoDetailFeedback');
-const contactoRelacionesList      = document.getElementById('contactoRelacionesList');
 const contactoRelacionSelect      = document.getElementById('contactoRelacionSelect');
 const contactoRelacionTipo        = document.getElementById('contactoRelacionTipo');
 const contactoRelacionCategoria   = document.getElementById('contactoRelacionCategoria');
@@ -302,25 +301,27 @@ function relacionesDe(contactoId) {
 
 // ── Lista principal ───────────────────────────────────────────────────────────
 
-// Tarjeta cuadrada (1x1) — compacta a propósito, no entra todo: nombre,
-// empresa/posición, y un renglón chico de badges. El resto (teléfono,
-// cumpleaños, observaciones completas) se ve en el detalle (doble clic).
+// Cuatro líneas, cada una ausente por completo si no hay dato: nombre +
+// edad, empresa + posición, un renglón por cada vínculo, y ubicación +
+// teléfono. Los datos completos (cumpleaños, observaciones) siguen en el
+// detalle (doble clic).
 function contactoCardHTML(c) {
   const edad = edadActual(c);
-  const nRelaciones = relacionesDe(c.id).length;
-  const obs = c.observaciones || [];
-  const puesto = [c.posicion, c.empresa].filter(Boolean).join(' en ');
-  const badges = [];
-  if (edad !== null && edad !== undefined) badges.push(`${edad} años`);
-  if (c.ciudad) badges.push(`📍${c.ciudad}`);
-  if (nRelaciones) badges.push(`🔗${nRelaciones}`);
-  if (obs.length) badges.push(`📝${obs.length}`);
+  const nombreLinea = edad !== null && edad !== undefined ? `${c.nombre}, ${edad} años` : c.nombre;
+
+  const empresaLinea = [c.empresa, c.posicion].filter(Boolean).join('. ');
+
+  const relacionesLineas = relacionesDe(c.id)
+    .map(r => `${r.tipo === 'trabajo' ? '💼 ' : ''}${esc(r.categoria)} de ${esc(r.otro.nombre)}`);
+
+  const ubicacionLinea = [c.ciudad, c.telefono].filter(Boolean).join(', ');
 
   return `
     <div class="contacto-card" data-contacto-id="${esc(c.id)}" data-row="${c.rowIndex}">
-      <div class="contacto-card-name">${esc(c.nombre)}</div>
-      ${puesto ? `<div class="contacto-card-meta">${esc(puesto)}</div>` : ''}
-      ${badges.length ? `<div class="contacto-card-badges">${esc(badges.join(' · '))}</div>` : ''}
+      <div class="contacto-card-name">${esc(nombreLinea)}</div>
+      ${empresaLinea ? `<div class="contacto-card-meta">${esc(empresaLinea)}</div>` : ''}
+      ${relacionesLineas.length ? `<div class="contacto-card-relaciones">${relacionesLineas.map(l => `<div>${l}</div>`).join('')}</div>` : ''}
+      ${ubicacionLinea ? `<div class="contacto-card-meta">${esc(ubicacionLinea)}</div>` : ''}
       <div class="contacto-card-actions">
         <button type="button" data-edit-contacto="${esc(c.id)}">Editar</button>
         <button type="button" data-del-contacto="${esc(c.id)}">Borrar</button>
@@ -514,22 +515,13 @@ btnSaveContacto.addEventListener('click', async () => {
 });
 
 // ── Detalle de contacto (editar + relaciones) ─────────────────────────────────
+// La lista de vínculos existentes ya no se repite acá — se ve directo en
+// la tarjeta de cada contacto (ver contactoCardHTML). Esta sección solo
+// sirve para agregar uno nuevo.
 
-function renderRelacionesList() {
+function renderAgregarRelacion() {
   const contacto = contactos.find(c => c.id === detailContactoId);
   if (!contacto) return;
-  const rels = relacionesDe(contacto.id);
-
-  contactoRelacionesList.innerHTML = rels.length
-    ? rels.map(r => `
-        <div class="contacto-relacion-item">
-          <span class="audio-chip">${r.tipo === 'trabajo' ? '💼 ' : ''}${esc(r.categoria)}</span>
-          <span class="contacto-relacion-nombre">${esc(r.otro.nombre)}</span>
-        </div>`).join('')
-    : '<div class="empty-state" style="padding:12px 0">Sin relaciones todavía</div>';
-
-  // Los vínculos existentes son de solo lectura acá — no hay forma de
-  // quitarlos desde el detalle, solo de agregar uno nuevo.
 
   // Selector de "con quién vincular" — todos los contactos menos el actual.
   contactoRelacionSelect.innerHTML = contactos
@@ -597,7 +589,7 @@ export function openContactoDetail(id) {
   setFb(contactoDetailFeedback, '', '');
   contactoObsInput.value = '';
   contactoRelacionTipo.value = 'relacion';
-  renderRelacionesList();
+  renderAgregarRelacion();
   renderContactoObs(contacto);
   contactoDetailOverlay.classList.add('open');
 }
