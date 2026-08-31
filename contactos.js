@@ -499,20 +499,11 @@ function renderRelacionesList() {
         <div class="contacto-relacion-item">
           <span class="audio-chip">${esc(r.categoria)}</span>
           <span class="contacto-relacion-nombre">${esc(r.otro.nombre)}</span>
-          <button type="button" class="preview-remove" data-quitar-relacion="${r.rowIndex}" title="Quitar vínculo">✕</button>
         </div>`).join('')
     : '<div class="empty-state" style="padding:12px 0">Sin relaciones todavía</div>';
 
-  contactoRelacionesList.querySelectorAll('[data-quitar-relacion]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      try {
-        await deleteRelacionRow(+btn.dataset.quitarRelacion);
-        await loadContactos();
-        openContactoDetail(detailContactoId);
-      } catch (e) { alert('Error: ' + e.message); btn.disabled = false; }
-    });
-  });
+  // Los vínculos existentes son de solo lectura acá — no hay forma de
+  // quitarlos desde el detalle, solo de agregar uno nuevo.
 
   // Selector de "con quién vincular" — todos los contactos menos el actual.
   contactoRelacionSelect.innerHTML = contactos
