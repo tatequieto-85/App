@@ -11,7 +11,7 @@ import { switchSubTab, openTaskModal, enterTareasView, openDueBadgeDropdown, clo
 import { loadProcesos, loadRecetasData, loadEjecucionesData } from './procesos.js';
 import { loadCompras, renderComprasList } from './compras.js';
 import { loadFerias, loadCanales, renderFerias, openTodaysFeriaCounterIfAny } from './ferias.js';
-import { loadStockTestigos, loadStockMovimientos, renderStockResumen, renderStockTrazabilidad, renderStockTestigoList, openStockAjusteModal } from './stock.js';
+import { loadStockTestigos, loadStockMovimientos, migrateStockMovimientosSinLote, renderStockResumen, renderStockTrazabilidad, renderStockTestigoList, openStockAjusteModal } from './stock.js';
 import { renderInformes } from './informes.js';
 import { loadQRs, renderQRList } from './qr.js';
 import { loadContactos } from './contactos.js';
@@ -75,11 +75,11 @@ export function navigateTo(view) {
     // (ver getStockDisponibleLote en ferias.js) — sin esto, entrar acá sin
     // haber pasado antes por Stock los dejaba en 0 y no se reflejaban.
     safeLoad(() => Promise.all([loadFerias(), loadCanales(), loadRecetasData(), loadEjecucionesData(), loadStockTestigos(), loadStockMovimientos()]), 'feriasList')
-      .then(ok => { if (ok) { renderFerias(); openTodaysFeriaCounterIfAny(); } });
+      .then(async ok => { if (ok) { await migrateStockMovimientosSinLote(); renderFerias(); openTodaysFeriaCounterIfAny(); } });
   }
   if (view === 'stock') {
     safeLoad(() => Promise.all([loadRecetasData(), loadEjecucionesData(), loadFerias(), loadStockTestigos(), loadStockMovimientos()]), 'stockResumenList')
-      .then(ok => { if (ok) { renderStockResumen(); renderStockTrazabilidad(); renderStockTestigoList(); } });
+      .then(async ok => { if (ok) { await migrateStockMovimientosSinLote(); renderStockResumen(); renderStockTrazabilidad(); renderStockTestigoList(); } });
   }
   if (view === 'informes') {
     renderInformes();

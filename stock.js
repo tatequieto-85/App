@@ -172,6 +172,31 @@ function getLoteParaAjuste(recetaId) {
   return lotes[0]?.id || '';
 }
 
+// Ajustes guardados antes de agregar EjecucionId quedaron con esa columna
+// vacía y nunca se sumaban en ningún lote (ni en Ferias ni en
+// Trazabilidad). Se migran solos: se les asigna el mismo lote que le
+// tocaría a uno nuevo, y se persiste. Llamar después de que `ejecuciones`
+// ya esté cargado (si no, no hay de dónde elegir lote y se reintenta en
+// la próxima carga).
+export async function migrateStockMovimientosSinLote() {
+  const sinLote = stockMovimientos.filter(m => !m.ejecucionId);
+  if (!sinLote.length) return;
+  for (const m of sinLote) {
+    const ejecucionId = getLoteParaAjuste(m.recetaId);
+    if (!ejecucionId) continue;
+    try {
+      await sheetsReq(`/values/StockMovimientos!I${m.rowIndex}?valueInputOption=RAW`, {
+        method: 'PUT',
+        body: JSON.stringify({ values: [[ejecucionId]] })
+      });
+      m.ejecucionId = ejecucionId;
+    } catch {
+      // Si falla uno, no bloquea el resto ni el render — se reintenta
+      // solo en la próxima carga (sigue sin ejecucionId en el sheet).
+    }
+  }
+}
+
 // ── Stock: cálculo de inventario (siempre derivado, nunca editable a mano) ───
 
 function getStockVendido(recetaId) {
@@ -193,6 +218,14 @@ function getStockDisponibleGeneral(recetaId) {
   return getStockProducido(recetaId) - getStockVendido(recetaId) + getStockAjustesNetos(recetaId);
 }
 
+// Ajustes manuales atribuidos a este lote específico — ver
+// getLoteParaAjuste más abajo (cómo se les asigna un lote al crearlos).
+function getStockAjustesNetosLote(ejecucionId) {
+  return stockMovimientos
+    .filter(m => m.ejecucionId === ejecucionId)
+    .reduce((sum, m) => sum + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad), 0);
+}
+
 function getLoteResumen(ejecucionId) {
   const ej = ejecuciones.find(e => e.id === ejecucionId);
   if (!ej) return null;
@@ -203,9 +236,10 @@ function getLoteResumen(ejecucionId) {
     .reduce((sum, t) => sum + (t.cantidad || 0), 0);
   const comprometido = getStockComprometidoLote(ejecucionId, null);
   const vendido       = getStockVendidoLote(ejecucionId);
+  const ajustes        = getStockAjustesNetosLote(ejecucionId);
   return {
-    producido, testigo, comprometido, vendido,
-    disponible: producido - testigo - comprometido
+    producido, testigo, comprometido, vendido, ajustes,
+    disponible: producido - testigo + ajustes - comprometido
   };
 }
 
