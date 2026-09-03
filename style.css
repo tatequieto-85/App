@@ -1732,6 +1732,11 @@ input, textarea, [contenteditable], [contenteditable] * {
   font-size: 14.5px; font-weight: 700; color: var(--brand);
 }
 
+/* La feria activa más próxima en el tiempo: apenas un tinte del color de
+   marca para que resalte de un vistazo sin gritar. */
+.feria-block--proxima { background: #714B670D; border-color: rgba(113,75,103,.35); }
+.feria-block--proxima:hover { border-color: rgba(113,75,103,.5); }
+
 /* Feria ya terminada (pasó por calendario o se cerró a mano): gris claro
    para diferenciarla de un vistazo de las que siguen activas o vienen. */
 .feria-block--terminada { background: var(--gray-100); border-color: var(--gray-200); }

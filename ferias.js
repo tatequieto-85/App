@@ -399,11 +399,12 @@ function fmtDayMonth(iso) {
   return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function feriaBlockHTML(f) {
+function feriaBlockHTML(f, esProxima) {
   const fechas = (f.fechaInicio && f.fechaFin) ? `${fmtDayMonth(f.fechaInicio)} a ${fmtDayMonth(f.fechaFin)}` : '—';
   const terminada = feriaHaTerminado(f);
+  const clases = [terminada && 'feria-block--terminada', esProxima && 'feria-block--proxima'].filter(Boolean).join(' ');
   return `
-    <div class="feria-block${terminada ? ' feria-block--terminada' : ''}" data-id="${esc(f.id)}">
+    <div class="feria-block${clases ? ' ' + clases : ''}" data-id="${esc(f.id)}">
       <div class="feria-block-row1">
         <div class="feria-block-orglugar">
           <div class="feria-block-title">${esc(f.empresa)}</div>
@@ -476,16 +477,20 @@ function renderFeriaListForCanal(container, canalId) {
     return;
   }
   // Las ferias terminadas (o cerradas a mano) se hunden al final, separadas
-  // por una línea divisoria, sin reordenar entre sí las que quedan arriba.
-  const activas    = feriasCanal.filter(f => !feriaHaTerminado(f));
+  // por una línea divisoria. Las activas sí se reordenan: de la más próxima
+  // (en curso, o la que arranca antes) a la más lejana — sin fecha de inicio
+  // se van al final, no hay forma de saber qué tan lejos están.
+  const activas = feriasCanal
+    .filter(f => !feriaHaTerminado(f))
+    .sort((a, b) => (a.fechaInicio || '9999').localeCompare(b.fechaInicio || '9999'));
   const terminadas = feriasCanal.filter(feriaHaTerminado);
   const dividerHTML = terminadas.length
     ? '<div class="feria-list-divider"><span>Ferias terminadas</span></div>'
     : '';
   container.innerHTML = `
-    <div class="feria-blocks-grid">${activas.map(feriaBlockHTML).join('')}</div>
+    <div class="feria-blocks-grid">${activas.map((f, i) => feriaBlockHTML(f, i === 0)).join('')}</div>
     ${dividerHTML}
-    <div class="feria-blocks-grid">${terminadas.map(feriaBlockHTML).join('')}</div>`;
+    <div class="feria-blocks-grid">${terminadas.map(f => feriaBlockHTML(f, false)).join('')}</div>`;
   wireFeriaCardActions(container);
   container.querySelectorAll('.feria-block').forEach(block => {
     let pressTimer  = null;
