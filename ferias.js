@@ -3,7 +3,7 @@ import { esc, setFb, setFieldError, clearFieldErrors, confirmCloseIfDirty, safeP
 import { wasAccidentalTouch } from './input-guard.js';
 import { openCalendarPopover } from './tareas.js';
 import { ejecuciones, getStockProducido } from './procesos.js';
-import { stockTestigos } from './stock.js';
+import { stockTestigos, stockMovimientos } from './stock.js';
 
 export let ferias        = [];
 let feriasSheetId        = null;
@@ -320,6 +320,15 @@ export function getStockVendidoLote(ejecucionId) {
   , 0);
 }
 
+// Los ajustes manuales (entrada/salida en Stock) se guardan por receta,
+// pero se atribuyen solos a un lote al crearlos (ver getLoteParaAjuste en
+// stock.js) — por eso alcanza con sumar los que ya trajeron ese ejecucionId.
+function getStockAjustesNetosLote(ejecucionId) {
+  return stockMovimientos
+    .filter(m => m.ejecucionId === ejecucionId)
+    .reduce((sum, m) => sum + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad), 0);
+}
+
 function getStockDisponibleLote(ejecucionId, excludeFeriaId) {
   const ej = ejecuciones.find(e => e.id === ejecucionId);
   if (!ej) return 0;
@@ -328,7 +337,7 @@ function getStockDisponibleLote(ejecucionId, excludeFeriaId) {
   const testigo = stockTestigos
     .filter(t => t.ejecucionId === ejecucionId)
     .reduce((sum, t) => sum + (t.cantidad || 0), 0);
-  return producido - testigo - getStockComprometidoLote(ejecucionId, excludeFeriaId);
+  return producido - testigo + getStockAjustesNetosLote(ejecucionId) - getStockComprometidoLote(ejecucionId, excludeFeriaId);
 }
 
 function getFeriaDateList(f) {

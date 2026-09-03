@@ -71,7 +71,10 @@ export function navigateTo(view) {
     safeLoad(loadCompras, 'comprasList').then(ok => { if (ok) renderComprasList(); });
   }
   if (view === 'ferias') {
-    safeLoad(() => Promise.all([loadFerias(), loadCanales(), loadRecetasData(), loadEjecucionesData()]), 'feriasList')
+    // El plan de stock de cada feria necesita testigos y ajustes manuales
+    // (ver getStockDisponibleLote en ferias.js) — sin esto, entrar acá sin
+    // haber pasado antes por Stock los dejaba en 0 y no se reflejaban.
+    safeLoad(() => Promise.all([loadFerias(), loadCanales(), loadRecetasData(), loadEjecucionesData(), loadStockTestigos(), loadStockMovimientos()]), 'feriasList')
       .then(ok => { if (ok) { renderFerias(); openTodaysFeriaCounterIfAny(); } });
   }
   if (view === 'stock') {

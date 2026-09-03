@@ -5,7 +5,7 @@ import { ejecuciones, recetas, getStockProducido } from './procesos.js';
 import { ferias, getStockComprometidoLote, getStockVendidoLote } from './ferias.js';
 
 export let stockTestigos        = [];
-let stockMovimientos            = [];
+export let stockMovimientos     = [];
 let stockTestigosSheetId        = null;
 let stockMovimientosSheetId     = null;
 let currentStockTab             = 'resumen';
@@ -43,11 +43,17 @@ export async function initStockSheets() {
       ]] })
     });
   }
-  const md = await sheetsReq('/values/StockMovimientos!A1').catch(() => ({}));
+  const md = await sheetsReq('/values/StockMovimientos!A1:I1').catch(() => ({}));
   if (!md.values) {
     await sheetsReq('/values/StockMovimientos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID','RecetaId','RecetaNombre','Tipo','Cantidad','Motivo','Fecha','CreadoEn']] })
+      body: JSON.stringify({ values: [['ID','RecetaId','RecetaNombre','Tipo','Cantidad','Motivo','Fecha','CreadoEn','EjecucionId']] })
+    });
+  } else if ((md.values[0] || []).length < 9) {
+    // Bases ya existentes, de antes de atribuir cada ajuste a un lote.
+    await sheetsReq('/values/StockMovimientos!I1?valueInputOption=RAW', {
+      method: 'PUT',
+      body: JSON.stringify({ values: [['EjecucionId']] })
     });
   }
 
@@ -112,7 +118,7 @@ async function deleteStockTestigoRow(rowIndex) {
 }
 
 export async function loadStockMovimientos() {
-  const data = await sheetsReq('/values/StockMovimientos!A:H');
+  const data = await sheetsReq('/values/StockMovimientos!A:I');
   const rows = (data.values || []).slice(1);
   stockMovimientos = rows.filter(r => r[0]).map((r, i) => ({
     id:           r[0] || '',
@@ -123,16 +129,19 @@ export async function loadStockMovimientos() {
     motivo:       r[5] || '',
     fecha:        r[6] || '',
     creadoEn:     r[7] || '',
+    ejecucionId:  r[8] || '',
     rowIndex:     i + 2
   }));
 }
 
+// El lote (ejecucionId) se asigna solo, sin preguntarle al usuario — ver
+// getLoteParaAjuste más abajo.
 async function appendStockMovimiento(m) {
-  await sheetsReq('/values/StockMovimientos!A:H:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/StockMovimientos!A:I:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       crypto.randomUUID(), m.recetaId, m.recetaNombre, m.tipo, m.cantidad, m.motivo, m.fecha,
-      new Date().toISOString()
+      new Date().toISOString(), m.ejecucionId || ''
     ]]})
   });
 }
@@ -149,6 +158,18 @@ async function deleteStockMovimientoRow(rowIndex) {
       range: { sheetId: stockMovimientosSheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex }
     }}]})
   });
+}
+
+// El ajuste manual se guarda por receta, pero el plan de stock de Ferias
+// elige cuánto llevar lote por lote (ver getStockDisponibleLote en
+// ferias.js) — sin un lote asignado, un ajuste nunca se veía reflejado
+// ahí. Se atribuye solo, sin preguntarle al usuario, al lote más
+// reciente con producción registrada de esa receta.
+function getLoteParaAjuste(recetaId) {
+  const lotes = ejecuciones
+    .filter(ej => ej.recetaId === recetaId && (ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180))
+    .sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio));
+  return lotes[0]?.id || '';
 }
 
 // ── Stock: cálculo de inventario (siempre derivado, nunca editable a mano) ───
@@ -384,10 +405,11 @@ document.getElementById('btnSaveStockAjuste').addEventListener('click', async ()
   if (!motivo) return setFb(fb, 'Indica el motivo del ajuste.', 'err');
 
   const receta = recetas.find(r => r.id === recetaId);
+  const ejecucionId = getLoteParaAjuste(recetaId);
   const btn = document.getElementById('btnSaveStockAjuste');
   btn.disabled = true; btn.textContent = 'Guardando…';
   try {
-    await appendStockMovimiento({ recetaId, recetaNombre: receta?.nombre || '', tipo, cantidad, motivo, fecha: toISODate(new Date()) });
+    await appendStockMovimiento({ recetaId, recetaNombre: receta?.nombre || '', tipo, cantidad, motivo, fecha: toISODate(new Date()), ejecucionId });
     await loadStockMovimientos();
     renderStockResumen();
     document.getElementById('stockAjusteOverlay').classList.remove('open');
