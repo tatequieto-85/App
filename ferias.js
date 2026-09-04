@@ -10,7 +10,6 @@ let feriasSheetId        = null;
 let feriaEditId          = null;
 let feriaCounterId       = null;
 let feriaCounterFecha    = null; // día fijo del contador (siempre "hoy", ver getFeriaDefaultDay)
-let feriaCounterSaveTimer = null;
 let feriaStockPendingId  = null;
 let feriaResumenId       = null;
 let lastTapTime          = {}; // para detección de doble-toque en móvil
@@ -1000,6 +999,33 @@ document.getElementById('btnSaveFeriaStock').addEventListener('click', async () 
 
 // ── Ferias: Conteo de personas, ventas, observaciones y stock del día ────────
 
+// El conteo por rango etario ya no se toca en vivo directo sobre el total
+// guardado (f.conteoMenores30 etc.) — cada vez que se abre la ventana
+// arranca en 0 en una "tanda" (feriaCounterSession) que solo suma (el "−"
+// es para corregir un toque de más dentro de esa tanda, nunca negativo).
+// La tanda se vuelca al total recién al cerrar (closeFeriaCounter). Si la
+// ventana se cierra de cualquier otra forma (se recarga la página, se
+// cierra el navegador) sin pasar por ahí, queda un borrador en
+// localStorage que se ofrece recuperar la próxima vez que se abra.
+let feriaCounterSession = { menores30: 0, entre30y55: 0, mayores55: 0 };
+
+function feriaCounterDraftKey(feriaId) {
+  return 'ss_feria_counter_draft_' + feriaId;
+}
+
+function saveFeriaCounterDraft() {
+  if (!feriaCounterId) return;
+  try {
+    localStorage.setItem(feriaCounterDraftKey(feriaCounterId), JSON.stringify({
+      ...feriaCounterSession, savedAt: new Date().toISOString()
+    }));
+  } catch {}
+}
+
+function clearFeriaCounterDraft(feriaId) {
+  try { localStorage.removeItem(feriaCounterDraftKey(feriaId)); } catch {}
+}
+
 function openFeriaCounter(feriaId) {
   const f = ferias.find(x => x.id === feriaId);
   if (!f) return;
@@ -1011,18 +1037,32 @@ function openFeriaCounter(feriaId) {
   document.getElementById('feriaVentaOverlay').classList.remove('open');
   document.getElementById('feriaObsOverlay').classList.remove('open');
 
+  feriaCounterSession = { menores30: 0, entre30y55: 0, mayores55: 0 };
+  const draft = safeParseJSON(localStorage.getItem(feriaCounterDraftKey(feriaId)), null);
+  const draftTotal = draft ? (draft.menores30 || 0) + (draft.entre30y55 || 0) + (draft.mayores55 || 0) : 0;
+  if (draftTotal > 0) {
+    if (confirm(`Quedó una tanda sin guardar de la vez pasada (${draftTotal} personas). ¿Querés guardarla en el total?`)) {
+      f.conteoMenores30  = (f.conteoMenores30  || 0) + (draft.menores30  || 0);
+      f.conteoEntre30y55 = (f.conteoEntre30y55 || 0) + (draft.entre30y55 || 0);
+      f.conteoMayores55  = (f.conteoMayores55  || 0) + (draft.mayores55  || 0);
+      updateFeria(f).catch(e => console.warn('Error guardando conteo recuperado:', e.message));
+    }
+    clearFeriaCounterDraft(feriaId);
+  }
+
   renderFeriaCounterValues(f);
   renderFeriaCounterDay();
   document.getElementById('feriaCounterOverlay').classList.add('open');
 }
 
 function renderFeriaCounterValues(f) {
-  document.getElementById('feriaCounterValueMenores30').textContent = f.conteoMenores30 || 0;
-  document.getElementById('feriaCounterValueEntre30y55').textContent = f.conteoEntre30y55 || 0;
-  document.getElementById('feriaCounterValueMayores55').textContent = f.conteoMayores55 || 0;
-  document.getElementById('feriaCounterValueTotal').textContent   = feriaConteoTotal(f);
+  document.getElementById('feriaCounterValueMenores30').textContent  = feriaCounterSession.menores30;
+  document.getElementById('feriaCounterValueEntre30y55').textContent = feriaCounterSession.entre30y55;
+  document.getElementById('feriaCounterValueMayores55').textContent  = feriaCounterSession.mayores55;
+  const total = feriaConteoTotal(f) + feriaCounterSession.menores30 + feriaCounterSession.entre30y55 + feriaCounterSession.mayores55;
+  document.getElementById('feriaCounterValueTotal').textContent = total;
   const blockCounterEl = document.querySelector(`.feria-block[data-id="${CSS.escape(f.id)}"] .feria-block-stat-contados`);
-  if (blockCounterEl) blockCounterEl.textContent = `👥 ${feriaConteoTotal(f)}`;
+  if (blockCounterEl) blockCounterEl.textContent = `👥 ${total}`;
 }
 
 function renderFeriaCounterDay() {
@@ -1048,22 +1088,15 @@ document.getElementById('btnTerminarFeria').addEventListener('click', async () =
   }
 });
 
-function scheduleFeriaCounterSave() {
-  clearTimeout(feriaCounterSaveTimer);
-  feriaCounterSaveTimer = setTimeout(async () => {
-    const f = ferias.find(x => x.id === feriaCounterId);
-    if (!f) return;
-    try { await updateFeria(f); }
-    catch (e) { console.warn('Error guardando conteo:', e.message); }
-  }, 700);
-}
+const CAMPO_A_SESION = { conteoMenores30: 'menores30', conteoEntre30y55: 'entre30y55', conteoMayores55: 'mayores55' };
 
 function adjustFeriaCounter(campo, delta) {
   const f = ferias.find(x => x.id === feriaCounterId);
   if (!f) return;
-  f[campo] = Math.max(0, (f[campo] || 0) + delta);
+  const key = CAMPO_A_SESION[campo];
+  feriaCounterSession[key] = Math.max(0, feriaCounterSession[key] + delta);
   renderFeriaCounterValues(f);
-  scheduleFeriaCounterSave();
+  saveFeriaCounterDraft();
 }
 
 document.getElementById('btnFeriaCounterPlusMenores30').addEventListener('click', () => adjustFeriaCounter('conteoMenores30', 1));
@@ -1373,9 +1406,17 @@ document.getElementById('btnDownloadFeriaResumen').addEventListener('click', () 
 });
 
 function closeFeriaCounter() {
-  clearTimeout(feriaCounterSaveTimer);
   const f = ferias.find(x => x.id === feriaCounterId);
-  if (f) updateFeria(f).catch(e => console.warn('Error guardando conteo final:', e.message));
+  if (f) {
+    // Cierre normal: la tanda contada en esta sesión se vuelca al total
+    // guardado y se descarta el borrador — no hay nada que recuperar la
+    // próxima vez que se abra.
+    f.conteoMenores30  = (f.conteoMenores30  || 0) + feriaCounterSession.menores30;
+    f.conteoEntre30y55 = (f.conteoEntre30y55 || 0) + feriaCounterSession.entre30y55;
+    f.conteoMayores55  = (f.conteoMayores55  || 0) + feriaCounterSession.mayores55;
+    updateFeria(f).catch(e => console.warn('Error guardando conteo final:', e.message));
+  }
+  if (feriaCounterId) clearFeriaCounterDraft(feriaCounterId);
   document.getElementById('feriaCounterOverlay').classList.remove('open');
   feriaCounterId = null;
 }
