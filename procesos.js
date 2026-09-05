@@ -927,11 +927,11 @@ function generateEjecucionAnalysis(ej) {
       <span class="analysis-value" style="color:${color}">${ev.rendimiento.toFixed(1)}% (${(ev.frascos230||0)*230+(ev.frascos180||0)*180} ml de ${ev.totalInsumosG || '?'} g)</span>
     </div>`;
   }
-  if (ev.frascos230 || ev.frascos180) {
-    const total = (ev.frascos230 || 0) + (ev.frascos180 || 0);
+  const totalFrascos = (ev.frascos230 || 0) + (ev.frascos180 || 0);
+  if (totalFrascos) {
     html += `<div class="analysis-row">
       <span class="analysis-label">Frascos producidos</span>
-      <span class="analysis-value">${total} total (${ev.frascos230 || 0}×230ml + ${ev.frascos180 || 0}×180ml)</span>
+      <span class="analysis-value">${totalFrascos} total (${ev.frascos230 || 0}×230ml + ${ev.frascos180 || 0}×180ml)</span>
     </div>`;
   }
   if (ev.costoProduccion != null) {
@@ -940,6 +940,14 @@ function generateEjecucionAnalysis(ej) {
       <span class="analysis-label">Costo de producción</span>
       <span class="analysis-value" style="${incompleto ? 'color:#F97316' : ''}">${fmtCOP(ev.costoProduccion)}${incompleto ? ` (incompleto: sin compra de ${ev.costoIncompleto.join(', ')})` : ''}</span>
     </div>`;
+    // Costo total repartido entre los frascos que efectivamente salieron —
+    // sin unidades producidas no hay como calcular un valor por frasco.
+    if (totalFrascos) {
+      html += `<div class="analysis-row">
+        <span class="analysis-label">Valor unitario</span>
+        <span class="analysis-value">${fmtCOP(ev.costoProduccion / totalFrascos)} (${fmtCOP(ev.costoProduccion)} ÷ ${totalFrascos} frascos)</span>
+      </div>`;
+    }
   }
 
   html += '</div>';
