@@ -6,6 +6,8 @@ export function toISODate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+export function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+
 export function fmtDateShortEs(iso) {
   if (!iso) return '';
   return parseISODate(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Bogota' });
@@ -19,6 +21,19 @@ export function fmtDayMonthSlash(iso) {
 
 export function fmtCOP(n) {
   return (n || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+}
+
+// Portado de getDueStatus() en ../../tareas.js — usado por Stock para el
+// color del producto testigo según qué tan cerca está su fecha de revisión.
+export function getDueStatus(dateStr) {
+  if (!dateStr) return '';
+  const d     = parseISODate(dateStr);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff  = Math.round((d - today) / 86400000);
+  if (diff < 0) return 'vencido';
+  if (diff === 0) return 'hoy';
+  if (diff <= 3) return 'porVencer';
+  return 'normal';
 }
 
 // Convierte "1.234,5" (formato es-CO que ve el usuario) al número real.

@@ -87,7 +87,7 @@ export default function CompraModal({ open, onClose, ingrediente, editRecord, la
       }
     >
       <form onSubmit={handleSubmit}>
-        <p className="compra-contexto">
+        <p className="modal-contexto">
           {ingrediente?.nombre}
           {' — '}
           {lastUnitPrice != null

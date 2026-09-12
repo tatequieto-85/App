@@ -1,0 +1,8 @@
+.field-textarea {
+  width: 100%; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 14px; font-size: 14px; color: var(--text);
+  background: var(--bg); outline: none;
+  transition: border-color .2s, background .2s, box-shadow .2s; font-family: inherit;
+  min-height: 100px; resize: vertical; box-sizing: border-box;
+}
+.field-textarea:focus { border-color: var(--brand); background: #fff; }

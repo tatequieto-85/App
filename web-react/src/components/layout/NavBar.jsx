@@ -1,15 +1,15 @@
 import './NavBar.css';
 
 // Nav mínima del piloto — reemplaza temporalmente al home de tarjetas de
-// ../../../main.js (navigateTo) mientras solo hay dos módulos migrados.
+// ../../../main.js (navigateTo) mientras se migran los módulos uno por uno.
 export default function NavBar({ page, onChange }) {
   return (
     <nav className="pilot-nav">
-      <button className={page === 'ingredientes' ? 'active' : ''} onClick={() => onChange('ingredientes')}>
-        Ingredientes
-      </button>
       <button className={page === 'compras' ? 'active' : ''} onClick={() => onChange('compras')}>
-        Compras
+        Ingredientes y compras
+      </button>
+      <button className={page === 'stock' ? 'active' : ''} onClick={() => onChange('stock')}>
+        Stock
       </button>
     </nav>
   );

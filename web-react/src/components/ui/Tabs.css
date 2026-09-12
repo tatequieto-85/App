@@ -1,0 +1,12 @@
+.tabs-bar { display: flex; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tabs-btn {
+  background: none; border: none;
+  border-bottom: 2.5px solid transparent;
+  padding: 12px 16px;
+  font-size: 14px; font-weight: 600;
+  color: var(--text-sub);
+  cursor: pointer; white-space: nowrap;
+  transition: color .2s, border-color .2s;
+}
+.tabs-btn:hover { color: var(--text); }
+.tabs-btn.active { color: var(--brand); border-bottom-color: var(--brand); }

@@ -1,17 +1,19 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import Button from './components/ui/Button';
 import Card from './components/ui/Card';
+import NavBar from './components/layout/NavBar';
 import { useAuth } from './hooks/useAuth';
 import ComprasPage from './features/compras/ComprasPage';
+import StockPage from './features/stock/StockPage';
 
-// Ingredientes y Compras son una sola pantalla ahora (ver ComprasPage) — sin
-// nav entre módulos todavía porque no hay un segundo módulo migrado. Vuelve
-// cuando se migre el próximo (ver ./components/layout/NavBar.jsx).
+const PAGES = { compras: ComprasPage, stock: StockPage };
+
 export default function App() {
   const { checked, signedIn, signIn, signOut } = useAuth();
   const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [page, setPage] = useState('compras');
 
   if (!checked) return null;
 
@@ -23,7 +25,7 @@ export default function App() {
             <h1 className="section-title" style={{ marginBottom: 8 }}>TateApp — piloto React</h1>
             <p style={{ fontSize: 13, color: 'var(--text-sub)', marginBottom: 16 }}>
               Conectate con la misma cuenta de Google que usás en la PWA para ver
-              Ingredientes y Compras migrados.
+              los módulos migrados.
             </p>
             <Button
               variant="primary"
@@ -44,5 +46,13 @@ export default function App() {
     );
   }
 
-  return <ComprasPage onBack={signOut} />;
+  const Page = PAGES[page];
+  return (
+    <>
+      <NavBar page={page} onChange={setPage} />
+      <AnimatePresence mode="wait">
+        <Page key={page} onBack={signOut} />
+      </AnimatePresence>
+    </>
+  );
 }

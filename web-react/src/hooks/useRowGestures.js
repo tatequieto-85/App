@@ -8,7 +8,9 @@ const DOUBLE_TAP_MS = 350;
 // doble toque dispara la acción principal (p. ej. registrar). Antes esto
 // vivía repetido a mano en cada módulo (ver renderComprasList() en
 // ../../../compras.js); ahora es un hook único que cualquier lista reusa.
-// Devuelve los handlers para pasarle directo al elemento de la fila.
+// onDoubleClick es opcional — una fila que solo necesita long-press (p. ej.
+// una tarjeta de Producto testigo en Stock, sin acción de "doble clic") no
+// lo pasa. Devuelve los handlers para pasarle directo al elemento de la fila.
 export function useRowGestures({ onLongPress, onDoubleClick, disabled }) {
   const timerRef = useRef(null);
   const longPressedRef = useRef(false);
@@ -24,14 +26,14 @@ export function useRowGestures({ onLongPress, onDoubleClick, disabled }) {
     clearTimer();
     timerRef.current = setTimeout(() => {
       longPressedRef.current = true;
-      onLongPress();
+      onLongPress?.();
     }, LONG_PRESS_MS);
   }, [disabled, onLongPress, clearTimer]);
 
   const handleTouchEnd = useCallback(e => {
     clearTimer();
     if (longPressedRef.current) { longPressedRef.current = false; return; }
-    if (disabled || e.target.closest('button')) return;
+    if (disabled || !onDoubleClick || e.target.closest('button')) return;
     const now = Date.now();
     if (now - lastTapRef.current < DOUBLE_TAP_MS) {
       lastTapRef.current = 0;
@@ -42,7 +44,7 @@ export function useRowGestures({ onLongPress, onDoubleClick, disabled }) {
   }, [clearTimer, disabled, onDoubleClick]);
 
   const handleDoubleClick = useCallback(e => {
-    if (disabled || e.target.closest('button')) return;
+    if (disabled || !onDoubleClick || e.target.closest('button')) return;
     onDoubleClick();
   }, [disabled, onDoubleClick]);
 
