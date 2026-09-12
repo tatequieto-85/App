@@ -4,14 +4,22 @@
   gap: 10px;
 }
 
+/* Cada espacio del grid de widgets es cuadrado (ancho = alto). Solo se
+   aplica acá (no a .sortable-item en general, que también usa el grid de
+   Módulos) y solo cubre widgets de 1 columna — un widget de 2 o 3 (span)
+   todavía no existe; cuando haga falta uno, esto necesita revisarse para
+   que sean "N cuadrados de ancho" en vez de un cuadrado gigante. */
+.widgets-grid .sortable-item { aspect-ratio: 1 / 1; max-height: 25vh; }
+
 .widget {
+  height: 100%; display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   overflow: hidden; box-shadow: var(--shadow-sm);
 }
 
 .widget-tap {
-  display: block; width: 100%;
-  max-height: 25vh; overflow: hidden;
+  display: block; width: 100%; flex: 1; min-height: 0;
+  overflow: hidden;
   padding: 12px 10px;
   text-align: left; cursor: pointer;
   user-select: none; -webkit-user-select: none;
@@ -40,8 +48,8 @@
 
 .widget-add {
   grid-column: span 1;
+  aspect-ratio: 1 / 1; max-height: 25vh;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-  min-height: 76px;
   background: none; border: 1.5px dashed var(--border); border-radius: var(--radius);
   color: var(--text-sub); cursor: pointer; font: inherit;
   transition: border-color .2s, color .2s;
