@@ -3,20 +3,23 @@ import { motion } from 'framer-motion';
 import AppCard from '../../components/ui/AppCard';
 import Icon from '../../components/icons/Icon';
 import SortableGrid from '../../components/ui/SortableGrid';
+import VersionBadge from '../../components/ui/VersionBadge';
 import { useHomeWidgets } from '../../hooks/useHomeWidgets';
 import { useOrderedIds } from '../../hooks/useOrderedIds';
 import { WIDGET_REGISTRY } from './widgetRegistry';
 import { MODULE_REGISTRY } from './moduleRegistry';
 import WidgetPicker from './WidgetPicker';
 import '../../components/ui/Widget.css';
+import './HomePage.css';
 
 // Pantalla principal: arriba, los widgets que el usuario eligió agregar
 // (nunca automático al migrar un módulo — ver useHomeWidgets.js); abajo, el
 // grid con todos los módulos migrados, como el home de tarjetas de
 // ../../../main.js. Ambos grids se pueden arrastrar para reordenar (ver
 // components/ui/SortableGrid.jsx). Es adonde apunta la flecha de "volver" de
-// cualquier pantalla (ver PageHeader) — cerrar sesión vive acá.
-export default function HomePage({ onNavigate, onSignOut }) {
+// cualquier pantalla (ver PageHeader). Sin botón de cerrar sesión (a pedido
+// del usuario) — por ahora no hay forma de cerrar sesión desde la UI.
+export default function HomePage({ onNavigate }) {
   const { registeredIds, addWidget, removeWidget, reorderWidgets } = useHomeWidgets();
   const [moduleOrder, reorderModules] = useOrderedIds('ss_home_modules', MODULE_REGISTRY.map(m => m.id));
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -43,11 +46,10 @@ export default function HomePage({ onNavigate, onSignOut }) {
           <h1 className="home-title">TateApp</h1>
           <p className="home-sub">Piloto React</p>
         </div>
-        <button type="button" className="btn btn--link home-signout" onClick={onSignOut}>Cerrar sesión</button>
+        <VersionBadge />
       </div>
 
-      <section>
-        <h2 className="subsection-title">Widgets</h2>
+      <div className="widgets-section">
         <SortableGrid
           className="widgets-grid"
           ids={registeredIds}
@@ -72,21 +74,18 @@ export default function HomePage({ onNavigate, onSignOut }) {
             </button>
           }
         />
-      </section>
+      </div>
 
-      <section>
-        <h2 className="subsection-title">Módulos</h2>
-        <SortableGrid
-          className="home-grid"
-          ids={moduleOrder}
-          onReorder={reorderModules}
-          renderItem={id => {
-            const m = MODULE_REGISTRY.find(x => x.id === id);
-            if (!m) return null;
-            return <AppCard icon={m.icon} label={m.label} onClick={() => onNavigate(m.screen)} />;
-          }}
-        />
-      </section>
+      <SortableGrid
+        className="home-grid"
+        ids={moduleOrder}
+        onReorder={reorderModules}
+        renderItem={id => {
+          const m = MODULE_REGISTRY.find(x => x.id === id);
+          if (!m) return null;
+          return <AppCard icon={m.icon} label={m.label} onClick={() => onNavigate(m.screen)} />;
+        }}
+      />
 
       <WidgetPicker open={pickerOpen} onClose={() => setPickerOpen(false)} available={available} onPick={addWidget} />
     </motion.div>

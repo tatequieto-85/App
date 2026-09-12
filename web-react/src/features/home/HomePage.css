@@ -3,4 +3,12 @@
 }
 .home-title { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -.02em; }
 .home-sub   { font-size: 13px; color: var(--text-sub); margin-top: 2px; }
-.home-signout { width: auto; margin-top: 4px; flex-shrink: 0; }
+
+/* Panel de widgets: tinte apenas más morado que el fondo de la app, para
+   distinguirlo visualmente del grid de Módulos de abajo — sutil a
+   propósito, no un color de marca fuerte. */
+.widgets-section {
+  background: rgba(113, 75, 103, .05);
+  border-radius: var(--radius);
+  padding: 10px;
+}

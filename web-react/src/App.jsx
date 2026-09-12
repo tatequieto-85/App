@@ -10,7 +10,7 @@ import StockPage from './features/stock/StockPage';
 const PAGES = { compras: ComprasPage, stock: StockPage };
 
 export default function App() {
-  const { checked, signedIn, signIn, signOut } = useAuth();
+  const { checked, signedIn, signIn } = useAuth();
   const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState('');
   const [screen, setScreen] = useState('home'); // 'home' | 'compras' | 'stock'
@@ -53,7 +53,7 @@ export default function App() {
   return (
     <AnimatePresence mode="wait">
       {screen === 'home' ? (
-        <HomePage key="home" onNavigate={setScreen} onSignOut={signOut} />
+        <HomePage key="home" onNavigate={setScreen} />
       ) : (
         (() => {
           const Page = PAGES[screen];

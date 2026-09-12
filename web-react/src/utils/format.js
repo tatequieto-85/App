@@ -16,6 +16,9 @@ export function fmtDateShortEs(iso) {
 export function fmtDayMonthSlash(iso) {
   if (!iso) return '';
   const d = parseISODate(iso);
+  // Si el valor guardado no es un "YYYY-MM-DD" limpio (formato viejo,
+  // fecha con hora, etc.), mejor mostrar el dato crudo que "NaN/NaN".
+  if (isNaN(d.getTime())) return String(iso);
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
