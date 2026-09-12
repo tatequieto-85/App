@@ -1,6 +1,14 @@
 // Portado de ../../utils.js — helpers de formato puros, sin DOM.
 
-export function parseISODate(s) { return new Date(s + 'T00:00:00'); }
+// Algunos campos (p. ej. fechaVencimiento de una evaluación, o CreadoEn)
+// vienen como timestamp completo ("2026-09-03T05:00:00.000Z"), no como
+// "YYYY-MM-DD" — pegarle igual "T00:00:00" al final rompía el parseo. Si el
+// string ya trae una "T", se usa tal cual; si no, se le agrega la hora fija
+// (mediodía local, sin desfasar de día por huso horario).
+export function parseISODate(s) {
+  if (!s) return new Date(NaN);
+  return new Date(s.includes('T') ? s : s + 'T00:00:00');
+}
 
 export function toISODate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -20,6 +28,16 @@ export function fmtDayMonthSlash(iso) {
   // fecha con hora, etc.), mejor mostrar el dato crudo que "NaN/NaN".
   if (isNaN(d.getTime())) return String(iso);
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// DD/MM/AA — usado en Trazabilidad de Stock (fmtDayMonthSlash, sin año, se
+// sigue usando en otros lados como el "Última compra" de Insumos).
+export function fmtDayMonthYearShort(iso) {
+  if (!iso) return '';
+  const d = parseISODate(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${yy}`;
 }
 
 export function fmtCOP(n) {

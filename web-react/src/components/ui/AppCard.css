@@ -7,27 +7,19 @@
 }
 .home-grid .sortable-item { aspect-ratio: 1 / 1; max-height: 25vh; }
 
+/* Sin caja blanca: el botón entero ES el ícono de color, del mismo tamaño
+   que el espacio del grid — no una tarjeta con un ícono chico adentro. */
 .app-card {
   width: 100%; height: 100%;
-  background: var(--surface);
+  background: var(--brand); color: #fff;
   border: none; border-radius: var(--radius);
-  padding: 12px 8px;
   cursor: pointer;
   display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 8px;
-  text-align: center; font: inherit; color: inherit;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow .2s, transform .15s;
+  align-items: center; justify-content: center; gap: 6px;
+  text-align: center; font: inherit;
+  transition: background .15s, transform .15s;
 }
-.app-card:hover  { box-shadow: var(--shadow-md); transform: translateY(-3px); }
-.app-card:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
+.app-card:hover  { background: var(--brand-hover); }
+.app-card:active { transform: scale(.97); }
 
-.app-card-icon {
-  width: 44px; height: 44px;
-  border-radius: var(--radius-sm);
-  background: var(--brand); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.app-card-label { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.2; }
-.app-card-sub   { font-size: 10.5px; color: var(--text-sub); }
+.app-card-label { font-size: 12px; font-weight: 700; color: #fff; line-height: 1.2; }
