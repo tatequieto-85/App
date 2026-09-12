@@ -6,9 +6,11 @@
 
 /* Panel de widgets: tinte apenas más morado que el fondo de la app, para
    distinguirlo visualmente del grid de Módulos de abajo — sutil a
-   propósito, no un color de marca fuerte. */
+   propósito, no un color de marca fuerte. Sin padding lateral: los widgets
+   deben medir exactamente lo mismo que las tarjetas de Módulos, y ese
+   padding angostaba sus columnas respecto a home-grid. */
 .widgets-section {
   background: rgba(113, 75, 103, .05);
   border-radius: var(--radius);
-  padding: 10px;
+  padding: 10px 0;
 }

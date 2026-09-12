@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import AppCard from '../../components/ui/AppCard';
-import Icon from '../../components/icons/Icon';
 import SortableGrid from '../../components/ui/SortableGrid';
 import VersionBadge from '../../components/ui/VersionBadge';
 import { useHomeWidgets } from '../../hooks/useHomeWidgets';
 import { useOrderedIds } from '../../hooks/useOrderedIds';
+import { useLongPressEmpty } from '../../hooks/useLongPressEmpty';
 import { WIDGET_REGISTRY } from './widgetRegistry';
 import { MODULE_REGISTRY } from './moduleRegistry';
 import WidgetPicker from './WidgetPicker';
@@ -17,8 +17,8 @@ import './HomePage.css';
 // grid con todos los módulos migrados, como el home de tarjetas de
 // ../../../main.js. Ambos grids se pueden arrastrar para reordenar (ver
 // components/ui/SortableGrid.jsx). Es adonde apunta la flecha de "volver" de
-// cualquier pantalla (ver PageHeader). Sin botón de cerrar sesión (a pedido
-// del usuario) — por ahora no hay forma de cerrar sesión desde la UI.
+// cualquier pantalla (ver PageHeader). Sin título ni botón de cerrar sesión
+// (a pedido del usuario, para no gastar espacio) — solo queda la versión.
 export default function HomePage({ onNavigate }) {
   const { registeredIds, addWidget, removeWidget, reorderWidgets } = useHomeWidgets();
   const [moduleOrder, reorderModules] = useOrderedIds('ss_home_modules', MODULE_REGISTRY.map(m => m.id));
@@ -35,6 +35,11 @@ export default function HomePage({ onNavigate }) {
 
   const available = WIDGET_REGISTRY.filter(w => !registeredIds.includes(w.id));
 
+  // Mantener presionado un espacio vacío del contenedor de widgets (no un
+  // widget ya puesto) abre el selector para agregar uno — reemplaza al
+  // tile "+" explícito.
+  const emptySpaceProps = useLongPressEmpty({ onLongPress: () => setPickerOpen(true) });
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
@@ -42,14 +47,10 @@ export default function HomePage({ onNavigate }) {
       className="app-shell"
     >
       <div className="home-header">
-        <div>
-          <h1 className="home-title">TateApp</h1>
-          <p className="home-sub">Piloto React</p>
-        </div>
         <VersionBadge />
       </div>
 
-      <div className="widgets-section">
+      <div className="widgets-section" {...emptySpaceProps}>
         <SortableGrid
           className="widgets-grid"
           ids={registeredIds}
@@ -67,12 +68,6 @@ export default function HomePage({ onNavigate }) {
               />
             );
           }}
-          trailing={
-            <button type="button" className="widget-add" onClick={() => setPickerOpen(true)}>
-              <Icon name="plus" size={18} />
-              <span className="widget-add-label">Agregar</span>
-            </button>
-          }
         />
       </div>
 

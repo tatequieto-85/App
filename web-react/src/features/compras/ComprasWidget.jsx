@@ -31,7 +31,7 @@ export default function ComprasWidget({ removing, onRequestRemove, onConfirmRemo
         onTap={() => setStep('buscar')}
         removing={removing} onRequestRemove={onRequestRemove} onConfirmRemove={onConfirmRemove}
       >
-        <p className="widget-line widget-line--sub">Doble clic para buscar un insumo</p>
+        <p className="widget-line widget-line--sub">Toca para buscar un insumo</p>
       </Widget>
 
       <AgregarCompraModal
