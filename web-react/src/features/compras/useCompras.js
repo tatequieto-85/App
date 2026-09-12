@@ -55,6 +55,10 @@ export function useCompras(ingredientes) {
       await api.updateCompra({ ...editRecord, ...data });
     } else {
       await api.appendCompra(data);
+      // Recién agregada, con rowIndex reales — necesario para saber cuáles
+      // son las más viejas y borrarlas (ver comprasApi.pruneOldCompras).
+      const fresh = await api.fetchCompras();
+      await api.pruneOldCompras(fresh, data.ingrediente);
     }
     await reload();
   }, [reload]);

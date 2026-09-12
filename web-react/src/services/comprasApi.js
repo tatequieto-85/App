@@ -71,15 +71,36 @@ export function comprasForIngrediente(compras, nombre) {
   return compras.filter(c => normalizeIngName(c.ingrediente) === key);
 }
 
+// Más reciente primero (por fecha de compra y, a igualdad, por cuándo se cargó).
+function byRecency(a, b) {
+  const da = a.fecha || a.creadoEn || '';
+  const db = b.fecha || b.creadoEn || '';
+  if (da !== db) return da < db ? 1 : -1;
+  return (a.creadoEn || '') < (b.creadoEn || '') ? 1 : -1;
+}
+
 export function getLatestCompra(compras, nombre) {
   const list = comprasForIngrediente(compras, nombre);
   if (!list.length) return null;
-  return list.slice().sort((a, b) => {
-    const da = a.fecha || a.creadoEn || '';
-    const db = b.fecha || b.creadoEn || '';
-    if (da !== db) return da < db ? 1 : -1;
-    return (a.creadoEn || '') < (b.creadoEn || '') ? 1 : -1;
-  })[0];
+  return list.slice().sort(byRecency)[0];
+}
+
+export const MAX_COMPRAS_POR_INGREDIENTE = 10;
+
+// Se llama después de registrar una compra nueva: borra las compras más
+// viejas de ese ingrediente que sobren por encima de las últimas
+// MAX_COMPRAS_POR_INGREDIENTE — a pedido del usuario, para no acumular
+// historial indefinidamente. `compras` debe venir recién leído de la hoja
+// (con los rowIndex vigentes, incluida la fila que se acaba de agregar).
+export async function pruneOldCompras(compras, nombre, keep = MAX_COMPRAS_POR_INGREDIENTE) {
+  const excedente = comprasForIngrediente(compras, nombre).sort(byRecency).slice(keep);
+  if (!excedente.length) return;
+  // De mayor a menor rowIndex: borrar una fila no debe invalidar el índice
+  // de las que todavía faltan borrar.
+  const porBorrar = excedente.slice().sort((a, b) => b.rowIndex - a.rowIndex);
+  for (const c of porBorrar) {
+    await deleteCompraRow(c.rowIndex);
+  }
 }
 
 function getUnitPrice(compras, nombre) {
