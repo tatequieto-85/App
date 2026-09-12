@@ -1,0 +1,26 @@
+.feria-blocks-grid { display: flex; flex-direction: column; gap: 10px; }
+
+.feria-block-wrap { position: relative; }
+
+.feria-block {
+  border: 1.5px solid var(--border); border-radius: var(--radius);
+  padding: 12px 14px; background: var(--surface);
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.feria-block--terminada { opacity: .6; }
+.feria-block--proxima { border-color: var(--brand); }
+
+.feria-block-row1 { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.feria-block-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.feria-block-meta { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+.feria-block-fechas { font-size: 12px; font-weight: 600; color: var(--text-sub); white-space: nowrap; }
+
+.feria-block-stats { display: flex; gap: 14px; font-size: 12.5px; color: var(--text); }
+
+.feria-list-divider {
+  display: flex; align-items: center; gap: 10px; margin: 4px 0;
+  color: var(--text-sub); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.feria-list-divider::before, .feria-list-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }

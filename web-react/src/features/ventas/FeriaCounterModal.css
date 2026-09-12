@@ -1,0 +1,28 @@
+.feria-counter-date { font-size: 12px; color: var(--text-sub); margin-bottom: var(--space-4); }
+
+.feria-counter-rows { display: flex; flex-direction: column; gap: 12px; }
+.feria-counter-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.feria-counter-row:last-child { border-bottom: none; }
+.feria-counter-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.feria-counter-stepper { display: flex; align-items: center; gap: 10px; }
+.feria-counter-btn {
+  width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 18px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+}
+.feria-counter-btn:active { background: var(--bg); }
+.feria-counter-value { min-width: 26px; text-align: center; font-size: 16px; font-weight: 700; }
+
+.feria-counter-total {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin: var(--space-4) 0; padding: 12px; border-radius: var(--radius);
+  background: rgba(113, 75, 103, .07);
+}
+.feria-counter-total-label { font-size: 12px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: .06em; }
+.feria-counter-total-value { font-size: 22px; font-weight: 800; color: var(--brand); }
+
+.feria-counter-actions { display: flex; flex-direction: column; gap: 8px; margin-top: var(--space-5); }
+.feria-counter-btn-terminar.btn--outline { color: var(--danger); border-color: var(--danger); }

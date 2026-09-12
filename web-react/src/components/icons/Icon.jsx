@@ -70,7 +70,9 @@ const PATHS = {
       <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
       <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
     </>
-  )
+  ),
+  flag: <path d="M4 22V4a1 1 0 011-1h11l-1.5 4L16 11H5" />,
+  minus: <line x1="5" y1="12" x2="19" y2="12" />
 };
 
 export default function Icon({ name, size = 15, className = '' }) {
