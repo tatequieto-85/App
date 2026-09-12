@@ -4,6 +4,7 @@ import Card from '../../components/ui/Card';
 import FabButton from '../../components/ui/FabButton';
 import Icon from '../../components/icons/Icon';
 import EmptyState from '../../components/ui/EmptyState';
+import PageHeader from '../../components/layout/PageHeader';
 import { useIngredientes } from '../ingredientes/useIngredientes';
 import { useCompras } from './useCompras';
 import CompraRow from './CompraRow';
@@ -15,7 +16,7 @@ import './CompraRow.css';
 // de ingredientes aparte (era una lista duplicada de lo que ya muestra esta
 // tabla) — "agregar ingrediente" vive en el botón flotante del pie de
 // pantalla y abre InsumoModal (alta rápida nombre+unidad).
-export default function ComprasPage() {
+export default function ComprasPage({ onBack }) {
   const { ingredientes, loading: loadingIng, addIngrediente } = useIngredientes();
   const { rows, loading: loadingCompras, error, saveCompra, removeCompra } = useCompras(ingredientes);
 
@@ -41,9 +42,7 @@ export default function ComprasPage() {
       transition={{ duration: .18 }}
       className="app-shell"
     >
-      <div className="section-header">
-        <h1 className="section-title">Ingredientes y compras</h1>
-      </div>
+      <PageHeader title="Ingredientes y compras" onBack={onBack} />
 
       <Card>
         {loading && <div className="loading-state">Cargando…</div>}

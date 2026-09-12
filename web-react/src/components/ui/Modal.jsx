@@ -14,11 +14,12 @@ const modalVariants = {
   visible: { opacity: 1, scale: 1,   y: 0, transition: { duration: .22, ease: [.22, .68, 0, 1.2] } }
 };
 
-// Regla de toda la app: una única forma de cerrar/volver — la flecha arriba a
-// la izquierda — en vez de una "✕" (o ambas). headerRight es para contenido
-// puntual de un modal específico (p. ej. la fecha sutil de CompraModal), no
-// para otra acción de cierre.
-export default function Modal({ open, onClose, title, headerRight, children, maxWidth = 460 }) {
+// headerRight es para contenido puntual de un modal específico (p. ej. la
+// fecha sutil de CompraModal). showBack: la flecha de volver es para
+// navegar entre pantallas (ver la de arriba de la lista en ComprasPage), no
+// para cerrar cualquier modal — un modal simple como InsumoModal no la lleva
+// y se cierra tocando afuera.
+export default function Modal({ open, onClose, title, headerRight, showBack = false, children, maxWidth = 460 }) {
   return (
     <AnimatePresence>
       {open && (
@@ -30,9 +31,11 @@ export default function Modal({ open, onClose, title, headerRight, children, max
         >
           <motion.div className="modal" style={{ maxWidth }} variants={modalVariants}>
             <div className="modal-header">
-              <button type="button" className="modal-back" onClick={onClose} aria-label="Volver">
-                <Icon name="arrowLeft" size={18} />
-              </button>
+              {showBack && (
+                <button type="button" className="back-button" onClick={onClose} aria-label="Volver">
+                  <Icon name="arrowLeft" size={18} />
+                </button>
+              )}
               <h2 className="modal-title">{title}</h2>
               {headerRight && <div className="modal-header-right">{headerRight}</div>}
             </div>

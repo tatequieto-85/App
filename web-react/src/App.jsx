@@ -9,7 +9,7 @@ import ComprasPage from './features/compras/ComprasPage';
 // nav entre módulos todavía porque no hay un segundo módulo migrado. Vuelve
 // cuando se migre el próximo (ver ./components/layout/NavBar.jsx).
 export default function App() {
-  const { checked, signedIn, signIn } = useAuth();
+  const { checked, signedIn, signIn, signOut } = useAuth();
   const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState('');
 
@@ -44,5 +44,5 @@ export default function App() {
     );
   }
 
-  return <ComprasPage />;
+  return <ComprasPage onBack={signOut} />;
 }

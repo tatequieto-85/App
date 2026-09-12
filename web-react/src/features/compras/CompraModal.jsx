@@ -66,6 +66,7 @@ export default function CompraModal({ open, onClose, ingrediente, editRecord, on
     <Modal
       open={open}
       onClose={close}
+      showBack
       title={editRecord ? 'Editar compra' : 'Registrar compra'}
       headerRight={
         <input
