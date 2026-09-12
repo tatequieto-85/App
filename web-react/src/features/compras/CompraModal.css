@@ -7,3 +7,16 @@
   cursor: pointer;
 }
 .compra-fecha-subtle:hover, .compra-fecha-subtle:focus { color: var(--brand); outline: none; }
+
+/* Nombre del ingrediente como contexto de texto plano — no va dentro de un
+   campo, ya viene fijo desde la fila que abrió el modal. */
+.compra-contexto {
+  font-size: 15px; font-weight: 700; color: var(--text);
+}
+
+/* Precio unitario de la compra que se está cargando, recalculado en vivo. */
+.compra-precio-unitario {
+  font-size: 12.5px; color: var(--text-sub);
+  margin-top: 10px;
+}
+

@@ -75,8 +75,8 @@ export default function ComprasPage({ onBack }) {
                   row={row}
                   actionsOpen={openActionsFor === row.ingrediente.nombre}
                   onOpenActionsChange={setOpenActionsFor}
-                  onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last }); }}
-                  onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null })}
+                  onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
+                  onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
                   onDelete={removeCompra}
                 />
               ))}
@@ -90,6 +90,7 @@ export default function ComprasPage({ onBack }) {
         onClose={() => setCompraModal(null)}
         ingrediente={compraModal?.ingrediente}
         editRecord={compraModal?.editRecord || null}
+        lastUnitPrice={compraModal?.lastUnitPrice ?? null}
         onSave={saveCompra}
       />
 

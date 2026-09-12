@@ -1,19 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
-import TextField from '../../components/ui/TextField';
 import ThousandsField from '../../components/ui/ThousandsField';
 import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
 import { useDirtyGuard } from '../../hooks/useDirtyGuard';
-import { formatThousandsValue, parseThousandsInput, toISODate } from '../../utils/format';
+import { fmtCOP, formatThousandsValue, parseThousandsInput, toISODate } from '../../utils/format';
 import './CompraModal.css';
 
 // Equivalente a openCompraModal()/btnSaveCompra en ../../../compras.js, con
 // el ingrediente siempre precargado e inmodificable (siempre se abre desde
 // una fila puntual, sea para registrar una compra nueva o para editar la
-// última). editRecord: null = registrar compra nueva; si no, edita esa fila.
-export default function CompraModal({ open, onClose, ingrediente, editRecord, onSave }) {
+// última) — por eso no se muestra dentro de un campo de texto, es solo
+// contexto. editRecord: null = registrar compra nueva; si no, edita esa fila.
+// lastUnitPrice: precio unitario de la última compra registrada (o null).
+export default function CompraModal({ open, onClose, ingrediente, editRecord, lastUnitPrice, onSave }) {
   const [cantidad, setCantidad] = useState('');
   const [precioTotal, setPrecioTotal] = useState('');
   const [fecha, setFecha] = useState('');
@@ -42,6 +43,15 @@ export default function CompraModal({ open, onClose, ingrediente, editRecord, on
     precioTotal !== initialRef.current.precioTotal ||
     fecha !== initialRef.current.fecha;
   const close = useDirtyGuard(isDirty, onClose);
+
+  // Precio unitario de la compra que se está cargando ahora mismo, no de la
+  // anterior — se recalcula en vivo a medida que se escriben cantidad/precio.
+  const unidad = ingrediente?.unidad || 'u';
+  const enteredUnitPrice = useMemo(() => {
+    const qty   = parseThousandsInput(cantidad);
+    const price = parseThousandsInput(precioTotal);
+    return qty > 0 && price > 0 ? price / qty : null;
+  }, [cantidad, precioTotal]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -77,10 +87,16 @@ export default function CompraModal({ open, onClose, ingrediente, editRecord, on
       }
     >
       <form onSubmit={handleSubmit}>
-        <TextField label="Ingrediente" value={ingrediente?.nombre || ''} disabled />
+        <p className="compra-contexto">
+          {ingrediente?.nombre}
+          {' — '}
+          {lastUnitPrice != null
+            ? `Última compra (${fmtCOP(lastUnitPrice)}/${unidad})`
+            : 'Sin compras previas'}
+        </p>
         <div className="field-row">
           <ThousandsField
-            label={`Cantidad${ingrediente?.unidad ? ` (${ingrediente.unidad})` : ''}`}
+            label={`Cantidad (${unidad})`}
             placeholder="0"
             value={cantidad}
             onChange={setCantidad}
@@ -94,6 +110,10 @@ export default function CompraModal({ open, onClose, ingrediente, editRecord, on
             disabled={busy}
           />
         </div>
+        <p className="compra-precio-unitario">
+          Precio unitario de esta compra:{' '}
+          {enteredUnitPrice != null ? `${fmtCOP(enteredUnitPrice)}/${unidad}` : '—'}
+        </p>
         <Button type="submit" variant="primary" disabled={busy}>
           {busy ? 'Guardando…' : (editRecord ? 'Guardar cambios' : 'Guardar compra')}
         </Button>
