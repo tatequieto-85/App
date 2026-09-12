@@ -1,0 +1,3 @@
+.feedback { margin-top: 10px; font-size: 13px; min-height: 18px; font-weight: 500; }
+.feedback.ok  { color: var(--green); }
+.feedback.err { color: var(--danger); }

@@ -1,0 +1,57 @@
+/* Portado 1:1 de ../style.css :root — mismo sistema visual que la PWA vanilla. */
+:root {
+  /* Brand */
+  --brand:       #714B67;
+  --brand-hover: #5C3D54;
+  --brand-text:  #FFFFFF;
+  --secondary:      #D8DADD;
+  --secondary-text: #000000;
+
+  /* Grays */
+  --gray-100: #F9FAFB;
+  --gray-200: #E7E9ED;
+  --gray-300: #D8DADD;
+  --gray-400: #9A9CA5;
+  --gray-500: #7C7F89;
+  --gray-600: #5F636F;
+  --gray-700: #374151;
+  --gray-800: #1F2937;
+  --gray-900: #111827;
+
+  /* Semantic */
+  --green: #7A9C3E;
+  --danger: #C0392B;
+
+  /* Layout */
+  --bg:       var(--gray-100);
+  --surface:  #FFFFFF;
+  --border:   var(--gray-200);
+  --text:     var(--gray-900);
+  --text-sub: var(--gray-500);
+
+  /* Shadows */
+  --shadow-sm: none;
+  --shadow:    0 1px 2px rgba(17, 24, 39, .06);
+  --shadow-md: 0 2px 6px rgba(17, 24, 39, .08);
+  --shadow-modal: 0 4px 24px rgba(17, 24, 39, .12);
+
+  /* Shape */
+  --radius:    6px;
+  --radius-sm: 4px;
+
+  /* Spacing scale (usada por los componentes del sistema de diseño) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Motion — mismo timing que .modal-in en style.css, reutilizado por Framer Motion */
+  --ease-pop: cubic-bezier(.22, .68, 0, 1.2);
+  --duration-sm: .15s;
+  --duration-md: .22s;
+
+  --header-h: 52px;
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}

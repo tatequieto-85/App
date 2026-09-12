@@ -1,0 +1,9 @@
+.ing-row {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.ing-row:last-child { border-bottom: none; }
+.ing-row-name { flex: 1; font-size: 13.5px; color: var(--text); }
+.ing-row-unidad { width: 110px; flex-shrink: 0; min-height: 36px; padding: 6px 10px; }
