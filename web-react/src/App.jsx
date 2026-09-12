@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Button from './components/ui/Button';
 import Card from './components/ui/Card';
-import NavBar from './components/layout/NavBar';
 import { useAuth } from './hooks/useAuth';
+import HomePage from './features/home/HomePage';
 import ComprasPage from './features/compras/ComprasPage';
 import StockPage from './features/stock/StockPage';
 
@@ -13,7 +13,7 @@ export default function App() {
   const { checked, signedIn, signIn, signOut } = useAuth();
   const [signingIn, setSigningIn] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [page, setPage] = useState('compras');
+  const [screen, setScreen] = useState('home'); // 'home' | 'compras' | 'stock'
 
   if (!checked) return null;
 
@@ -46,13 +46,20 @@ export default function App() {
     );
   }
 
-  const Page = PAGES[page];
+  // La flecha de "volver" de cada módulo (PageHeader) siempre apunta acá,
+  // nunca a otro módulo directamente — Home es la única pantalla "anterior".
+  const goHome = () => setScreen('home');
+
   return (
-    <>
-      <NavBar page={page} onChange={setPage} />
-      <AnimatePresence mode="wait">
-        <Page key={page} onBack={signOut} />
-      </AnimatePresence>
-    </>
+    <AnimatePresence mode="wait">
+      {screen === 'home' ? (
+        <HomePage key="home" onNavigate={setScreen} onSignOut={signOut} />
+      ) : (
+        (() => {
+          const Page = PAGES[screen];
+          return <Page key={screen} onBack={goHome} />;
+        })()
+      )}
+    </AnimatePresence>
   );
 }
