@@ -9,6 +9,11 @@
 }
 
 .app-card {
+  /* Un <button> no se estira solo para llenar su columna del grid aunque
+     tenga display:flex (es una particularidad de los controles de
+     formulario) — sin este width, quedaba angosto y el hueco entre
+     tarjetas se veía mucho más grande que el gap real del grid. */
+  width: 100%;
   background: var(--surface);
   border: none; border-radius: var(--radius);
   padding: 10px 4px 8px;
