@@ -176,6 +176,26 @@ export function categoriasDeRelacion(relaciones) {
   return [...new Set([...DEFAULT_CATEGORIAS, ...usadas])];
 }
 
+// Contacto cuyo cumpleaños (día/mes) sigue desde hoy — para el widget de
+// Home. Hoy mismo cuenta como "0 días" (no se salta al año que viene si el
+// cumpleaños es justo hoy). null si nadie tiene cumpleaños cargado.
+export function proximoCumpleanos(contactos) {
+  const conCumple = contactos.filter(c => c.cumpleanos);
+  if (!conCumple.length) return null;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  let mejor = null;
+  let mejorDias = Infinity;
+  for (const c of conCumple) {
+    const [mes, dia] = c.cumpleanos.split('-').map(Number);
+    let proxima = new Date(hoy.getFullYear(), mes - 1, dia);
+    if (proxima < hoy) proxima = new Date(hoy.getFullYear() + 1, mes - 1, dia);
+    const dias = Math.round((proxima - hoy) / 86400000);
+    if (dias < mejorDias) { mejorDias = dias; mejor = c; }
+  }
+  return { contacto: mejor, dias: mejorDias };
+}
+
 export function relacionesDe(contactos, relaciones, contactoId) {
   return relaciones
     .filter(r => r.contactoAId === contactoId || r.contactoBId === contactoId)
