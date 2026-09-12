@@ -2,19 +2,23 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import AppCard from '../../components/ui/AppCard';
 import Icon from '../../components/icons/Icon';
-import '../../components/ui/Widget.css';
+import SortableGrid from '../../components/ui/SortableGrid';
 import { useHomeWidgets } from '../../hooks/useHomeWidgets';
+import { useOrderedIds } from '../../hooks/useOrderedIds';
 import { WIDGET_REGISTRY } from './widgetRegistry';
+import { MODULE_REGISTRY } from './moduleRegistry';
 import WidgetPicker from './WidgetPicker';
-import './HomePage.css';
+import '../../components/ui/Widget.css';
 
 // Pantalla principal: arriba, los widgets que el usuario eligió agregar
 // (nunca automático al migrar un módulo — ver useHomeWidgets.js); abajo, el
 // grid con todos los módulos migrados, como el home de tarjetas de
-// ../../../main.js. Es adonde apunta la flecha de "volver" de cualquier
-// pantalla (ver PageHeader) — cerrar sesión vive acá, no en esa flecha.
+// ../../../main.js. Ambos grids se pueden arrastrar para reordenar (ver
+// components/ui/SortableGrid.jsx). Es adonde apunta la flecha de "volver" de
+// cualquier pantalla (ver PageHeader) — cerrar sesión vive acá.
 export default function HomePage({ onNavigate, onSignOut }) {
-  const { registeredIds, addWidget, removeWidget } = useHomeWidgets();
+  const { registeredIds, addWidget, removeWidget, reorderWidgets } = useHomeWidgets();
+  const [moduleOrder, reorderModules] = useOrderedIds('ss_home_modules', MODULE_REGISTRY.map(m => m.id));
   const [pickerOpen, setPickerOpen] = useState(false);
   const [removingId, setRemovingId] = useState(null);
 
@@ -26,9 +30,6 @@ export default function HomePage({ onNavigate, onSignOut }) {
     return () => document.removeEventListener('click', handleDocClick);
   }, []);
 
-  const registered = registeredIds
-    .map(id => WIDGET_REGISTRY.find(w => w.id === id))
-    .filter(Boolean);
   const available = WIDGET_REGISTRY.filter(w => !registeredIds.includes(w.id));
 
   return (
@@ -47,29 +48,44 @@ export default function HomePage({ onNavigate, onSignOut }) {
 
       <section>
         <h2 className="home-section-title">Widgets</h2>
-        <div className="widgets-grid">
-          {registered.map(w => (
-            <w.Component
-              key={w.id}
-              onNavigate={onNavigate}
-              removing={removingId === w.id}
-              onRequestRemove={() => setRemovingId(w.id)}
-              onConfirmRemove={() => { removeWidget(w.id); setRemovingId(null); }}
-            />
-          ))}
-          <button type="button" className="widget-add" onClick={() => setPickerOpen(true)}>
-            <Icon name="plus" size={18} />
-            <span className="widget-add-label">Agregar</span>
-          </button>
-        </div>
+        <SortableGrid
+          className="widgets-grid"
+          ids={registeredIds}
+          onReorder={reorderWidgets}
+          getSpan={id => WIDGET_REGISTRY.find(w => w.id === id)?.span || 1}
+          renderItem={id => {
+            const w = WIDGET_REGISTRY.find(x => x.id === id);
+            if (!w) return null;
+            return (
+              <w.Component
+                onNavigate={onNavigate}
+                removing={removingId === id}
+                onRequestRemove={() => setRemovingId(id)}
+                onConfirmRemove={() => { removeWidget(id); setRemovingId(null); }}
+              />
+            );
+          }}
+          trailing={
+            <button type="button" className="widget-add" onClick={() => setPickerOpen(true)}>
+              <Icon name="plus" size={18} />
+              <span className="widget-add-label">Agregar</span>
+            </button>
+          }
+        />
       </section>
 
       <section>
         <h2 className="home-section-title">Módulos</h2>
-        <div className="home-grid">
-          <AppCard icon="cart" label="Insumos" onClick={() => onNavigate('compras')} />
-          <AppCard icon="box" label="Stock" onClick={() => onNavigate('stock')} />
-        </div>
+        <SortableGrid
+          className="home-grid"
+          ids={moduleOrder}
+          onReorder={reorderModules}
+          renderItem={id => {
+            const m = MODULE_REGISTRY.find(x => x.id === id);
+            if (!m) return null;
+            return <AppCard icon={m.icon} label={m.label} onClick={() => onNavigate(m.screen)} />;
+          }}
+        />
       </section>
 
       <WidgetPicker open={pickerOpen} onClose={() => setPickerOpen(false)} available={available} onPick={addWidget} />

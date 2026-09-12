@@ -8,15 +8,15 @@ import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 
 // Equivalente a btnNewInsumo/btnSaveInsumo en ../../../compras.js: alta rápida
 // de un ingrediente (nombre + unidad) sin registrar todavía una compra.
-export default function InsumoModal({ open, onClose, onSave }) {
+export default function InsumoModal({ open, onClose, onSave, initialNombre = '' }) {
   const [nombre, setNombre] = useState('');
   const [unidad, setUnidad] = useState('');
   const [busy, setBusy] = useState(false);
   const [feedback, showFeedback] = useFeedback();
 
   useEffect(() => {
-    if (open) { setNombre(''); setUnidad(''); }
-  }, [open]);
+    if (open) { setNombre(initialNombre); setUnidad(''); }
+  }, [open, initialNombre]);
 
   const close = useDirtyGuard(() => !!(nombre.trim() || unidad.trim()), onClose);
 
@@ -26,8 +26,10 @@ export default function InsumoModal({ open, onClose, onSave }) {
     if (!unidad.trim()) return showFeedback('Indica la unidad de medida.', 'err');
     setBusy(true);
     try {
+      // onSave decide qué pasa después de guardar — cerrar este modal
+      // (caso simple) o encadenar a otro paso (ver ComprasWidget.jsx, que
+      // sigue a CompraModal sin pasar por acá otra vez).
       await onSave(nombre.trim(), unidad.trim());
-      onClose();
     } catch (err) {
       showFeedback('Error: ' + err.message, 'err');
     } finally {

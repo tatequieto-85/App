@@ -1,22 +1,22 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import Icon from '../icons/Icon';
-import { useTapHold } from '../../hooks/useTapHold';
+import { useRowGestures } from '../../hooks/useRowGestures';
 import './Widget.css';
 
 // Tarjeta de resumen de un módulo en la pantalla principal — cada módulo
 // migrado trae la suya (ver ComprasWidget/StockWidget), pero solo aparece si
 // el usuario la agregó desde Home (ver useHomeWidgets). Máximo 25% del alto
-// de pantalla; span: cuántas de las 3 columnas del grid ocupa (1, 2 o 3),
-// definido junto con el usuario al migrar ese módulo — ver widgetRegistry.js.
-// Un toque dispara la acción principal (onTap); mantener presionado revela
-// "Quitar de Home" (onRequestRemove abre la barra, onConfirmRemove borra) —
-// al revés que una fila de lista, donde la acción es doble clic y el
-// long-press abre editar/eliminar.
-export default function Widget({ icon, title, span = 1, onTap, onRequestRemove, onConfirmRemove, removing, children }) {
-  const gestureProps = useTapHold({ onTap, onLongPress: onRequestRemove });
+// de pantalla; el ancho en columnas del grid de 3 lo controla el wrapper
+// arrastrable (ver components/ui/SortableGrid.jsx), no este componente.
+// Mismo gesto que una fila de lista: doble clic/toque dispara la acción
+// principal (onTap), mantener presionado revela "Quitar de Home"
+// (onRequestRemove abre la barra, onConfirmRemove borra) — ver
+// hooks/useRowGestures.js.
+export default function Widget({ icon, title, onTap, onRequestRemove, onConfirmRemove, removing, children }) {
+  const gestureProps = useRowGestures({ onDoubleClick: onTap, onLongPress: onRequestRemove });
 
   return (
-    <div className={`widget widget--span${span}`}>
+    <div className="widget">
       <div className="widget-tap" {...gestureProps}>
         <div className="widget-header">
           {icon && <span className="widget-icon"><Icon name={icon} size={16} /></span>}

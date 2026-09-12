@@ -97,7 +97,7 @@ export default function ComprasPage({ onBack }) {
       <InsumoModal
         open={insumoOpen}
         onClose={() => setInsumoOpen(false)}
-        onSave={(nombre, unidad) => addIngrediente(nombre, unidad)}
+        onSave={async (nombre, unidad) => { await addIngrediente(nombre, unidad); setInsumoOpen(false); }}
       />
 
       <FabButton onClick={() => setInsumoOpen(true)}>

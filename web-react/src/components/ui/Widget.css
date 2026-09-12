@@ -5,12 +5,9 @@
 }
 
 .widget {
-  grid-column: span 1;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   overflow: hidden; box-shadow: var(--shadow-sm);
 }
-.widget--span2 { grid-column: span 2; }
-.widget--span3 { grid-column: span 3; }
 
 .widget-tap {
   display: block; width: 100%;

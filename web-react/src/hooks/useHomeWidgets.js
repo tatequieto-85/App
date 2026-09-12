@@ -39,5 +39,12 @@ export function useHomeWidgets() {
     });
   }, []);
 
-  return { registeredIds, addWidget, removeWidget };
+  // El orden del array ES el orden en pantalla — arrastrar un widget en
+  // SortableGrid llama esto con el nuevo orden ya calculado.
+  const reorderWidgets = useCallback(next => {
+    setRegisteredIds(next);
+    save(next);
+  }, []);
+
+  return { registeredIds, addWidget, removeWidget, reorderWidgets };
 }
