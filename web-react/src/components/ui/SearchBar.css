@@ -8,7 +8,9 @@
 .search-bar-icon { color: var(--text-sub); flex-shrink: 0; }
 .search-bar-input {
   flex: 1; min-width: 0; border: none; background: none; outline: none;
-  font-size: 14px; color: var(--text); padding: 10px 0;
+  /* 16px, no menos: en iOS/Android un input con letra más chica dispara un
+     zoom automático de la página al tocarlo. */
+  font-size: 16px; color: var(--text); padding: 10px 0;
 }
 .search-bar-input::placeholder { color: var(--text-sub); }
 .search-bar-clear {
