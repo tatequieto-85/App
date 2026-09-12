@@ -6,7 +6,6 @@ import Icon from '../../components/icons/Icon';
 import EmptyState from '../../components/ui/EmptyState';
 import PageHeader from '../../components/layout/PageHeader';
 import SearchBar from '../../components/ui/SearchBar';
-import Tabs from '../../components/ui/Tabs';
 import { useStock } from './useStock';
 import StockResumenTable from './StockResumenTable';
 import StockTrazabilidadTable from './StockTrazabilidadTable';
@@ -15,19 +14,15 @@ import AjusteModal from './AjusteModal';
 import TestigoModal from './TestigoModal';
 import './StockPage.css';
 
-const TABS = [
-  { id: 'resumen', label: 'Resumen' },
-  { id: 'trazabilidad', label: 'Trazabilidad' },
-  { id: 'testigo', label: 'Producto testigo' }
-];
-
+// Una sola vista (ya no hay pestañas): Resumen, después Producto testigo,
+// después Trazabilidad — en ese orden, con un único buscador arriba que
+// filtra las tres secciones a la vez.
 export default function StockPage({ onBack }) {
   const {
     loading, error, resumenRows, trazabilidadRows, lotesConStock, testigoRows,
     saveAjuste, apartarTestigo, updateTestigoEstado, deleteTestigo
   } = useStock();
 
-  const [tab, setTab] = useState('resumen');
   const [search, setSearch] = useState('');
   const [ajusteReceta, setAjusteReceta] = useState(null);
   const [testigoOpen, setTestigoOpen] = useState(false);
@@ -62,59 +57,64 @@ export default function StockPage({ onBack }) {
       className="app-shell"
     >
       <PageHeader title="Stock" onBack={onBack} />
-      <Tabs tabs={TABS} active={tab} onChange={setTab} />
-      <SearchBar
-        value={search} onChange={setSearch}
-        placeholder={tab === 'testigo' ? 'Buscar por receta o lote…' : 'Buscar producto…'}
-      />
+      <SearchBar value={search} onChange={setSearch} placeholder="Buscar producto, receta o lote…" />
 
-      <Card>
-        {loading && <div className="loading-state">Cargando…</div>}
-        {error && <EmptyState>No se pudo cargar: {error}</EmptyState>}
+      {loading && <Card><div className="loading-state">Cargando…</div></Card>}
+      {error && <Card><EmptyState>No se pudo cargar: {error}</EmptyState></Card>}
 
-        {!loading && !error && tab === 'resumen' && (
-          resumenRows.length
-            ? (filteredResumen.length
-                ? <StockResumenTable rows={filteredResumen} onOpenAjuste={setAjusteReceta} />
-                : <EmptyState>Ningún producto coincide con "{search.trim()}".</EmptyState>)
-            : <EmptyState>No hay recetas registradas en Procesos.</EmptyState>
-        )}
+      {!loading && !error && (
+        <>
+          <section>
+            <h2 className="subsection-title">Resumen</h2>
+            <Card>
+              {resumenRows.length
+                ? (filteredResumen.length
+                    ? <StockResumenTable rows={filteredResumen} onOpenAjuste={setAjusteReceta} />
+                    : <EmptyState>Ningún producto coincide con "{search.trim()}".</EmptyState>)
+                : <EmptyState>No hay recetas registradas en Procesos.</EmptyState>}
+            </Card>
+          </section>
 
-        {!loading && !error && tab === 'trazabilidad' && (
-          trazabilidadRows.length
-            ? (filteredTrazabilidad.length
-                ? <StockTrazabilidadTable rows={filteredTrazabilidad} />
-                : <EmptyState>Ningún lote coincide con "{search.trim()}".</EmptyState>)
-            : <EmptyState>No hay lotes con producción envasada registrada.</EmptyState>
-        )}
+          <section>
+            <h2 className="subsection-title">Producto testigo</h2>
+            <Card>
+              {testigoRows.length
+                ? (filteredTestigo.length
+                    ? filteredTestigo.map(t => (
+                        <StockTestigoCard
+                          key={t.id}
+                          testigo={t}
+                          actionsOpen={openTestigoActionsFor === t.id}
+                          onOpenActionsChange={setOpenTestigoActionsFor}
+                          onMarcarRevisado={x => updateTestigoEstado(x, 'revisado')}
+                          onMarcarDescartado={x => updateTestigoEstado(x, 'descartado')}
+                          onDelete={deleteTestigo}
+                        />
+                      ))
+                    : <EmptyState>Ningún registro coincide con "{search.trim()}".</EmptyState>)
+                : <EmptyState>Aún no hay producto testigo apartado.</EmptyState>}
+            </Card>
+          </section>
 
-        {!loading && !error && tab === 'testigo' && (
-          testigoRows.length
-            ? (filteredTestigo.length
-                ? filteredTestigo.map(t => (
-                    <StockTestigoCard
-                      key={t.id}
-                      testigo={t}
-                      actionsOpen={openTestigoActionsFor === t.id}
-                      onOpenActionsChange={setOpenTestigoActionsFor}
-                      onMarcarRevisado={x => updateTestigoEstado(x, 'revisado')}
-                      onMarcarDescartado={x => updateTestigoEstado(x, 'descartado')}
-                      onDelete={deleteTestigo}
-                    />
-                  ))
-                : <EmptyState>Ningún registro coincide con "{search.trim()}".</EmptyState>)
-            : <EmptyState>Aún no hay producto testigo apartado.</EmptyState>
-        )}
-      </Card>
+          <section>
+            <h2 className="subsection-title">Trazabilidad</h2>
+            <Card>
+              {trazabilidadRows.length
+                ? (filteredTrazabilidad.length
+                    ? <StockTrazabilidadTable rows={filteredTrazabilidad} />
+                    : <EmptyState>Ningún lote coincide con "{search.trim()}".</EmptyState>)
+                : <EmptyState>No hay lotes con producción envasada registrada.</EmptyState>}
+            </Card>
+          </section>
+        </>
+      )}
 
       <AjusteModal open={!!ajusteReceta} onClose={() => setAjusteReceta(null)} receta={ajusteReceta} onSave={saveAjuste} />
       <TestigoModal open={testigoOpen} onClose={() => setTestigoOpen(false)} lotesConStock={lotesConStock} onSave={apartarTestigo} />
 
-      {tab === 'testigo' && (
-        <FabButton onClick={() => setTestigoOpen(true)}>
-          <Icon name="plus" size={16} /> Apartar testigo
-        </FabButton>
-      )}
+      <FabButton onClick={() => setTestigoOpen(true)}>
+        <Icon name="plus" size={16} /> Apartar testigo
+      </FabButton>
     </motion.div>
   );
 }

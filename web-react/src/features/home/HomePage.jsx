@@ -47,7 +47,7 @@ export default function HomePage({ onNavigate, onSignOut }) {
       </div>
 
       <section>
-        <h2 className="home-section-title">Widgets</h2>
+        <h2 className="subsection-title">Widgets</h2>
         <SortableGrid
           className="widgets-grid"
           ids={registeredIds}
@@ -75,7 +75,7 @@ export default function HomePage({ onNavigate, onSignOut }) {
       </section>
 
       <section>
-        <h2 className="home-section-title">Módulos</h2>
+        <h2 className="subsection-title">Módulos</h2>
         <SortableGrid
           className="home-grid"
           ids={moduleOrder}

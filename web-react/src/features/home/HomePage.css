@@ -4,9 +4,3 @@
 .home-title { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -.02em; }
 .home-sub   { font-size: 13px; color: var(--text-sub); margin-top: 2px; }
 .home-signout { width: auto; margin-top: 4px; flex-shrink: 0; }
-
-.home-section-title {
-  font-size: 13px; font-weight: 700; color: var(--text-sub);
-  text-transform: uppercase; letter-spacing: .06em;
-  margin-bottom: 10px;
-}
