@@ -50,7 +50,7 @@ export default function ComprasPage({ onBack }) {
       transition={{ duration: .18 }}
       className="app-shell"
     >
-      <PageHeader title="Ingredientes y compras" onBack={onBack} />
+      <PageHeader title="Insumos" onBack={onBack} />
 
       <SearchBar value={search} onChange={setSearch} placeholder="Buscar ingrediente…" />
 

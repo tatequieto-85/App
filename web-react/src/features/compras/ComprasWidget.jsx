@@ -1,26 +1,24 @@
+import { useState } from 'react';
 import Widget from '../../components/ui/Widget';
+import InsumoModal from './InsumoModal';
 import { useIngredientes } from '../ingredientes/useIngredientes';
-import { useCompras } from './useCompras';
 
-// Resumen de Ingredientes y compras para la pantalla principal.
-export default function ComprasWidget({ onClick }) {
-  const { ingredientes, loading: loadingIng } = useIngredientes();
-  const { rows, loading: loadingCompras } = useCompras(ingredientes);
-  const loading = loadingIng || loadingCompras;
-  const sinCompras = rows.filter(r => !r.last).length;
+// Widget de acción (1/3, angosto): no muestra datos — un toque abre directo
+// el formulario de agregar ingrediente, sin pasar por la pantalla de Insumos.
+export default function ComprasWidget({ removing, onRequestRemove, onConfirmRemove }) {
+  const { addIngrediente } = useIngredientes();
+  const [open, setOpen] = useState(false);
 
   return (
-    <Widget icon="cart" title="Ingredientes y compras" onClick={onClick}>
-      {loading ? (
-        <p className="widget-line widget-line--sub">Cargando…</p>
-      ) : (
-        <>
-          <p className="widget-line"><strong>{rows.length}</strong> ingredientes registrados</p>
-          <p className="widget-line widget-line--sub">
-            {sinCompras ? `${sinCompras} sin compras registradas` : 'Todos con compras registradas'}
-          </p>
-        </>
-      )}
-    </Widget>
+    <>
+      <Widget
+        icon="cart" title="Insumos"
+        onTap={() => setOpen(true)}
+        removing={removing} onRequestRemove={onRequestRemove} onConfirmRemove={onConfirmRemove}
+      >
+        <p className="widget-line widget-line--sub">Toca para agregar un ingrediente</p>
+      </Widget>
+      <InsumoModal open={open} onClose={() => setOpen(false)} onSave={(nombre, unidad) => addIngrediente(nombre, unidad)} />
+    </>
   );
 }

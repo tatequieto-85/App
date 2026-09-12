@@ -1,0 +1,13 @@
+.widget-picker-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 12px 8px; border: none; border-bottom: 1px solid var(--border);
+  background: none; font: inherit; font-size: 13.5px; color: var(--text);
+  text-align: left; cursor: pointer;
+}
+.widget-picker-item:last-child { border-bottom: none; }
+.widget-picker-item:hover { background: var(--bg); }
+.widget-picker-icon {
+  width: 28px; height: 28px; border-radius: var(--radius-sm); flex-shrink: 0;
+  background: var(--brand); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}

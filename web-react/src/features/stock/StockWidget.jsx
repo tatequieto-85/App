@@ -1,21 +1,24 @@
 import Widget from '../../components/ui/Widget';
 import { useStock } from './useStock';
 
-// Resumen de Stock para la pantalla principal.
-export default function StockWidget({ onClick }) {
+// Widget de datos (1/3, angosto): suma del disponible de todos los
+// productos. Un toque lleva a la pantalla de Stock.
+export default function StockWidget({ onNavigate, removing, onRequestRemove, onConfirmRemove }) {
   const { loading, resumenRows } = useStock();
-  const negativos = resumenRows.filter(r => r.disponible < 0).length;
+  const total = resumenRows.reduce((sum, r) => sum + r.disponible, 0);
 
   return (
-    <Widget icon="box" title="Stock" onClick={onClick}>
+    <Widget
+      icon="box" title="Stock"
+      onTap={() => onNavigate('stock')}
+      removing={removing} onRequestRemove={onRequestRemove} onConfirmRemove={onConfirmRemove}
+    >
       {loading ? (
         <p className="widget-line widget-line--sub">Cargando…</p>
       ) : (
         <>
-          <p className="widget-line"><strong>{resumenRows.length}</strong> productos con inventario</p>
-          <p className={`widget-line widget-line--sub${negativos ? ' widget-line--alert' : ''}`}>
-            {negativos ? `${negativos} con disponible negativo` : 'Todos con disponible en orden'}
-          </p>
+          <div className={`widget-kpi${total < 0 ? ' widget-line--alert' : ''}`}>{total}</div>
+          <div className="widget-kpi-label">Disponible total</div>
         </>
       )}
     </Widget>
