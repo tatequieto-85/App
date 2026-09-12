@@ -5,7 +5,10 @@
 .home-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  /* % en vez de px: CSS Grid resuelve el gap contra el ancho del propio
+     contenedor, así que el espacio entre tarjetas escala con la pantalla
+     en vez de quedar fijo. */
+  gap: 2.5%;
 }
 
 .app-card {
@@ -28,22 +31,30 @@
 .app-card:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
 
 .app-card-icon {
-  width: 48px; height: 48px;
-  border-radius: var(--radius-sm);
-  color: #fff;
+  /* Sin fondo de color acá: la caja sigue blanca (la del .app-card), el
+     color va en el ícono en sí, no en un cuadrado detrás — a pedido del
+     usuario (el ícono debe ser "de colores", no una línea blanca sobre
+     una caja de color). */
+  width: 62%;
+  aspect-ratio: 1 / 1;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
+/* El SVG en sí también tenía un tamaño fijo (prop size="24") — esta clase
+   lo pisa por CSS para que ocupe una proporción de .app-card-icon, no un
+   ancho/alto fijo en px. */
+.app-card-icon-glyph { width: 62%; height: 62%; stroke-width: 1.75; }
 /* Misma paleta que .app-card-icon--* en ../../../../style.css — un color
-   por módulo, ya asignado ahí, se reusa acá para que sea reconocible. */
-.app-card-icon--orange { background: var(--brand); }
-.app-card-icon--teal   { background: #0D9488; }
-.app-card-icon--green  { background: #558B2F; }
-.app-card-icon--blue   { background: #1565C0; }
-.app-card-icon--amber  { background: #B7791F; }
-.app-card-icon--rose   { background: #DB2777; }
-.app-card-icon--slate  { background: #475569; }
-.app-card-icon--purple { background: #7C3AED; }
-.app-card-icon--yellow { background: #CA8A04; }
+   por módulo, ya asignado ahí, se reusa acá para que sea reconocible.
+   Ahora es el color del ícono (stroke), no un fondo. */
+.app-card-icon--orange { color: var(--brand); }
+.app-card-icon--teal   { color: #0D9488; }
+.app-card-icon--green  { color: #558B2F; }
+.app-card-icon--blue   { color: #1565C0; }
+.app-card-icon--amber  { color: #B7791F; }
+.app-card-icon--rose   { color: #DB2777; }
+.app-card-icon--slate  { color: #475569; }
+.app-card-icon--purple { color: #7C3AED; }
+.app-card-icon--yellow { color: #CA8A04; }
 
 .app-card-label { font-size: 11.5px; font-weight: 600; color: var(--text); line-height: 1.2; }
