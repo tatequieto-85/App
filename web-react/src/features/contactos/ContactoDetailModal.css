@@ -1,0 +1,29 @@
+.contacto-detail-row {
+  display: flex; gap: 8px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+  font-size: 13.5px; color: var(--text);
+}
+.contacto-detail-row:last-of-type { border-bottom: none; }
+.contacto-detail-label {
+  flex-shrink: 0; width: 90px;
+  font-size: 11px; font-weight: 700; color: var(--text-sub);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+
+.contacto-obs-section {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+.contacto-obs-list {
+  max-height: 200px; overflow-y: auto;
+  margin-bottom: var(--space-3);
+}
+.contacto-obs-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.contacto-obs-item:last-child { border-bottom: none; }
+.contacto-obs-text { font-size: 13px; color: var(--text); }
+.contacto-obs-date { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
+
+.contacto-obs-form { display: flex; gap: 8px; align-items: flex-start; }
+.contacto-obs-form .field { flex: 1; }
+.contacto-obs-form .btn--outline { width: auto; flex-shrink: 0; margin-top: var(--space-4); }

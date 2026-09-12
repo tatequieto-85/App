@@ -6,14 +6,21 @@
 .modal {
   background: var(--surface); border-radius: var(--radius);
   width: 100%; max-width: 460px;
+  /* Sin esto, un modal con mucho contenido (p. ej. un formulario + una
+     sección de vínculos debajo) quedaba más alto que la pantalla y la
+     parte de abajo era directamente inalcanzable — el overlay no tiene
+     scroll propio y .modal no tenía techo de altura. */
+  max-height: calc(100vh - 2 * var(--space-5));
   box-shadow: var(--shadow-modal); overflow: hidden;
+  display: flex; flex-direction: column;
 }
 .modal-header {
   background: var(--surface); color: var(--text);
   border-bottom: 1px solid var(--border);
   padding: 10px 16px;
   display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
 }
 .modal-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modal-header-right { flex-shrink: 0; }
-.modal-body { padding: var(--space-5); overflow-x: hidden; }
+.modal-body { padding: var(--space-5); overflow-x: hidden; overflow-y: auto; }

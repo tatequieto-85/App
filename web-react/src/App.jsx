@@ -6,8 +6,9 @@ import { useAuth } from './hooks/useAuth';
 import HomePage from './features/home/HomePage';
 import ComprasPage from './features/compras/ComprasPage';
 import StockPage from './features/stock/StockPage';
+import ContactosPage from './features/contactos/ContactosPage';
 
-const PAGES = { compras: ComprasPage, stock: StockPage };
+const PAGES = { compras: ComprasPage, stock: StockPage, contactos: ContactosPage };
 
 export default function App() {
   const { checked, signedIn, signIn } = useAuth();

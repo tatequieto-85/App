@@ -126,3 +126,11 @@ button, input, textarea, select { font-family: inherit; }
 .row-actions-bar button:disabled { opacity: .4; cursor: not-allowed; }
 .row-actions-bar button.danger { color: var(--danger); }
 .row-actions-bar button.danger:hover:not(:disabled) { background: #EF444414; }
+
+/* Chip/pill genérico — p. ej. la categoría de un vínculo en Contactos. */
+.badge {
+  display: inline-block;
+  background: var(--brand); color: #fff;
+  font-size: 11px; font-weight: 700;
+  padding: 3px 10px; border-radius: 999px;
+}
