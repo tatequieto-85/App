@@ -78,7 +78,7 @@ export default function HomePage({ onNavigate }) {
         renderItem={id => {
           const m = MODULE_REGISTRY.find(x => x.id === id);
           if (!m) return null;
-          return <AppCard icon={m.icon} label={m.label} onClick={() => onNavigate(m.screen)} />;
+          return <AppCard icon={m.icon} label={m.label} color={m.color} onClick={() => onNavigate(m.screen)} />;
         }}
       />
 
