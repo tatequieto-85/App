@@ -1,0 +1,11 @@
+.btn-fab {
+  position: fixed; right: 20px; bottom: 24px; z-index: 30;
+  height: 52px; padding: 0 22px; border-radius: 999px; border: none;
+  background: var(--brand); color: #fff; font-size: 14px; font-weight: 700; line-height: 1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .25); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  white-space: nowrap;
+  transition: background .2s, transform .1s;
+}
+.btn-fab:hover  { background: var(--brand-hover); }
+.btn-fab:active { transform: scale(.97); }

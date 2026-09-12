@@ -4,10 +4,12 @@ import TextField from '../../components/ui/TextField';
 import { normalizeIngName } from '../../services/ingredientesApi';
 import './IngredienteAutocomplete.css';
 
-// Componente genérico y reutilizable: lo usa esta página, y (siguiendo el
-// mismo patrón que attachIngredienteAutocomplete en ../../../ingredientes.js)
-// lo reutilizarán más adelante Compras y Procesos al migrarse — por eso vive
-// separado de IngredientesPage y solo depende de la lista que le pasan por props.
+// Componente genérico y reutilizable, sin caller activo por ahora: Compras
+// pasó a abrir CompraModal siempre con el ingrediente ya fijo (elegido desde
+// la fila), así que ya no necesita elegir/crear un ingrediente por nombre acá.
+// Queda listo para cuando se migre Procesos (mismo patrón que
+// attachIngredienteAutocomplete en ../../../ingredientes.js) — solo depende
+// de la lista que le pasen por props, no de ninguna página en particular.
 export default function IngredienteAutocomplete({
   value, onChange, ingredientes, onAddNew, label = 'Ingrediente', placeholder
 }) {

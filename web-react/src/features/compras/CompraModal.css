@@ -1,0 +1,9 @@
+/* Fecha "muy sutil" en la esquina superior derecha del modal, en vez de un
+   field-input más entre Cantidad y Precio total. */
+.compra-fecha-subtle {
+  border: none; background: none; padding: 0; margin: 0;
+  min-height: auto; width: auto;
+  font-size: 11.5px; color: var(--text-sub); text-align: right;
+  cursor: pointer;
+}
+.compra-fecha-subtle:hover, .compra-fecha-subtle:focus { color: var(--brand); outline: none; }

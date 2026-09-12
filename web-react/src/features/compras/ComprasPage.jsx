@@ -1,30 +1,39 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Card from '../../components/ui/Card';
-import Button from '../../components/ui/Button';
+import FabButton from '../../components/ui/FabButton';
+import Icon from '../../components/icons/Icon';
 import EmptyState from '../../components/ui/EmptyState';
 import { useIngredientes } from '../ingredientes/useIngredientes';
 import { useCompras } from './useCompras';
 import CompraRow from './CompraRow';
 import CompraModal from './CompraModal';
-import HistorialModal from './HistorialModal';
 import InsumoModal from './InsumoModal';
 import './CompraRow.css';
 
-// Equivalente a la vista de Compras en ../../../compras.js — combina el
-// catálogo de useIngredientes (mismo hook que ya usa IngredientesPage) con
-// useCompras para las filas ingrediente+última compra+precio unitario.
+// Ingredientes y Compras fusionados en una sola pantalla: no hay un catálogo
+// de ingredientes aparte (era una lista duplicada de lo que ya muestra esta
+// tabla) — "agregar ingrediente" vive en el botón flotante del pie de
+// pantalla y abre InsumoModal (alta rápida nombre+unidad).
 export default function ComprasPage() {
-  const { ingredientes, loading: loadingIng, tryAddIngrediente, addIngrediente } = useIngredientes();
-  const { rows, loading: loadingCompras, error, historialFor, saveCompra, removeCompra } = useCompras(ingredientes);
+  const { ingredientes, loading: loadingIng, addIngrediente } = useIngredientes();
+  const { rows, loading: loadingCompras, error, saveCompra, removeCompra } = useCompras(ingredientes);
 
   const [openActionsFor, setOpenActionsFor] = useState(null);
-  const [compraModal, setCompraModal] = useState(null); // { editRecord } | { prefillNombre } | null
-  const [historialNombre, setHistorialNombre] = useState(null);
+  const [compraModal, setCompraModal] = useState(null); // { ingrediente, editRecord } | null
   const [insumoOpen, setInsumoOpen] = useState(false);
 
   const loading = loadingIng || loadingCompras;
-  const historialRow = historialNombre ? rows.find(r => r.ingrediente.nombre === historialNombre) : null;
+
+  // Tocar afuera de una fila/barra abierta la cierra — mismo comportamiento
+  // que el listener global de renderComprasList() en ../../../compras.js.
+  useEffect(() => {
+    function handleDocClick(e) {
+      if (!e.target.closest('.compra-row, .compra-row-actions')) setOpenActionsFor(null);
+    }
+    document.addEventListener('click', handleDocClick);
+    return () => document.removeEventListener('click', handleDocClick);
+  }, []);
 
   return (
     <motion.div
@@ -33,20 +42,19 @@ export default function ComprasPage() {
       className="app-shell"
     >
       <div className="section-header">
-        <h1 className="section-title">Compras</h1>
-        <Button variant="outline" onClick={() => setInsumoOpen(true)}>Nuevo insumo</Button>
+        <h1 className="section-title">Ingredientes y compras</h1>
       </div>
 
       <Card>
         {loading && <div className="loading-state">Cargando…</div>}
         {error && <EmptyState>No se pudo cargar: {error}</EmptyState>}
         {!loading && !error && !rows.length && (
-          <EmptyState>No hay ingredientes registrados todavía. Agrégalos con "Nuevo insumo".</EmptyState>
+          <EmptyState>No hay ingredientes registrados todavía. Agregá el primero con el botón "+".</EmptyState>
         )}
         {!loading && !error && !!rows.length && (
           <table className="compra-table">
             <thead>
-              <tr><th>Ingrediente</th><th>Última compra</th><th>Precio unitario</th><th /></tr>
+              <tr><th>Ingrediente</th><th>Última compra</th><th>Precio unitario</th></tr>
             </thead>
             <tbody>
               {rows.map(row => (
@@ -55,10 +63,9 @@ export default function ComprasPage() {
                   row={row}
                   actionsOpen={openActionsFor === row.ingrediente.nombre}
                   onOpenActionsChange={setOpenActionsFor}
-                  onEdit={editRecord => { setOpenActionsFor(null); setCompraModal({ editRecord }); }}
-                  onHistorial={nombre => { setOpenActionsFor(null); setHistorialNombre(nombre); }}
+                  onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last }); }}
+                  onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null })}
                   onDelete={removeCompra}
-                  onRegister={nombre => setCompraModal({ prefillNombre: nombre })}
                 />
               ))}
             </tbody>
@@ -69,20 +76,9 @@ export default function ComprasPage() {
       <CompraModal
         open={!!compraModal}
         onClose={() => setCompraModal(null)}
-        ingredientes={ingredientes}
+        ingrediente={compraModal?.ingrediente}
         editRecord={compraModal?.editRecord || null}
-        prefillNombre={compraModal?.prefillNombre || ''}
         onSave={saveCompra}
-        onAddIngrediente={tryAddIngrediente}
-      />
-
-      <HistorialModal
-        open={!!historialNombre}
-        onClose={() => setHistorialNombre(null)}
-        nombre={historialNombre}
-        unidad={historialRow?.ingrediente.unidad}
-        list={historialNombre ? historialFor(historialNombre) : []}
-        onDelete={removeCompra}
       />
 
       <InsumoModal
@@ -90,6 +86,10 @@ export default function ComprasPage() {
         onClose={() => setInsumoOpen(false)}
         onSave={(nombre, unidad) => addIngrediente(nombre, unidad)}
       />
+
+      <FabButton onClick={() => setInsumoOpen(true)}>
+        <Icon name="plus" size={16} /> Agregar ingrediente
+      </FabButton>
     </motion.div>
   );
 }

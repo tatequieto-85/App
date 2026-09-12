@@ -11,8 +11,16 @@
 .modal-header {
   background: var(--surface); color: var(--text);
   border-bottom: 1px solid var(--border);
-  padding: 15px 20px;
-  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  display: flex; align-items: center; gap: 10px;
 }
-.modal-header h2 { font-size: 15px; font-weight: 600; }
+.modal-back {
+  background: none; border: none; cursor: pointer; color: inherit;
+  padding: 6px; margin: -6px 0; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background .15s;
+}
+.modal-back:hover { background: var(--gray-100); }
+.modal-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal-header-right { flex-shrink: 0; }
 .modal-body { padding: var(--space-5); overflow-x: hidden; }

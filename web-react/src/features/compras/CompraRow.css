@@ -12,18 +12,5 @@
 }
 .compra-table tr:hover td { background: var(--bg); }
 
-.compra-row { cursor: pointer; }
-.compra-row-add { width: 1%; text-align: right; }
-
+.compra-row { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .compra-row-actions td { padding: 0; border-bottom: 1px solid var(--border); }
-.compra-row-actions-bar { display: flex; }
-.compra-row-actions-bar button {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-  background: none; border: none; border-top: 1px solid var(--border); cursor: pointer;
-  padding: 10px 8px; font-size: 12.5px; font-weight: 600; color: var(--text);
-}
-.compra-row-actions-bar button:not(:last-child) { border-right: 1px solid var(--border); }
-.compra-row-actions-bar button:hover:not(:disabled) { background: var(--bg); }
-.compra-row-actions-bar button:disabled { opacity: .4; cursor: not-allowed; }
-.compra-row-actions-bar button[data-del-compra] { color: var(--danger); }
-.compra-row-actions-bar button[data-del-compra]:hover:not(:disabled) { background: #EF444414; }

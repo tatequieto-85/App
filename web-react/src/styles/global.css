@@ -45,3 +45,17 @@ button, input, textarea, select { font-family: inherit; }
   .field-row { flex-direction: row; gap: 14px; }
   .field-row > * { flex: 1; min-width: 0; }
 }
+
+/* Barra de acciones de fila (mantener presionado) — patrón de toda la app,
+   ver ../hooks/useRowGestures.js: ocupa el 100% del ancho del contenedor. */
+.row-actions-bar { display: flex; width: 100%; }
+.row-actions-bar button {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: none; border: none; border-top: 1px solid var(--border); cursor: pointer;
+  padding: 10px 8px; font-size: 12.5px; font-weight: 600; color: var(--text);
+}
+.row-actions-bar button:not(:last-child) { border-right: 1px solid var(--border); }
+.row-actions-bar button:hover:not(:disabled) { background: var(--bg); }
+.row-actions-bar button:disabled { opacity: .4; cursor: not-allowed; }
+.row-actions-bar button.danger { color: var(--danger); }
+.row-actions-bar button.danger:hover:not(:disabled) { background: #EF444414; }
