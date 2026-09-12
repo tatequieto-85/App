@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import Card from '../../components/ui/Card';
 import FabButton from '../../components/ui/FabButton';
 import Icon from '../../components/icons/Icon';
 import EmptyState from '../../components/ui/EmptyState';
 import PageHeader from '../../components/layout/PageHeader';
+import SearchBar from '../../components/ui/SearchBar';
 import { useIngredientes } from '../ingredientes/useIngredientes';
 import { useCompras } from './useCompras';
 import CompraRow from './CompraRow';
@@ -23,8 +24,15 @@ export default function ComprasPage({ onBack }) {
   const [openActionsFor, setOpenActionsFor] = useState(null);
   const [compraModal, setCompraModal] = useState(null); // { ingrediente, editRecord } | null
   const [insumoOpen, setInsumoOpen] = useState(false);
+  const [search, setSearch] = useState('');
 
   const loading = loadingIng || loadingCompras;
+
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(r => r.ingrediente.nombre.toLowerCase().includes(q));
+  }, [rows, search]);
 
   // Tocar afuera de una fila/barra abierta la cierra — mismo comportamiento
   // que el listener global de renderComprasList() en ../../../compras.js.
@@ -44,19 +52,24 @@ export default function ComprasPage({ onBack }) {
     >
       <PageHeader title="Ingredientes y compras" onBack={onBack} />
 
+      <SearchBar value={search} onChange={setSearch} placeholder="Buscar ingrediente…" />
+
       <Card>
         {loading && <div className="loading-state">Cargando…</div>}
         {error && <EmptyState>No se pudo cargar: {error}</EmptyState>}
         {!loading && !error && !rows.length && (
           <EmptyState>No hay ingredientes registrados todavía. Agregá el primero con el botón "+".</EmptyState>
         )}
-        {!loading && !error && !!rows.length && (
+        {!loading && !error && !!rows.length && !filteredRows.length && (
+          <EmptyState>Ningún ingrediente coincide con "{search.trim()}".</EmptyState>
+        )}
+        {!loading && !error && !!filteredRows.length && (
           <table className="compra-table">
             <thead>
               <tr><th>Ingrediente</th><th>Última compra</th><th>Precio unitario</th></tr>
             </thead>
             <tbody>
-              {rows.map(row => (
+              {filteredRows.map(row => (
                 <CompraRow
                   key={row.ingrediente.rowIndex}
                   row={row}
