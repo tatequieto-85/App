@@ -14,10 +14,13 @@
   max-height: 190px; overflow-y: auto; padding: 6px;
   border: 1.5px solid var(--border); border-radius: var(--radius-sm);
 }
+/* Redondo con fondo blanco, igual que el ícono real del canal en la
+   galería (ver CanalCard.css) — así el picker es una vista previa fiel. */
 .canal-icon-option {
   aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center;
-  border: 1.5px solid transparent; border-radius: var(--radius-sm);
-  background: none; cursor: pointer; padding: 6px; opacity: .45;
-  transition: opacity .15s, border-color .15s, background .15s;
+  border: 2px solid var(--border); border-radius: 50%;
+  background: var(--surface); box-shadow: var(--shadow-md);
+  cursor: pointer; padding: 6px; opacity: .45;
+  transition: opacity .15s, border-color .15s;
 }
-.canal-icon-option.is-selected { opacity: 1; border-color: currentColor; background: var(--bg); }
+.canal-icon-option.is-selected { opacity: 1; border-color: currentColor; }

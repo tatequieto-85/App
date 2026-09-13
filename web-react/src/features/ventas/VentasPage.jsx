@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import Card from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
 import FabButton from '../../components/ui/FabButton';
 import Icon from '../../components/icons/Icon';
@@ -72,7 +71,10 @@ export default function VentasPage({ onBack }) {
     >
       <PageHeader title={canal ? canal.nombre : 'Ventas'} onBack={canal ? () => setCurrentCanalId(null) : onBack} />
 
-      <Card>
+      {/* Sin caja blanca contenedora, a pedido del usuario — el submenú de
+          canales va directo sobre el fondo de la página, igual que el grid
+          de Módulos en Home (que tampoco vive dentro de un <Card>). */}
+      <div>
         {vt.loading && <div className="loading-state">Cargando…</div>}
         {vt.error && <EmptyState>No se pudo cargar: {vt.error}</EmptyState>}
 
@@ -129,7 +131,7 @@ export default function VentasPage({ onBack }) {
             </>
           )
         )}
-      </Card>
+      </div>
 
       {!canal ? (
         <FabButton onClick={() => setCanalModal({ editing: null })}>
