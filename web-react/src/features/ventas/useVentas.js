@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as canalesApi from '../../services/canalesVentaApi';
 import * as feriasApi from '../../services/feriasApi';
 import { fetchEjecuciones } from '../../services/ejecucionesApi';
@@ -70,6 +70,27 @@ export function useVentas() {
   }, []);
 
   const ctx = { ejecuciones, ferias, stockMovimientos, stockTestigos };
+
+  // Una fila por día/canal/producto — junta las ventas de TODAS las ferias
+  // de TODOS los canales (a diferencia de la lista de ferias, que ya está
+  // filtrada a un solo canal), para el cuadro de "Resumen de ventas por
+  // día" en la galería de canales. Ferias sin canal (dato viejo, no debería
+  // pasar tras el backfill) caen en "—".
+  const resumenVentasPorDia = useMemo(() => {
+    const porClave = new Map();
+    ferias.forEach(f => {
+      const canalNombre = canales.find(c => c.id === f.canalId)?.nombre || '—';
+      (f.ventas || []).forEach(v => {
+        const clave = `${v.fecha}|${f.canalId}|${v.recetaNombre}`;
+        const fila = porClave.get(clave);
+        if (fila) fila.cantidad += v.cantidad;
+        else porClave.set(clave, { fecha: v.fecha, canalNombre, recetaNombre: v.recetaNombre, cantidad: v.cantidad });
+      });
+    });
+    return [...porClave.values()].sort((a, b) =>
+      b.fecha.localeCompare(a.fecha) || a.canalNombre.localeCompare(b.canalNombre) || a.recetaNombre.localeCompare(b.recetaNombre)
+    );
+  }, [ferias, canales]);
 
   // ── Canales ────────────────────────────────────────────────────────────
 
@@ -214,6 +235,7 @@ export function useVentas() {
 
   return {
     canales, ferias, ejecuciones, stockTestigos, stockMovimientos, ctx, loading, error,
+    resumenVentasPorDia,
     saveCanal, deleteCanal, reorderCanales,
     saveFeria, deleteFeria, reabrirFeria, terminarFeria,
     saveStockPlan, registrarSalida, addObservacionDiaria, commitConteoSession

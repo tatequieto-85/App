@@ -8,7 +8,7 @@ import { edadActual, fmtCumpleanos } from '../../services/contactosApi';
 import { fmtDateShortEs } from '../../utils/format';
 import './ContactoDetailModal.css';
 
-// Resumen de solo lectura (doble clic/toque en la tarjeta abre esto) — los
+// Resumen de solo lectura (un toque en la tarjeta abre esto) — los
 // datos y vínculos se editan desde "Editar" (ver ContactoModal), acá solo
 // se agregan observaciones al historial.
 export default function ContactoDetailModal({ open, onClose, contacto, vinculos, onAddObservacion }) {

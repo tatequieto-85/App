@@ -4,10 +4,12 @@ const LONG_PRESS_MS = 550;
 
 // Gesto de una tarjeta accionable (p. ej. un widget de Home): un solo toque
 // dispara la acción principal; mantener presionado dispara otra cosa (acá,
-// "quitar de Home") — a diferencia de useRowGestures.js (pensado para filas
-// de lista, donde la acción principal es un doble clic/toque, no uno solo).
-// El clic accidental tras un scroll ya lo filtra utils/inputGuard.js a
-// nivel global, así que acá no hace falta lógica extra para eso.
+// "quitar de Home") — mismo patrón que useRowGestures.js (pensado para
+// filas de lista/tarjetas dentro de un módulo, donde lo que cambia es que
+// mantener presionado abre una barra de Editar/Borrar en vez de una sola
+// acción). El clic accidental tras un scroll ya lo filtra
+// utils/inputGuard.js a nivel global, así que acá no hace falta lógica
+// extra para eso.
 export function useTapHold({ onTap, onLongPress, disabled }) {
   const timerRef = useRef(null);
   const longPressedRef = useRef(false);

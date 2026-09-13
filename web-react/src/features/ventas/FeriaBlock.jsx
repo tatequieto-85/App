@@ -10,14 +10,14 @@ function fmtDayMonth(iso) {
   return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// Long-press revela Editar/Borrar; doble clic/toque dispara handleAbrirFeria
+// Long-press revela Editar/Borrar; un toque dispara handleAbrirFeria
 // (conteo si está en curso, plan de stock si es futura, resumen si terminó
 // o se cerró a mano) — ver VentasPage.
 export default function FeriaBlock({ feria, esProxima, onAbrir, onEdit, onDelete }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const gestureProps = useRowGestures({
-    onDoubleClick: () => onAbrir(feria.id),
+    onTap: () => onAbrir(feria.id),
     onLongPress: () => setActionsOpen(true)
   });
 

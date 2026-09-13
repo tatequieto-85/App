@@ -16,10 +16,11 @@ import FeriaModal from './FeriaModal';
 import FeriaStockModal from './FeriaStockModal';
 import FeriaCounterModal from './FeriaCounterModal';
 import FeriaResumenModal from './FeriaResumenModal';
+import VentasResumenDiario from './VentasResumenDiario';
 import './VentasPage.css';
 
-// Punto de entrada único de "abrir feria" (doble clic/toque en su tarjeta, o
-// botón dentro): en fechas de feria abre el conteo, antes de esas fechas
+// Punto de entrada único de "abrir feria" (un toque en su tarjeta): en
+// fechas de feria abre el conteo, antes de esas fechas
 // pregunta el plan de stock (total por lote), y ya pasada (o cerrada a
 // mano) muestra el resumen. Ver handleAbrirFeria() en ../../../ferias.js.
 function pickView(feria) {
@@ -70,6 +71,10 @@ export default function VentasPage({ onBack }) {
       className="app-shell"
     >
       <PageHeader title={canal ? canal.nombre : 'Ventas'} onBack={canal ? () => setCurrentCanalId(null) : onBack} />
+
+      {/* Cruza ventas de TODOS los canales — no tiene sentido una vez
+          adentro de uno solo, donde "por canal" deja de variar. */}
+      {!canal && !vt.loading && !vt.error && <VentasResumenDiario filas={vt.resumenVentasPorDia} />}
 
       {/* Sin caja blanca contenedora, a pedido del usuario — el submenú de
           canales va directo sobre el fondo de la página, igual que el grid

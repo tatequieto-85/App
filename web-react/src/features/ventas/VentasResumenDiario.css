@@ -1,0 +1,7 @@
+.ventas-resumen {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--space-5); margin-bottom: var(--space-5);
+}
+/* Con muchas ventas registradas, el cuadro no debe crecer sin límite —
+   escrolea internamente en vez de empujar el resto de la pantalla. */
+.ventas-resumen .table-scroll { max-height: 260px; overflow-y: auto; }

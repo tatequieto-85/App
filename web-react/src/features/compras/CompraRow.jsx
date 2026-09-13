@@ -7,15 +7,15 @@ import './CompraRow.css';
 
 // Equivalente a una fila de renderComprasList() en ../../../compras.js.
 // Mantener presionado abre la barra de acciones (Editar/Eliminar) al pie de
-// la fila; doble clic o doble toque registra una compra nueva de este
-// ingrediente. Ver ../../hooks/useRowGestures.js para el detector del gesto.
+// la fila; un toque registra una compra nueva de este ingrediente. Ver
+// ../../hooks/useRowGestures.js para el detector del gesto.
 export default function CompraRow({ row, actionsOpen, onOpenActionsChange, onEdit, onRegister, onDelete }) {
   const { ingrediente: ing, last, unitPrice } = row;
   const [deleting, setDeleting] = useState(false);
 
   const gestureProps = useRowGestures({
     onLongPress: () => onOpenActionsChange(ing.nombre),
-    onDoubleClick: () => onRegister(row)
+    onTap: () => onRegister(row)
   });
 
   async function handleDelete() {

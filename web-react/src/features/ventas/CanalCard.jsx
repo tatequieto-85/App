@@ -11,13 +11,12 @@ import './CanalCard.css';
 // la caja cuadrada de Módulos. Reusa las clases .app-card* de AppCard.css
 // directamente para no duplicar el estilo en dos lugares. La sección en sí
 // (fuera de esta tarjeta) no tiene caja contenedora — ver VentasPage.jsx.
-// Mantener presionado muestra el panel Editar/Borrar; doble clic/doble
-// toque entra al canal.
+// Mantener presionado muestra el panel Editar/Borrar; un toque entra al canal.
 export default function CanalCard({ canal, onEnter, onEdit, onDelete }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const gestureProps = useRowGestures({
-    onDoubleClick: () => onEnter(canal.id),
+    onTap: () => onEnter(canal.id),
     onLongPress: () => setActionsOpen(true)
   });
 

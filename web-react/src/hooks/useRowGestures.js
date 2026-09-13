@@ -1,20 +1,21 @@
 import { useCallback, useRef } from 'react';
 
 const LONG_PRESS_MS = 550;
-const DOUBLE_TAP_MS = 350;
 
-// Gesto estándar de la app para filas de lista/tabla — mantener presionado
-// abre la barra de acciones (editar/eliminar) de esa fila; doble clic o
-// doble toque dispara la acción principal (p. ej. registrar). Antes esto
-// vivía repetido a mano en cada módulo (ver renderComprasList() en
-// ../../../compras.js); ahora es un hook único que cualquier lista reusa.
-// onDoubleClick es opcional — una fila que solo necesita long-press (p. ej.
-// una tarjeta de Producto testigo en Stock, sin acción de "doble clic") no
-// lo pasa. Devuelve los handlers para pasarle directo al elemento de la fila.
-export function useRowGestures({ onLongPress, onDoubleClick, disabled }) {
+// Gesto estándar de la app para filas de lista/tarjetas — mantener
+// presionado abre la barra de acciones (editar/eliminar) de esa fila; un
+// solo clic/toque dispara la acción principal (p. ej. abrir el detalle).
+// Antes la acción principal necesitaba doble clic/toque; el usuario pidió
+// pasar TODAS las acciones de doble clic a un solo clic, igual que ya
+// funcionan los widgets de Home (ver useTapHold.js, mismo patrón) — el
+// clic fantasma que el navegador dispara después de un scroll en móvil ya
+// lo filtra utils/inputGuard.js a nivel global, así que no hace falta
+// lógica extra acá para eso.
+// onTap es opcional — una fila que solo necesita long-press (p. ej. una
+// tarjeta de Producto testigo en Stock, sin acción de un toque) no lo pasa.
+export function useRowGestures({ onLongPress, onTap, disabled }) {
   const timerRef = useRef(null);
   const longPressedRef = useRef(false);
-  const lastTapRef = useRef(0);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
@@ -30,23 +31,15 @@ export function useRowGestures({ onLongPress, onDoubleClick, disabled }) {
     }, LONG_PRESS_MS);
   }, [disabled, onLongPress, clearTimer]);
 
-  const handleTouchEnd = useCallback(e => {
+  // El click que sigue naturalmente a soltar un mousedown/touchend también
+  // dispararía onTap si no se filtra acá — por eso se suprime cuando el
+  // long-press ya se activó.
+  const handleClick = useCallback(e => {
     clearTimer();
     if (longPressedRef.current) { longPressedRef.current = false; return; }
-    if (disabled || !onDoubleClick || e.target.closest('button')) return;
-    const now = Date.now();
-    if (now - lastTapRef.current < DOUBLE_TAP_MS) {
-      lastTapRef.current = 0;
-      onDoubleClick();
-    } else {
-      lastTapRef.current = now;
-    }
-  }, [clearTimer, disabled, onDoubleClick]);
-
-  const handleDoubleClick = useCallback(e => {
-    if (disabled || !onDoubleClick || e.target.closest('button')) return;
-    onDoubleClick();
-  }, [disabled, onDoubleClick]);
+    if (disabled || !onTap || e.target.closest('button')) return;
+    onTap();
+  }, [clearTimer, disabled, onTap]);
 
   return {
     onMouseDown: start,
@@ -54,7 +47,7 @@ export function useRowGestures({ onLongPress, onDoubleClick, disabled }) {
     onMouseLeave: clearTimer,
     onTouchStart: start,
     onTouchMove: clearTimer,
-    onTouchEnd: handleTouchEnd,
-    onDoubleClick: handleDoubleClick
+    onTouchEnd: clearTimer,
+    onClick: handleClick
   };
 }

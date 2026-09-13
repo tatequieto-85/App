@@ -4,12 +4,12 @@ import { useRowGestures } from '../../hooks/useRowGestures';
 import './ContactoCard.css';
 
 // Tarjeta de contacto — compacta a propósito: nombre, empresa/posición, o
-// (si no hay ninguna) el primer vínculo. El resto vive en el detalle
-// (doble clic/toque). Mantener presionada revela Editar/Borrar.
+// (si no hay ninguna) el primer vínculo. El resto vive en el detalle (un
+// toque). Mantener presionada revela Editar/Borrar.
 export default function ContactoCard({ contacto, primerVinculo, actionsOpen, onOpenActionsChange, onOpenDetail, onEdit, onDelete }) {
   const [busy, setBusy] = useState(false);
   const gestureProps = useRowGestures({
-    onDoubleClick: () => onOpenDetail(contacto.id),
+    onTap: () => onOpenDetail(contacto.id),
     onLongPress: () => onOpenActionsChange(contacto.id)
   });
 
