@@ -39,7 +39,7 @@ export function useVentas() {
         // cargadas antes de que existieran los canales.
         let feriaCanal = c.find(x => x.nombre === 'Ferias');
         if (!feriaCanal) {
-          await canalesApi.appendCanal({ id: crypto.randomUUID(), nombre: 'Ferias', color: '#714B67', icono: '🎪', creadoEn: new Date().toISOString() }, c.length);
+          await canalesApi.appendCanal({ id: crypto.randomUUID(), nombre: 'Ferias', color: 'rose', icono: 'flag', creadoEn: new Date().toISOString() }, c.length);
           const c2 = await canalesApi.fetchCanales();
           if (cancelled) return;
           setCanales(c2);

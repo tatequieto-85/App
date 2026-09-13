@@ -1,34 +1,17 @@
-/* Galería de canales de venta — tarjetas 4:5, mismo patrón visual que los
-   grupos de recetas de Procesos (ver comentario en ferias.js vanilla):
-   long-press revela Editar/Borrar, doble clic/doble toque entra al canal. */
+/* Misma grilla que .home-grid en AppCard.css (4 por fila, % en vez de px) —
+   se duplica acá en vez de reusar esa clase para no acoplar el nombre de la
+   clase de Home a un contexto que no es Home; los valores en sí deben
+   quedar siempre iguales a los de .home-grid. */
 .canales-venta-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-@media (min-width: 480px) {
-  .canales-venta-grid { grid-template-columns: repeat(3, 1fr); }
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2.5%;
 }
 
 .canal-venta-card-wrap { position: relative; }
 
-.canal-venta-card {
-  aspect-ratio: 4 / 5;
-  width: 100%;
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  cursor: pointer; user-select: none; -webkit-user-select: none;
-  overflow: hidden;
-  transition: transform .15s;
-}
-.canal-venta-card:active { transform: scale(.97); }
-
-.canal-venta-card-icon { font-size: 34px; line-height: 1; }
-.canal-venta-card-name { font-size: 13px; font-weight: 700; color: var(--text); text-align: center; padding: 0 8px; }
-
 .canal-venta-card-actions {
   position: absolute; left: 0; right: 0; bottom: 0;
   background: var(--surface); border-radius: 0 0 var(--radius) var(--radius);
-  overflow: hidden;
+  overflow: hidden; box-shadow: var(--shadow-md);
 }

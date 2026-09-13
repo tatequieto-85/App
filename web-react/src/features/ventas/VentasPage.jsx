@@ -84,18 +84,14 @@ export default function VentasPage({ onBack }) {
               ids={canalIds}
               onReorder={vt.reorderCanales}
               className="canales-venta-grid"
-              renderItem={id => {
-                const idx = vt.canales.findIndex(c => c.id === id);
-                return (
-                  <CanalCard
-                    canal={vt.canales[idx]}
-                    idx={idx}
-                    onEnter={setCurrentCanalId}
-                    onEdit={c => setCanalModal({ editing: c })}
-                    onDelete={vt.deleteCanal}
-                  />
-                );
-              }}
+              renderItem={id => (
+                <CanalCard
+                  canal={vt.canales.find(c => c.id === id)}
+                  onEnter={setCurrentCanalId}
+                  onEdit={c => setCanalModal({ editing: c })}
+                  onDelete={vt.deleteCanal}
+                />
+              )}
             />
           )
         )}
