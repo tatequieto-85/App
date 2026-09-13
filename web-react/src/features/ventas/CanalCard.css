@@ -10,6 +10,17 @@
 
 .canal-venta-card-wrap { position: relative; }
 
+/* Los módulos de Home siempre tienen nombres cortos de una palabra, así que
+   .app-card-label nunca envuelve a 2 líneas ahí — un canal lo crea el
+   usuario y puede ser más largo ("Tienda online"), lo que hacía que esa
+   tarjeta quedara más alta que las demás en la misma fila. Se trunca a una
+   sola línea para que todas las cajas midan exactamente lo mismo, como
+   pidió el usuario ("deben ser todos del mismo tamaño"). */
+.canal-venta-card-wrap .app-card-label {
+  display: block; width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
 .canal-venta-card-actions {
   position: absolute; left: 0; right: 0; bottom: 0;
   background: var(--surface); border-radius: 0 0 var(--radius) var(--radius);

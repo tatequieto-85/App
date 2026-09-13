@@ -1,1 +1,8 @@
-.sortable-item { touch-action: none; }
+/* min-width:0 anula el min-width:auto por defecto de un ítem de grid — sin
+   esto, un texto con white-space:nowrap adentro (ver .canal-venta-card-wrap
+   .app-card-label) le exige a su columna "1fr" (que es minmax(auto,1fr)) un
+   ancho mínimo igual al de todo el texto sin cortar, así el ellipsis nunca
+   llegaba a aplicarse visualmente y esa columna (y por lo tanto esa
+   tarjeta, cuyo ícono escala con el ancho) quedaba más grande que las
+   demás en la misma fila. */
+.sortable-item { touch-action: none; min-width: 0; }
