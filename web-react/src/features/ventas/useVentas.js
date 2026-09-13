@@ -36,24 +36,27 @@ export function useVentas() {
         ]);
         if (cancelled) return;
         // El canal "Ferias" existe siempre — ahí van a parar las ferias
-        // cargadas antes de que existieran los canales.
+        // cargadas antes de que existieran los canales. Se arma el objeto
+        // local en vez de volver a leerlo del Sheet recién escrito — la API
+        // de Sheets no garantiza que un append se vea de inmediato en la
+        // siguiente lectura, y esa condición de carrera dejaba `feriaCanal`
+        // undefined (y el módulo entero sin cargar) si la relectura llegaba
+        // antes de que el append quedara visible.
         let feriaCanal = c.find(x => x.nombre === 'Ferias');
         if (!feriaCanal) {
-          await canalesApi.appendCanal({ id: crypto.randomUUID(), nombre: 'Ferias', color: 'rose', icono: 'flag', creadoEn: new Date().toISOString() }, c.length);
-          const c2 = await canalesApi.fetchCanales();
-          if (cancelled) return;
-          setCanales(c2);
-          feriaCanal = c2.find(x => x.nombre === 'Ferias');
+          feriaCanal = { id: crypto.randomUUID(), nombre: 'Ferias', color: 'rose', icono: 'flag', creadoEn: new Date().toISOString(), sortOrder: c.length };
+          await canalesApi.appendCanal(feriaCanal, c.length);
+          setCanales([...c, feriaCanal]);
         } else {
           setCanales(c);
         }
-        // Idempotente: solo toca las filas sin CanalId (backfill de ferias viejas).
-        const sinCanal = f.filter(x => !x.canalId);
-        for (const x of sinCanal) {
-          x.canalId = feriaCanal.id;
-          await feriasApi.updateFeria(x);
+        // Idempotente: solo toca las filas sin CanalId (backfill de ferias
+        // viejas). `x` es la misma referencia que ya vive en `f`, así que
+        // mutarla alcanza — no hace falta releer el Sheet para reflejarlo.
+        if (feriaCanal) {
+          f.filter(x => !x.canalId).forEach(x => { x.canalId = feriaCanal.id; feriasApi.updateFeria(x).catch(() => {}); });
         }
-        setFerias(sinCanal.length ? await feriasApi.fetchFerias() : f);
+        setFerias(f);
         setEjecuciones(ej);
         setStockTestigos(testigos);
         setStockMovimientos(movimientos);
