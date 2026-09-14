@@ -17,14 +17,6 @@ function parseObservaciones(raw) {
   return [{ text: raw, createdAt: '' }];
 }
 
-function parseTareas(raw) {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch { return []; }
-}
-
 export async function ensureContactosSheets() {
   const info = await sheetsReq('');
   const tabs = info.sheets || [];
@@ -38,18 +30,11 @@ export async function ensureContactosSheets() {
     await sheetsReq(':batchUpdate', { method: 'POST', body: JSON.stringify({ requests: reqs }) });
   }
 
-  const cd = await sheetsReq('/values/Contactos!A1:L1').catch(() => ({}));
-  const headerRow = (cd.values || [])[0] || [];
-  if (!headerRow.length) {
+  const cd = await sheetsReq('/values/Contactos!A1:K1').catch(() => ({}));
+  if (!cd.values) {
     await sheetsReq('/values/Contactos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID', 'Nombre', 'Cumpleanos', 'EdadIngreso', 'FechaIngreso', 'Observaciones', 'CreadoEn', 'Empresa', 'Posicion', 'Telefono', 'Ciudad', 'Tareas']] })
-    });
-  } else if (headerRow.length < 12) {
-    // Columna Tareas agregada después — hojas ya existentes solo tienen A:K.
-    await sheetsReq('/values/Contactos!L1?valueInputOption=RAW', {
-      method: 'PUT',
-      body: JSON.stringify({ values: [['Tareas']] })
+      body: JSON.stringify({ values: [['ID', 'Nombre', 'Cumpleanos', 'EdadIngreso', 'FechaIngreso', 'Observaciones', 'CreadoEn', 'Empresa', 'Posicion', 'Telefono', 'Ciudad']] })
     });
   }
 
@@ -63,7 +48,7 @@ export async function ensureContactosSheets() {
 }
 
 export async function fetchContactos() {
-  const data = await sheetsReq('/values/Contactos!A:L');
+  const data = await sheetsReq('/values/Contactos!A:K');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
     id:            r[0] || '',
@@ -77,7 +62,6 @@ export async function fetchContactos() {
     posicion:      r[8] || '',
     telefono:      r[9] || '',
     ciudad:        r[10] || '',
-    tareas:        parseTareas(r[11]),
     rowIndex:      i + 2
   })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 }
@@ -98,21 +82,21 @@ export async function fetchRelaciones() {
 }
 
 export async function appendContacto(c) {
-  await sheetsReq('/values/Contactos!A:L:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Contactos!A:K:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       crypto.randomUUID(), c.nombre, c.cumpleanos, c.edadIngreso ?? '', new Date().toISOString(),
-      '[]', new Date().toISOString(), c.empresa || '', c.posicion || '', c.telefono || '', c.ciudad || '', '[]'
+      '[]', new Date().toISOString(), c.empresa || '', c.posicion || '', c.telefono || '', c.ciudad || ''
     ]] })
   });
 }
 
 export async function updateContacto(c) {
-  await sheetsReq(`/values/Contactos!B${c.rowIndex}:L${c.rowIndex}?valueInputOption=USER_ENTERED`, {
+  await sheetsReq(`/values/Contactos!B${c.rowIndex}:K${c.rowIndex}?valueInputOption=USER_ENTERED`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
       c.nombre, c.cumpleanos, c.edadIngreso ?? '', c.fechaIngreso, JSON.stringify(c.observaciones || []),
-      c.creadoEn, c.empresa || '', c.posicion || '', c.telefono || '', c.ciudad || '', JSON.stringify(c.tareas || [])
+      c.creadoEn, c.empresa || '', c.posicion || '', c.telefono || '', c.ciudad || ''
     ]] })
   });
 }
@@ -161,18 +145,6 @@ export async function appendObservacion(contacto, text) {
     body: JSON.stringify({ values: [[JSON.stringify(observaciones)]] })
   });
   return observaciones;
-}
-
-// Reemplaza la lista completa de tareas de un contacto — agregar/marcar
-// hecha/borrar arman el arreglo nuevo en el hook (ver useContactos.js) y
-// esto solo lo persiste, igual que appendObservacion pero sin acumular
-// (una tarea sí se puede borrar o des-marcar, a diferencia de una
-// observación, que es un historial de solo agregar).
-export async function setTareas(contacto, tareas) {
-  await sheetsReq(`/values/Contactos!L${contacto.rowIndex}:L${contacto.rowIndex}?valueInputOption=USER_ENTERED`, {
-    method: 'PUT',
-    body: JSON.stringify({ values: [[JSON.stringify(tareas)]] })
-  });
 }
 
 // ── Cálculo puro (edad nunca se guarda — se recalcula cada vez que se muestra) ──

@@ -27,29 +27,3 @@
 .contacto-obs-form { display: flex; gap: 8px; align-items: flex-start; }
 .contacto-obs-form .field { flex: 1; }
 .contacto-obs-form .btn--outline { width: auto; flex-shrink: 0; margin-top: var(--space-4); }
-
-/* Tareas — mismo patrón de sección que Observaciones (título + lista +
-   formulario de agregar), pero cada ítem es accionable (checkbox de hecha,
-   borrar), no solo un historial de solo-agregar. */
-.contacto-tareas-list { max-height: 200px; overflow-y: auto; margin-bottom: var(--space-3); }
-.contacto-tarea-item {
-  display: flex; align-items: flex-start; gap: 8px;
-  padding: 8px 0; border-bottom: 1px solid var(--border);
-}
-.contacto-tarea-item:last-child { border-bottom: none; }
-.contacto-tarea-check { margin-top: 3px; width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--brand); cursor: pointer; }
-.contacto-tarea-body { flex: 1; min-width: 0; }
-.contacto-tarea-texto { font-size: 13px; color: var(--text); }
-.contacto-tarea-item.is-hecha .contacto-tarea-texto { color: var(--text-sub); text-decoration: line-through; }
-.contacto-tarea-fecha { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
-.contacto-tarea-fecha.is-vencida { color: var(--danger); font-weight: 600; }
-.contacto-tarea-item button {
-  flex-shrink: 0; background: none; border: none; cursor: pointer;
-  font-size: 12px; color: var(--text-sub); padding: 2px 0;
-}
-.contacto-tarea-item button:hover { color: var(--danger); text-decoration: underline; }
-
-.contacto-tarea-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
-.contacto-tarea-form .field:first-child { flex: 1; min-width: 140px; }
-.contacto-tarea-form input[type="date"] { width: 140px; }
-.contacto-tarea-form .btn--outline { width: auto; flex-shrink: 0; margin-top: var(--space-4); }
