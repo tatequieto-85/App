@@ -25,7 +25,9 @@
 
 .feria-block-actions { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface); }
 
-.feria-block-title { font-size: 13.5px; font-weight: 700; color: var(--text); margin-bottom: 1px; }
+/* Empresa (el "nombre" de la feria) va en texto normal, NO en negrilla —
+   a pedido del usuario, quien sí quiere el Lugar en negrilla en su lugar. */
+.feria-block-title { font-size: 13.5px; font-weight: 400; color: var(--text); margin-bottom: 1px; }
 
 /* Filas de info (Lugar, Fechas, Precio) e ícono+nombre de contacto — mismo
    formato: ícono de línea (nunca emoji, a pedido del usuario) + texto. */
@@ -34,6 +36,7 @@
   font-size: 11.5px; color: var(--text-sub);
 }
 .feria-block-meta svg, .feria-block-row svg { flex-shrink: 0; }
+.feria-block-row--lugar { font-weight: 700; color: var(--text); }
 .feria-block-row--precio { font-weight: 700; color: var(--brand); }
 
 .feria-block-stats { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--text); margin-top: 2px; }

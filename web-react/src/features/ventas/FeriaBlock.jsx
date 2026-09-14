@@ -53,7 +53,7 @@ export default function FeriaBlock({ feria, esProxima, contactoNombre, onAbrir, 
         className={`feria-block${terminada ? ' feria-block--terminada' : ''}`}
         {...gestureProps}
       >
-        <div className="feria-block-row"><Icon name="mapPin" size={12} />{feria.lugar || '—'}</div>
+        <div className="feria-block-row feria-block-row--lugar"><Icon name="mapPin" size={12} />{feria.lugar || '—'}</div>
         <div className="feria-block-row"><Icon name="calendar" size={12} />{fechas}</div>
         {feria.precio > 0 && (
           <div className="feria-block-row feria-block-row--precio"><Icon name="dollarSign" size={12} />{fmtCOP(feria.precio)}</div>
