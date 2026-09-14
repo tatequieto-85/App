@@ -13,7 +13,7 @@ function fmtDayMonth(iso) {
 // Long-press revela Editar/Borrar; un toque dispara handleAbrirFeria
 // (conteo si está en curso, plan de stock si es futura, resumen si terminó
 // o se cerró a mano) — ver VentasPage.
-export default function FeriaBlock({ feria, esProxima, onAbrir, onEdit, onDelete }) {
+export default function FeriaBlock({ feria, esProxima, contactoNombre, onAbrir, onEdit, onDelete }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const gestureProps = useRowGestures({
@@ -48,6 +48,7 @@ export default function FeriaBlock({ feria, esProxima, onAbrir, onEdit, onDelete
           <div>
             <div className="feria-block-title">{feria.empresa}</div>
             <div className="feria-block-meta">📍 {feria.lugar || '—'}</div>
+            {contactoNombre && <div className="feria-block-meta">👤 {contactoNombre}</div>}
           </div>
           <div className="feria-block-fechas">{fechas}</div>
         </div>

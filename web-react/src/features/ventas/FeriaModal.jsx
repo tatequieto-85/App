@@ -16,7 +16,9 @@ import './FeriaModal.css';
 // editingFeria null = crear (requiere estar dentro de un canal, ver
 // VentasPage). "Reabrir" solo aparece si se cerró a mano con "Terminar
 // feria" — si simplemente ya pasó por calendario no hay nada que reabrir.
-export default function FeriaModal({ open, onClose, editingFeria, onSave, onReabrir }) {
+// contactos: lista de Contactos (ver features/contactos/useContactos.js) —
+// el usuario pidió que vincular un contacto sea obligatorio al crear.
+export default function FeriaModal({ open, onClose, editingFeria, contactos, onSave, onReabrir }) {
   const today = toISODate(new Date());
   const [empresa, setEmpresa] = useState('');
   const [fechaInicio, setFechaInicio] = useState(today);
@@ -25,6 +27,7 @@ export default function FeriaModal({ open, onClose, editingFeria, onSave, onReab
   const [lugar, setLugar] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [estado, setEstado] = useState('participar');
+  const [contactoId, setContactoId] = useState('');
   const [busy, setBusy] = useState(false);
   const [feedback, showFeedback] = useFeedback();
   const initialRef = useRef({ empresa: '', lugar: '', observaciones: '' });
@@ -41,6 +44,7 @@ export default function FeriaModal({ open, onClose, editingFeria, onSave, onReab
     setLugar(l);
     setObservaciones(o);
     setEstado(editingFeria?.estado === 'publicado' ? 'publicado' : 'participar');
+    setContactoId(editingFeria?.contactoId || '');
     initialRef.current = { empresa: e, lugar: l, observaciones: o };
   }, [open, editingFeria]);
 
@@ -56,6 +60,7 @@ export default function FeriaModal({ open, onClose, editingFeria, onSave, onReab
     if (!empresaTrim) return showFeedback('La empresa organizadora es obligatoria.', 'err');
     if (!fechaInicio || !fechaFin) return showFeedback('Las fechas de la feria son obligatorias.', 'err');
     if (fechaInicio > fechaFin) return showFeedback('La fecha de inicio no puede ser posterior a la de fin.', 'err');
+    if (!contactoId) return showFeedback('Elegí a qué contacto vincular esta feria.', 'err');
 
     setBusy(true);
     try {
@@ -63,7 +68,7 @@ export default function FeriaModal({ open, onClose, editingFeria, onSave, onReab
         empresa: empresaTrim, fechaInicio, fechaFin,
         precio: parseThousandsInput(precio) || 0,
         lugar: lugar.trim(), observaciones: observaciones.trim(),
-        estado
+        estado, contactoId
       }, editingFeria?.id || null);
       onClose();
     } catch (err) {
@@ -77,10 +82,18 @@ export default function FeriaModal({ open, onClose, editingFeria, onSave, onReab
     <Modal open={open} onClose={close} showBack title={editingFeria ? 'Editar feria' : 'Nueva feria'}>
       <form onSubmit={handleSubmit}>
         <TextField label="Empresa organizadora" value={empresa} onChange={e => setEmpresa(e.target.value)} disabled={busy} autoFocus />
-        <Select
-          label="Estado" value={estado} onChange={e => setEstado(e.target.value)} disabled={busy}
-          options={ESTADO_OPCIONES}
-        />
+        <div className="field-row">
+          <Select
+            label="Estado" value={estado} onChange={e => setEstado(e.target.value)} disabled={busy}
+            options={ESTADO_OPCIONES}
+          />
+          <Select
+            label="Contacto" value={contactoId} onChange={e => setContactoId(e.target.value)} disabled={busy}
+            options={contactos?.length
+              ? [{ value: '', label: 'Elegí un contacto…' }, ...contactos.map(c => ({ value: c.id, label: c.nombre }))]
+              : [{ value: '', label: 'No hay contactos cargados todavía' }]}
+          />
+        </div>
         <div className="field-row">
           <TextField label="Fecha de inicio" type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} disabled={busy} />
           <TextField label="Fecha de fin" type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} disabled={busy} />

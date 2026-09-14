@@ -44,8 +44,8 @@ function ConteoProductos({ feria, ejecuciones }) {
   );
 }
 
-function downloadFeriaTxt(feria, ejecuciones) {
-  const text = feriaToText(feria, ejecuciones, fmtCOP, fmtDateShortEs);
+function downloadFeriaTxt(feria, ejecuciones, contactoNombre) {
+  const text = feriaToText(feria, ejecuciones, fmtCOP, fmtDateShortEs, contactoNombre);
   const blob = new Blob([text], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -55,19 +55,20 @@ function downloadFeriaTxt(feria, ejecuciones) {
   URL.revokeObjectURL(url);
 }
 
-export default function FeriaResumenModal({ open, onClose, feria, ejecuciones }) {
+export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, contactos }) {
   if (!feria) return null;
+  const contactoNombre = contactos?.find(c => c.id === feria.contactoId)?.nombre || '';
 
   return (
     <Modal open={open} onClose={onClose} showBack title={feria.empresa}>
-      <div className="feria-resumen-content">{feriaToText(feria, ejecuciones, fmtCOP, fmtDateShortEs)}</div>
+      <div className="feria-resumen-content">{feriaToText(feria, ejecuciones, fmtCOP, fmtDateShortEs, contactoNombre)}</div>
 
       <div className="feria-section">
         <h4 className="feria-section-title">Conteo de productos</h4>
         <ConteoProductos feria={feria} ejecuciones={ejecuciones} />
       </div>
 
-      <Button variant="primary" onClick={() => downloadFeriaTxt(feria, ejecuciones)}>Descargar resumen</Button>
+      <Button variant="primary" onClick={() => downloadFeriaTxt(feria, ejecuciones, contactoNombre)}>Descargar resumen</Button>
     </Modal>
   );
 }

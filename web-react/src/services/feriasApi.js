@@ -23,7 +23,7 @@ export async function ensureFeriasSheet() {
 
   if (hasF) {
     feriasSheetId = hasF.properties.sheetId;
-    const headerData = await sheetsReq('/values/Ferias!A1:X1').catch(() => ({}));
+    const headerData = await sheetsReq('/values/Ferias!A1:Y1').catch(() => ({}));
     const headerRow = (headerData.values || [])[0] || [];
     if (headerRow.length < 18) {
       await sheetsReq('/values/Ferias!M1:R1?valueInputOption=RAW', {
@@ -57,6 +57,12 @@ export async function ensureFeriasSheet() {
         body: JSON.stringify({ values: [['CanalId']] })
       });
     }
+    if (headerRow.length < 25) {
+      await sheetsReq('/values/Ferias!Y1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [['ContactoId']] })
+      });
+    }
   } else {
     const res = await sheetsReq(':batchUpdate', {
       method: 'POST',
@@ -70,14 +76,14 @@ export async function ensureFeriasSheet() {
         'ID', 'Empresa', 'FechaInicio', 'FechaFin', 'Precio', 'FechaImportante', 'Lugar',
         'Observaciones', 'Alineacion', 'Estado', 'ConteoPersonas', 'CreadoEn',
         'HoraInicio', 'HoraFin', 'PlanStock', 'Ventas', 'ObservacionesDiarias', 'ConteoProductos',
-        'ConteoMenores30', 'ConteoEntre30y55', 'ConteoMayores55', 'Cerrada', 'Muestras', 'CanalId'
+        'ConteoMenores30', 'ConteoEntre30y55', 'ConteoMayores55', 'Cerrada', 'Muestras', 'CanalId', 'ContactoId'
       ]] })
     });
   }
 }
 
 export async function fetchFerias() {
-  const data = await sheetsReq('/values/Ferias!A:X');
+  const data = await sheetsReq('/values/Ferias!A:Y');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0]  || '',
@@ -104,6 +110,7 @@ export async function fetchFerias() {
     cerrada:              r[21] === 'TRUE',
     muestras:             safeParseJSON(r[22], []),
     canalId:              r[23] || '',
+    contactoId:           r[24] || '',
     rowIndex:             i + 2
   }));
 }
@@ -116,19 +123,19 @@ function feriaRowValues(f) {
     f.horaInicio || '', f.horaFin || '', JSON.stringify(f.planStock || {}), JSON.stringify(f.ventas || []),
     JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {}),
     f.conteoMenores30 || 0, f.conteoEntre30y55 || 0, f.conteoMayores55 || 0,
-    f.cerrada ? 'TRUE' : 'FALSE', JSON.stringify(f.muestras || []), f.canalId || ''
+    f.cerrada ? 'TRUE' : 'FALSE', JSON.stringify(f.muestras || []), f.canalId || '', f.contactoId || ''
   ];
 }
 
 export async function appendFeria(f) {
-  await sheetsReq('/values/Ferias!A:X:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Ferias!A:Y:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
 }
 
 export async function updateFeria(f) {
-  await sheetsReq(`/values/Ferias!A${f.rowIndex}:X${f.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Ferias!A${f.rowIndex}:Y${f.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
@@ -270,12 +277,13 @@ export function getStockDisponibleLote({ ejecuciones, ferias, stockMovimientos, 
 
 // ── Texto de resumen (para "Descargar resumen") ─────────────────────────────
 
-export function feriaToText(f, ejecuciones, fmtCOP, fmtDate) {
+export function feriaToText(f, ejecuciones, fmtCOP, fmtDate, contactoNombre) {
   const sep = '═══════════════════════════════════════';
   const lines = [];
   lines.push(sep, `FERIA: ${f.empresa}`, sep, '');
   lines.push(`Fechas: ${f.fechaInicio} a ${f.fechaFin}`);
   lines.push(`Lugar: ${f.lugar || '—'}`);
+  if (contactoNombre) lines.push(`Contacto: ${contactoNombre}`);
   lines.push(`Precio de participación: ${fmtCOP(f.precio)}`);
   if (f.observaciones) lines.push(`Observaciones generales: ${f.observaciones}`);
   lines.push('', `Personas que probaron TateQuieto (total): ${feriaConteoTotal(f)}`);

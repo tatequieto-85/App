@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Widget from '../../components/ui/Widget';
 import { useVentas } from './useVentas';
+import { useContactos } from '../contactos/useContactos';
 import { feriaEstaEnCurso, feriaEsFutura, feriaHaTerminado } from '../../services/feriasApi';
 import { fmtDayMonthSlash } from '../../utils/format';
 import FeriaCounterModal from './FeriaCounterModal';
@@ -20,6 +21,7 @@ function pickView(feria) {
 // por la galería de canales.
 export default function VentasWidget({ removing, onRequestRemove, onConfirmRemove }) {
   const vt = useVentas();
+  const { contactos } = useContactos();
   const [openView, setOpenView] = useState(null); // 'counter' | 'stock' | 'resumen' | null
 
   const proxima = vt.ferias
@@ -75,6 +77,7 @@ export default function VentasWidget({ removing, onRequestRemove, onConfirmRemov
             onClose={() => setOpenView(null)}
             feria={proxima}
             ejecuciones={vt.ejecuciones}
+            contactos={contactos}
           />
         </>
       )}

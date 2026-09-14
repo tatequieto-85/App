@@ -6,6 +6,7 @@ import Icon from '../../components/icons/Icon';
 import PageHeader from '../../components/layout/PageHeader';
 import SortableGrid from '../../components/ui/SortableGrid';
 import { useVentas } from './useVentas';
+import { useContactos } from '../contactos/useContactos';
 import {
   feriaEstaEnCurso, feriaEsFutura, estadoEfectivo
 } from '../../services/feriasApi';
@@ -31,6 +32,10 @@ function pickView(feria) {
 
 export default function VentasPage({ onBack }) {
   const vt = useVentas();
+  // Vincular un contacto a una feria es obligatorio (ver FeriaModal) — se
+  // lee Contactos acá, como ya hacía Stock con Procesos/Ferias, para no
+  // necesitar migrar ese módulo entero solo para esta lista.
+  const { contactos } = useContactos();
   const [currentCanalId, setCurrentCanalId] = useState(null);
   const [canalModal, setCanalModal] = useState(null); // { editing } | null
   const [feriaModal, setFeriaModal] = useState(null); // { editing } | null
@@ -62,6 +67,7 @@ export default function VentasPage({ onBack }) {
   );
 
   const openFeria = openFeriaId ? vt.ferias.find(f => f.id === openFeriaId) : null;
+  const contactoNombre = feria => contactos.find(c => c.id === feria.contactoId)?.nombre || '';
 
   function handleAbrirFeria(feriaId) {
     const f = vt.ferias.find(x => x.id === feriaId);
@@ -121,7 +127,7 @@ export default function VentasPage({ onBack }) {
                   <div className="feria-blocks-grid">
                     {porParticipar.map((f, i) => (
                       <FeriaBlock
-                        key={f.id} feria={f} esProxima={i === 0}
+                        key={f.id} feria={f} esProxima={i === 0} contactoNombre={contactoNombre(f)}
                         onAbrir={handleAbrirFeria}
                         onEdit={ff => setFeriaModal({ editing: ff })}
                         onDelete={vt.deleteFeria}
@@ -136,7 +142,7 @@ export default function VentasPage({ onBack }) {
                   <div className="feria-blocks-grid">
                     {publicados.map((f, i) => (
                       <FeriaBlock
-                        key={f.id} feria={f} esProxima={i === 0}
+                        key={f.id} feria={f} esProxima={i === 0} contactoNombre={contactoNombre(f)}
                         onAbrir={handleAbrirFeria}
                         onEdit={ff => setFeriaModal({ editing: ff })}
                         onDelete={vt.deleteFeria}
@@ -151,7 +157,7 @@ export default function VentasPage({ onBack }) {
                   <div className="feria-blocks-grid">
                     {terminados.map(f => (
                       <FeriaBlock
-                        key={f.id} feria={f} esProxima={false}
+                        key={f.id} feria={f} esProxima={false} contactoNombre={contactoNombre(f)}
                         onAbrir={handleAbrirFeria}
                         onEdit={ff => setFeriaModal({ editing: ff })}
                         onDelete={vt.deleteFeria}
@@ -192,6 +198,7 @@ export default function VentasPage({ onBack }) {
         open={!!feriaModal}
         onClose={() => setFeriaModal(null)}
         editingFeria={feriaModal?.editing || null}
+        contactos={contactos}
         onSave={(datos, editingId) => vt.saveFeria(datos, editingId, currentCanalId)}
         onReabrir={vt.reabrirFeria}
       />
@@ -221,6 +228,7 @@ export default function VentasPage({ onBack }) {
         onClose={closeOpenFeria}
         feria={openFeria}
         ejecuciones={vt.ejecuciones}
+        contactos={contactos}
       />
     </motion.div>
   );
