@@ -82,8 +82,9 @@ const PATHS = {
   // features/ventas/canalIconOptions.js para la lista que se ofrece ahí.
   store: (
     <>
-      <path d="M3 9.5 12 3l9 6.5" />
-      <path d="M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10" />
+      <path d="M2 5h20l-1.5 4h-17z" />
+      <path d="M4 9v12h16V9" />
+      <rect x="9" y="13" width="6" height="8" />
     </>
   ),
   globe: (

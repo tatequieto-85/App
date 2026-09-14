@@ -4,6 +4,23 @@ import * as feriasApi from '../../services/feriasApi';
 import { fetchEjecuciones } from '../../services/ejecucionesApi';
 import * as stockApi from '../../services/stockApi';
 
+// El usuario ya no puede crear canales de venta a mano (ver regla — cada
+// canal va a tener su propia configuración más adelante, no son genéricos)
+// — estos son los únicos que existen, y se auto-crean solos la primera vez
+// que hacen falta, igual que "Ferias" ya se auto-creaba antes de que
+// "Retail" existiera.
+const CANALES_POR_DEFECTO = [
+  { nombre: 'Eventos', color: 'rose', icono: 'flag' },
+  { nombre: 'Retail', color: 'blue', icono: 'store' },
+  { nombre: 'Online', color: 'teal', icono: 'globe' }
+];
+
+// Un canal que ya existía con otro nombre pasa a llamarse el nuevo — antes
+// de auto-crear los de arriba, para no terminar con nombres duplicados si
+// el usuario ya había creado/usado el nombre viejo (a mano, o el "Ferias"
+// que este módulo mismo auto-creaba antes de este cambio).
+const RENOMBRES_CANAL = { 'Ferias': 'Eventos', 'Mercado Libre': 'Online' };
+
 // Toda la lógica de negocio de Ventas/Ferias vive acá. Lee, además de sus
 // propias hojas (CanalesVenta/Ferias), las de Procesos (RecetasEjecuciones)
 // y Stock (StockTestigo/StockMovimientos) para calcular disponibilidad de
@@ -35,26 +52,37 @@ export function useVentas() {
           stockApi.fetchStockTestigos(), stockApi.fetchStockMovimientos()
         ]);
         if (cancelled) return;
-        // El canal "Ferias" existe siempre — ahí van a parar las ferias
-        // cargadas antes de que existieran los canales. Se arma el objeto
-        // local en vez de volver a leerlo del Sheet recién escrito — la API
-        // de Sheets no garantiza que un append se vea de inmediato en la
-        // siguiente lectura, y esa condición de carrera dejaba `feriaCanal`
-        // undefined (y el módulo entero sin cargar) si la relectura llegaba
-        // antes de que el append quedara visible.
-        let feriaCanal = c.find(x => x.nombre === 'Ferias');
-        if (!feriaCanal) {
-          feriaCanal = { id: crypto.randomUUID(), nombre: 'Ferias', color: 'rose', icono: 'flag', creadoEn: new Date().toISOString(), sortOrder: c.length };
-          await canalesApi.appendCanal(feriaCanal, c.length);
-          setCanales([...c, feriaCanal]);
-        } else {
-          setCanales(c);
+        // Los canales ya no los crea el usuario (ver CANALES_POR_DEFECTO) —
+        // se arman/migran acá, localmente, en vez de volver a leerlos del
+        // Sheet recién escrito: la API de Sheets no garantiza que un
+        // append/update se vea de inmediato en la siguiente lectura, y esa
+        // condición de carrera dejaba el canal buscado como undefined (y el
+        // módulo entero sin cargar) si la relectura llegaba antes de que el
+        // cambio quedara visible.
+        let canalesActuales = c;
+        for (const [viejo, nuevo] of Object.entries(RENOMBRES_CANAL)) {
+          const existente = canalesActuales.find(x => x.nombre === viejo);
+          if (existente && !canalesActuales.some(x => x.nombre === nuevo)) {
+            const renombrado = { ...existente, nombre: nuevo };
+            await canalesApi.updateCanal(renombrado);
+            canalesActuales = canalesActuales.map(x => x.id === existente.id ? renombrado : x);
+          }
         }
-        // Idempotente: solo toca las filas sin CanalId (backfill de ferias
-        // viejas). `x` es la misma referencia que ya vive en `f`, así que
-        // mutarla alcanza — no hace falta releer el Sheet para reflejarlo.
-        if (feriaCanal) {
-          f.filter(x => !x.canalId).forEach(x => { x.canalId = feriaCanal.id; feriasApi.updateFeria(x).catch(() => {}); });
+        for (const def of CANALES_POR_DEFECTO) {
+          if (!canalesActuales.some(x => x.nombre === def.nombre)) {
+            const nuevo = { id: crypto.randomUUID(), ...def, creadoEn: new Date().toISOString(), sortOrder: canalesActuales.length };
+            await canalesApi.appendCanal(nuevo, canalesActuales.length);
+            canalesActuales = [...canalesActuales, nuevo];
+          }
+        }
+        setCanales(canalesActuales);
+        // Ahí van a parar las ferias cargadas antes de que existieran los
+        // canales (backfill idempotente: solo toca las filas sin CanalId).
+        // `x` es la misma referencia que ya vive en `f`, así que mutarla
+        // alcanza — no hace falta releer el Sheet para reflejarlo.
+        const canalPorDefecto = canalesActuales.find(x => x.nombre === 'Eventos');
+        if (canalPorDefecto) {
+          f.filter(x => !x.canalId).forEach(x => { x.canalId = canalPorDefecto.id; feriasApi.updateFeria(x).catch(() => {}); });
         }
         setFerias(f);
         setEjecuciones(ej);

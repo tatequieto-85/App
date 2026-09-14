@@ -81,7 +81,7 @@ export default function VentasPage({ onBack }) {
 
         {!vt.loading && !vt.error && !canal && (
           !vt.canales.length ? (
-            <EmptyState>No hay canales de venta. Agrega el primero con "Nuevo canal".</EmptyState>
+            <EmptyState>Cargando los canales de venta…</EmptyState>
           ) : (
             <SortableGrid
               ids={canalIds}
@@ -140,11 +140,11 @@ export default function VentasPage({ onBack }) {
           usuario — no arriba. */}
       {!canal && !vt.loading && !vt.error && <VentasResumenDiario filas={vt.resumenVentasPorDia} />}
 
-      {!canal ? (
-        <FabButton onClick={() => setCanalModal({ editing: null })}>
-          <Icon name="plus" size={16} /> Nuevo canal
-        </FabButton>
-      ) : (
+      {/* Ya no se pueden crear canales a mano — son fijos (ver
+          CANALES_POR_DEFECTO en useVentas.js), cada uno con su propia
+          configuración. El FAB de acá solo sirve para agregar una feria
+          dentro de un canal ya existente. */}
+      {canal && (
         <FabButton onClick={() => setFeriaModal({ editing: null })}>
           <Icon name="plus" size={16} /> Nueva feria
         </FabButton>
