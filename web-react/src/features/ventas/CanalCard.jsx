@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Icon from '../../components/icons/Icon';
 import { useRowGestures } from '../../hooks/useRowGestures';
+import { useCloseOnOutsideClick } from '../../hooks/useCloseOnOutsideClick';
 import { CANAL_ICON_OPTIONS, CANAL_COLOR_OPTIONS } from './canalIconOptions';
 import '../../components/ui/AppCard.css';
 import './CanalCard.css';
@@ -15,6 +16,7 @@ import './CanalCard.css';
 export default function CanalCard({ canal, onEnter, onEdit, onDelete }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const wrapRef = useCloseOnOutsideClick(actionsOpen, () => setActionsOpen(false));
   const gestureProps = useRowGestures({
     onTap: () => onEnter(canal.id),
     onLongPress: () => setActionsOpen(true)
@@ -39,7 +41,7 @@ export default function CanalCard({ canal, onEnter, onEdit, onDelete }) {
   }
 
   return (
-    <div className="canal-venta-card-wrap">
+    <div ref={wrapRef} className="canal-venta-card-wrap">
       <div className="app-card" {...gestureProps}>
         <span className={`app-card-icon app-card-icon--${color}`}>
           <Icon name={icon} size={24} className="app-card-icon-glyph" />

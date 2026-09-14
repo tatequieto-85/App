@@ -19,22 +19,25 @@
   height: 100%; box-sizing: border-box;
   padding: 12px 14px;
   cursor: pointer; user-select: none; -webkit-user-select: none;
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: 5px;
 }
 .feria-block--terminada { opacity: .6; }
 
 .feria-block-actions { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface); }
 
-.feria-block-precio { font-size: 11.5px; font-weight: 700; color: var(--brand); }
+.feria-block-title { font-size: 13.5px; font-weight: 700; color: var(--text); margin-bottom: 1px; }
 
-/* Título y fechas apilados (no lado a lado) — con dos tarjetas por fila no
-   entran cómodo en la misma línea. */
-.feria-block-row1 { display: flex; flex-direction: column; gap: 2px; }
-.feria-block-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
-.feria-block-meta { font-size: 11.5px; color: var(--text-sub); margin-top: 2px; }
-.feria-block-fechas { font-size: 11.5px; font-weight: 600; color: var(--text-sub); }
+/* Filas de info (Lugar, Fechas, Precio) e ícono+nombre de contacto — mismo
+   formato: ícono de línea (nunca emoji, a pedido del usuario) + texto. */
+.feria-block-meta, .feria-block-row {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11.5px; color: var(--text-sub);
+}
+.feria-block-meta svg, .feria-block-row svg { flex-shrink: 0; }
+.feria-block-row--precio { font-weight: 700; color: var(--brand); }
 
-.feria-block-stats { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--text); }
+.feria-block-stats { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--text); margin-top: 2px; }
+.feria-block-stats span { display: flex; align-items: center; gap: 4px; }
 
 .feria-list-divider {
   display: flex; align-items: center; gap: 10px; margin: 4px 0;

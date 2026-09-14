@@ -1,5 +1,6 @@
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
+import Icon from '../../components/icons/Icon';
 import { feriaToText } from '../../services/feriasApi';
 import { fmtCOP, fmtDateShortEs } from '../../utils/format';
 import './FeriaResumenModal.css';
@@ -38,7 +39,7 @@ function ConteoProductos({ feria, ejecuciones }) {
         </tbody>
       </table>
       {hayNegativos && (
-        <div className="feria-resumen-warn">⚠️ Hay lotes con más vendido + regalado que lo llevado — revisa el registro de ventas/muestras.</div>
+        <div className="feria-resumen-warn"><Icon name="alertTriangle" size={13} /> Hay lotes con más vendido + regalado que lo llevado — revisa el registro de ventas/muestras.</div>
       )}
     </>
   );

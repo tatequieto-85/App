@@ -168,6 +168,10 @@ export function feriaTotalVendidos(f) {
   return (f.ventas || []).reduce((sum, v) => sum + (v.cantidad || 0), 0);
 }
 
+export function feriaTotalMuestras(f) {
+  return (f.muestras || []).reduce((sum, m) => sum + (m.cantidad || 0), 0);
+}
+
 // Ventas + muestras ya entregadas, por lote — las dos salen del mismo stock
 // físico llevado, así que la disponibilidad para registrar cualquiera de
 // las dos tiene que descontar las dos juntas.
@@ -311,7 +315,7 @@ export function feriaToText(f, ejecuciones, fmtCOP, fmtDate, contactoNombre) {
       const vendidos = (f.ventas || []).filter(v => v.ejecucionId === id).reduce((s, v) => s + v.cantidad, 0);
       const muestras = (f.muestras || []).filter(m => m.ejecucionId === id).reduce((s, m) => s + m.cantidad, 0);
       const sobrantes = llevados - vendidos - muestras;
-      lines.push(`  - ${label}: llevados ${llevados}, vendidos ${vendidos}, muestras ${muestras}, sobrantes ${sobrantes}${sobrantes < 0 ? ' ⚠️' : ''}`);
+      lines.push(`  - ${label}: llevados ${llevados}, vendidos ${vendidos}, muestras ${muestras}, sobrantes ${sobrantes}${sobrantes < 0 ? ' (!)' : ''}`);
     });
   }
 

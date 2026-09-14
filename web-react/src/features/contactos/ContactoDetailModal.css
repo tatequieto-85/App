@@ -9,6 +9,7 @@
   font-size: 11px; font-weight: 700; color: var(--text-sub);
   text-transform: uppercase; letter-spacing: .06em;
 }
+.contacto-detail-vinculo { display: flex; align-items: center; gap: 4px; }
 
 .contacto-obs-section {
   margin-top: var(--space-5);

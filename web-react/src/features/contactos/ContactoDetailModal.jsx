@@ -6,6 +6,7 @@ import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
 import { edadActual, fmtCumpleanos } from '../../services/contactosApi';
 import { fmtDateShortEs } from '../../utils/format';
+import Icon from '../../components/icons/Icon';
 import './ContactoDetailModal.css';
 
 // Resumen de solo lectura (un toque en la tarjeta abre esto) — los
@@ -58,7 +59,9 @@ export default function ContactoDetailModal({ open, onClose, contacto, vinculos,
           <span className="contacto-detail-label">Vínculos</span>
           <div>
             {vinculos.map(v => (
-              <div key={v.rowIndex}>{v.tipo === 'trabajo' ? '💼 ' : ''}{v.categoria} de {v.otro.nombre}</div>
+              <div key={v.rowIndex} className="contacto-detail-vinculo">
+                {v.tipo === 'trabajo' && <Icon name="briefcase" size={12} />}{v.categoria} de {v.otro.nombre}
+              </div>
             ))}
           </div>
         </div>

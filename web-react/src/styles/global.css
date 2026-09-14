@@ -129,7 +129,7 @@ button, input, textarea, select { font-family: inherit; }
 
 /* Chip/pill genérico — p. ej. la categoría de un vínculo en Contactos. */
 .badge {
-  display: inline-block;
+  display: inline-flex; align-items: center; gap: 4px;
   background: var(--brand); color: #fff;
   font-size: 11px; font-weight: 700;
   padding: 3px 10px; border-radius: 999px;

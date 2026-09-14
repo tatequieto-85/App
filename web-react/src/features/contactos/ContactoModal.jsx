@@ -6,6 +6,7 @@ import Select from '../../components/ui/Select';
 import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
 import { useDirtyGuard } from '../../hooks/useDirtyGuard';
+import Icon from '../../components/icons/Icon';
 import './ContactoModal.css';
 
 const emptyForm = { nombre: '', cumpleanos: '', edadIngreso: '', empresa: '', posicion: '', telefono: '', ciudad: '', sector: '' };
@@ -131,7 +132,7 @@ export default function ContactoModal({
           <div className="contacto-vinculos-list">
             {vinculos.length ? vinculos.map(v => (
               <div key={v.rowIndex} className="contacto-relacion-item">
-                <span className="badge">{v.tipo === 'trabajo' ? '💼 ' : ''}{v.categoria}</span>
+                <span className="badge">{v.tipo === 'trabajo' && <Icon name="briefcase" size={11} />}{v.categoria}</span>
                 <span className="contacto-relacion-nombre">{v.otro.nombre}</span>
                 <button type="button" onClick={() => onRemoveRelacion(v.rowIndex)}>Quitar</button>
               </div>

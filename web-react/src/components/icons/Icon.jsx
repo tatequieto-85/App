@@ -248,6 +248,22 @@ const PATHS = {
       <line x1="10" y1="1" x2="10" y2="4" />
       <line x1="14" y1="1" x2="14" y2="4" />
     </>
+  ),
+  alertTriangle: (
+    <>
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </>
+  ),
+  // Frasco de laboratorio — para "muestras/pruebas" (feria), sin depender
+  // de un emoji.
+  flask: (
+    <>
+      <path d="M9 2v6.5L4 18a2 2 0 001.76 3h12.48A2 2 0 0020 18l-5-9.5V2" />
+      <line x1="8" y1="2" x2="16" y2="2" />
+      <line x1="7" y1="14" x2="17" y2="14" />
+    </>
   )
 };
 

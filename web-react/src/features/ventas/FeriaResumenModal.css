@@ -6,6 +6,8 @@
 .feria-section { margin-top: var(--space-5); }
 .feria-section-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
 .feria-resumen-warn {
+  display: flex; align-items: center; gap: 6px;
   margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-sm);
   background: #F59E0B18; color: #B7791F; font-size: 12px; font-weight: 600;
 }
+.feria-resumen-warn svg { flex-shrink: 0; }
