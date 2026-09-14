@@ -198,6 +198,26 @@ export function feriaHaTerminado(f) {
   return !!f.fechaFin && toISODate(new Date()) > f.fechaFin;
 }
 
+// Al crear/editar una feria solo se elige entre estas dos — "terminado"
+// nunca se guarda a mano, se calcula (ver estadoEfectivo).
+export const ESTADO_OPCIONES = [
+  { value: 'participar', label: 'Participar' },
+  { value: 'publicado', label: 'Publicado' }
+];
+
+// El estado que el usuario elige (f.estado: 'participar' | 'publicado')
+// solo pasa a "terminado" solo, sin que haga falta guardarlo, en dos casos:
+// cerrada a mano con "Terminar feria" (f.cerrada), o publicada y ya pasó su
+// fecha de fin. Una feria en "participar" que nunca se publicó NO pasa sola
+// a terminada por calendario — el usuario la cierra a mano si corresponde.
+// Datos viejos sin f.estado (o con el "disponible" que traía la app
+// vanilla, nunca usado acá) caen en "participar" por defecto.
+export function estadoEfectivo(f) {
+  if (f.cerrada) return 'terminado';
+  if (f.estado === 'publicado') return feriaHaTerminado(f) ? 'terminado' : 'publicado';
+  return 'participar';
+}
+
 export function getFeriaDefaultDay(f) {
   const dias = getFeriaDateList(f);
   if (!dias.length) return null;

@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import TextField from '../../components/ui/TextField';
+import Select from '../../components/ui/Select';
 import Textarea from '../../components/ui/Textarea';
 import ThousandsField from '../../components/ui/ThousandsField';
 import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
 import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 import { toISODate, formatThousandsValue, parseThousandsInput } from '../../utils/format';
+import { ESTADO_OPCIONES } from '../../services/feriasApi';
 import './FeriaModal.css';
 
 // Equivalente a openFeriaModal()/btnSaveFeria en ../../../ferias.js.
@@ -22,6 +24,7 @@ export default function FeriaModal({ open, onClose, editingFeria, onSave, onReab
   const [precio, setPrecio] = useState('');
   const [lugar, setLugar] = useState('');
   const [observaciones, setObservaciones] = useState('');
+  const [estado, setEstado] = useState('participar');
   const [busy, setBusy] = useState(false);
   const [feedback, showFeedback] = useFeedback();
   const initialRef = useRef({ empresa: '', lugar: '', observaciones: '' });
@@ -37,6 +40,7 @@ export default function FeriaModal({ open, onClose, editingFeria, onSave, onReab
     setPrecio(editingFeria ? formatThousandsValue(editingFeria.precio) : '');
     setLugar(l);
     setObservaciones(o);
+    setEstado(editingFeria?.estado === 'publicado' ? 'publicado' : 'participar');
     initialRef.current = { empresa: e, lugar: l, observaciones: o };
   }, [open, editingFeria]);
 
@@ -58,7 +62,8 @@ export default function FeriaModal({ open, onClose, editingFeria, onSave, onReab
       await onSave({
         empresa: empresaTrim, fechaInicio, fechaFin,
         precio: parseThousandsInput(precio) || 0,
-        lugar: lugar.trim(), observaciones: observaciones.trim()
+        lugar: lugar.trim(), observaciones: observaciones.trim(),
+        estado
       }, editingFeria?.id || null);
       onClose();
     } catch (err) {
@@ -72,6 +77,10 @@ export default function FeriaModal({ open, onClose, editingFeria, onSave, onReab
     <Modal open={open} onClose={close} showBack title={editingFeria ? 'Editar feria' : 'Nueva feria'}>
       <form onSubmit={handleSubmit}>
         <TextField label="Empresa organizadora" value={empresa} onChange={e => setEmpresa(e.target.value)} disabled={busy} autoFocus />
+        <Select
+          label="Estado" value={estado} onChange={e => setEstado(e.target.value)} disabled={busy}
+          options={ESTADO_OPCIONES}
+        />
         <div className="field-row">
           <TextField label="Fecha de inicio" type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} disabled={busy} />
           <TextField label="Fecha de fin" type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} disabled={busy} />

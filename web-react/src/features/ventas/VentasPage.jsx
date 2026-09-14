@@ -7,7 +7,7 @@ import PageHeader from '../../components/layout/PageHeader';
 import SortableGrid from '../../components/ui/SortableGrid';
 import { useVentas } from './useVentas';
 import {
-  feriaEstaEnCurso, feriaEsFutura, feriaHaTerminado
+  feriaEstaEnCurso, feriaEsFutura, estadoEfectivo
 } from '../../services/feriasApi';
 import CanalCard from './CanalCard';
 import CanalModal from './CanalModal';
@@ -44,11 +44,22 @@ export default function VentasPage({ onBack }) {
     () => vt.ferias.filter(f => f.canalId === currentCanalId),
     [vt.ferias, currentCanalId]
   );
-  const activas = useMemo(
-    () => feriasCanal.filter(f => !feriaHaTerminado(f)).slice().sort((a, b) => (a.fechaInicio || '9999').localeCompare(b.fechaInicio || '9999')),
+  // Tres bloques por estado (ver regla — el usuario los pidió en este
+  // orden), no dos como antes (activas/terminadas). "Participar" y
+  // "Publicado" ordenados por fecha más próxima primero; "Terminado" al
+  // revés, la más reciente arriba — es lo más útil para revisar qué pasó.
+  const porParticipar = useMemo(
+    () => feriasCanal.filter(f => estadoEfectivo(f) === 'participar').slice().sort((a, b) => (a.fechaInicio || '9999').localeCompare(b.fechaInicio || '9999')),
     [feriasCanal]
   );
-  const terminadas = useMemo(() => feriasCanal.filter(feriaHaTerminado), [feriasCanal]);
+  const publicados = useMemo(
+    () => feriasCanal.filter(f => estadoEfectivo(f) === 'publicado').slice().sort((a, b) => (a.fechaInicio || '9999').localeCompare(b.fechaInicio || '9999')),
+    [feriasCanal]
+  );
+  const terminados = useMemo(
+    () => feriasCanal.filter(f => estadoEfectivo(f) === 'terminado').slice().sort((a, b) => (b.fechaFin || '').localeCompare(a.fechaFin || '')),
+    [feriasCanal]
+  );
 
   const openFeria = openFeriaId ? vt.ferias.find(f => f.id === openFeriaId) : null;
 
@@ -104,21 +115,41 @@ export default function VentasPage({ onBack }) {
             <EmptyState>No hay ferias en este canal. Agrega la primera con "Nueva feria".</EmptyState>
           ) : (
             <>
-              <div className="feria-blocks-grid">
-                {activas.map((f, i) => (
-                  <FeriaBlock
-                    key={f.id} feria={f} esProxima={i === 0}
-                    onAbrir={handleAbrirFeria}
-                    onEdit={ff => setFeriaModal({ editing: ff })}
-                    onDelete={vt.deleteFeria}
-                  />
-                ))}
-              </div>
-              {!!terminadas.length && (
+              {!!porParticipar.length && (
                 <>
-                  <div className="feria-list-divider"><span>Ferias terminadas</span></div>
+                  <div className="feria-list-divider"><span>Participar</span></div>
                   <div className="feria-blocks-grid">
-                    {terminadas.map(f => (
+                    {porParticipar.map((f, i) => (
+                      <FeriaBlock
+                        key={f.id} feria={f} esProxima={i === 0}
+                        onAbrir={handleAbrirFeria}
+                        onEdit={ff => setFeriaModal({ editing: ff })}
+                        onDelete={vt.deleteFeria}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+              {!!publicados.length && (
+                <>
+                  <div className="feria-list-divider"><span>Publicados</span></div>
+                  <div className="feria-blocks-grid">
+                    {publicados.map((f, i) => (
+                      <FeriaBlock
+                        key={f.id} feria={f} esProxima={i === 0}
+                        onAbrir={handleAbrirFeria}
+                        onEdit={ff => setFeriaModal({ editing: ff })}
+                        onDelete={vt.deleteFeria}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+              {!!terminados.length && (
+                <>
+                  <div className="feria-list-divider"><span>Terminados</span></div>
+                  <div className="feria-blocks-grid">
+                    {terminados.map(f => (
                       <FeriaBlock
                         key={f.id} feria={f} esProxima={false}
                         onAbrir={handleAbrirFeria}
