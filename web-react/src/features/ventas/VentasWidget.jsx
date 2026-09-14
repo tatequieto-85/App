@@ -2,15 +2,19 @@ import { useState } from 'react';
 import Widget from '../../components/ui/Widget';
 import { useVentas } from './useVentas';
 import { useContactos } from '../contactos/useContactos';
-import { feriaEstaEnCurso, feriaEsFutura, feriaHaTerminado } from '../../services/feriasApi';
+import { feriaEstaEnCurso, feriaEsFutura, feriaHaTerminado, estadoEfectivo } from '../../services/feriasApi';
 import { fmtDayMonthSlash } from '../../utils/format';
 import FeriaCounterModal from './FeriaCounterModal';
 import FeriaStockModal from './FeriaStockModal';
 import FeriaResumenModal from './FeriaResumenModal';
 
+// Mismo criterio que VentasPage.jsx: solo una feria en Participar usa el
+// flujo de plan de stock/conteo — una Publicada (o terminada) siempre
+// muestra el resumen.
 function pickView(feria) {
-  if (feriaEstaEnCurso(feria)) return 'counter';
-  if (feriaEsFutura(feria)) return 'stock';
+  const enParticipar = estadoEfectivo(feria) === 'participar';
+  if (feriaEstaEnCurso(feria)) return enParticipar ? 'counter' : 'resumen';
+  if (feriaEsFutura(feria)) return enParticipar ? 'stock' : 'resumen';
   return 'resumen';
 }
 

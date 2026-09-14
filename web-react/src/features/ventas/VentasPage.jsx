@@ -21,13 +21,18 @@ import FeriaResumenModal from './FeriaResumenModal';
 import VentasResumenDiario from './VentasResumenDiario';
 import './VentasPage.css';
 
-// Punto de entrada único de "abrir feria" (un toque en su tarjeta): en
-// fechas de feria abre el conteo, antes de esas fechas
-// pregunta el plan de stock (total por lote), y ya pasada (o cerrada a
-// mano) muestra el resumen. Ver handleAbrirFeria() en ../../../ferias.js.
+// Punto de entrada único de "abrir feria" (un toque en su tarjeta) — ahora
+// depende del estado (Participar/Publicado), no solo del calendario, a
+// pedido del usuario: una feria en Participar sigue usando el flujo de
+// antes (plan de stock antes de sus fechas, conteo de personas/ventas
+// durante); una en Publicado (o ya terminada) siempre muestra el resumen,
+// esté en curso o no — ya no se le pide plan de stock ni se le abre el
+// conteo. Ver handleAbrirFeria() en ../../../ferias.js para el original
+// (puramente por calendario, sin estado).
 function pickView(feria) {
-  if (feriaEstaEnCurso(feria)) return 'counter';
-  if (feriaEsFutura(feria)) return 'stock';
+  const enParticipar = estadoEfectivo(feria) === 'participar';
+  if (feriaEstaEnCurso(feria)) return enParticipar ? 'counter' : 'resumen';
+  if (feriaEsFutura(feria)) return enParticipar ? 'stock' : 'resumen';
   return 'resumen';
 }
 
