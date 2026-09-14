@@ -8,7 +8,7 @@ import ContactoDetailModal from './ContactoDetailModal';
 // los que tienen uno cargado. Un toque abre su detalle directo — no pasa
 // por la lista de Contactos.
 export default function ContactosWidget({ removing, onRequestRemove, onConfirmRemove }) {
-  const { contactos, loading, relacionesDe, addObservacion } = useContactos();
+  const { contactos, loading, relacionesDe, addObservacion, addTarea, toggleTarea, deleteTarea } = useContactos();
   const [detailOpen, setDetailOpen] = useState(false);
 
   const proximo = proximoCumpleanos(contactos);
@@ -41,6 +41,9 @@ export default function ContactosWidget({ removing, onRequestRemove, onConfirmRe
           contacto={proximo.contacto}
           vinculos={relacionesDe(proximo.contacto.id)}
           onAddObservacion={addObservacion}
+          onAddTarea={addTarea}
+          onToggleTarea={toggleTarea}
+          onDeleteTarea={deleteTarea}
         />
       )}
     </>

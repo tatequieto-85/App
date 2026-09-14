@@ -22,7 +22,8 @@ function matchesSearch(c, query) {
 export default function ContactosPage({ onBack }) {
   const {
     contactos, loading, error, empresas, ciudades, categorias,
-    relacionesDe, saveContacto, deleteContacto, addRelacion, removeRelacion, addObservacion
+    relacionesDe, saveContacto, deleteContacto, addRelacion, removeRelacion, addObservacion,
+    addTarea, toggleTarea, deleteTarea
   } = useContactos();
 
   const [search, setSearch] = useState('');
@@ -98,6 +99,9 @@ export default function ContactosPage({ onBack }) {
         contacto={detailContacto}
         vinculos={detailContacto ? relacionesDe(detailContacto.id) : []}
         onAddObservacion={addObservacion}
+        onAddTarea={addTarea}
+        onToggleTarea={toggleTarea}
+        onDeleteTarea={deleteTarea}
       />
 
       <FabButton onClick={() => setModalState({ editing: null })}>

@@ -67,6 +67,27 @@ export function useContactos() {
     await reload();
   }, [reload]);
 
+  const addTarea = useCallback(async (contacto, texto, fecha) => {
+    const tareas = [
+      ...(contacto.tareas || []),
+      { id: crypto.randomUUID(), texto, fecha: fecha || '', hecha: false, createdAt: new Date().toISOString() }
+    ];
+    await api.setTareas(contacto, tareas);
+    await reload();
+  }, [reload]);
+
+  const toggleTarea = useCallback(async (contacto, tareaId) => {
+    const tareas = (contacto.tareas || []).map(t => t.id === tareaId ? { ...t, hecha: !t.hecha } : t);
+    await api.setTareas(contacto, tareas);
+    await reload();
+  }, [reload]);
+
+  const deleteTarea = useCallback(async (contacto, tareaId) => {
+    const tareas = (contacto.tareas || []).filter(t => t.id !== tareaId);
+    await api.setTareas(contacto, tareas);
+    await reload();
+  }, [reload]);
+
   const relacionesDe = useCallback(
     contactoId => api.relacionesDe(contactos, relaciones, contactoId),
     [contactos, relaciones]
@@ -79,6 +100,7 @@ export function useContactos() {
   return {
     contactos, relaciones, loading, error,
     empresas, ciudades, categorias,
-    relacionesDe, saveContacto, deleteContacto, addRelacion, removeRelacion, addObservacion
+    relacionesDe, saveContacto, deleteContacto, addRelacion, removeRelacion, addObservacion,
+    addTarea, toggleTarea, deleteTarea
   };
 }
