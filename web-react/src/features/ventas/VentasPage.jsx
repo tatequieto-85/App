@@ -72,10 +72,6 @@ export default function VentasPage({ onBack }) {
     >
       <PageHeader title={canal ? canal.nombre : 'Ventas'} onBack={canal ? () => setCurrentCanalId(null) : onBack} />
 
-      {/* Cruza ventas de TODOS los canales — no tiene sentido una vez
-          adentro de uno solo, donde "por canal" deja de variar. */}
-      {!canal && !vt.loading && !vt.error && <VentasResumenDiario filas={vt.resumenVentasPorDia} />}
-
       {/* Sin caja blanca contenedora, a pedido del usuario — el submenú de
           canales va directo sobre el fondo de la página, igual que el grid
           de Módulos en Home (que tampoco vive dentro de un <Card>). */}
@@ -137,6 +133,12 @@ export default function VentasPage({ onBack }) {
           )
         )}
       </div>
+
+      {/* Cruza ventas de TODOS los canales — no tiene sentido una vez
+          adentro de uno solo, donde "por canal" deja de variar. Siempre
+          debajo de las subcategorías (canales) creadas, a pedido del
+          usuario — no arriba. */}
+      {!canal && !vt.loading && !vt.error && <VentasResumenDiario filas={vt.resumenVentasPorDia} />}
 
       {!canal ? (
         <FabButton onClick={() => setCanalModal({ editing: null })}>
