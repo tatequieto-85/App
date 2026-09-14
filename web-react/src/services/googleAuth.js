@@ -6,8 +6,17 @@ const CLIENT_ID = import.meta.env.VITE_CLIENT_ID;
 const SHEET_ID  = import.meta.env.VITE_SHEET_ID;
 const SCOPES    = import.meta.env.VITE_SCOPES;
 
-const TOKEN_KEY  = 'ss_react_token';
-const EXPIRY_KEY = 'ss_react_tokenExpiry';
+const TOKEN_KEY          = 'ss_react_token';
+const EXPIRY_KEY         = 'ss_react_tokenExpiry';
+// A diferencia de TOKEN_KEY/EXPIRY_KEY (que quedan viejos apenas el token
+// vence), esta marca queda para siempre una vez que el usuario dio permiso
+// la primera vez — sirve para distinguir "nunca inició sesión" (hace falta
+// la pantalla de consentimiento completa) de "la sesión venció, pero ya
+// había dado permiso antes" (alcanza con un `prompt:''` silencioso, sin
+// mostrarle nada). Antes esas dos situaciones se trataban igual y el
+// usuario tenía que volver a aceptar el permiso cada vez que pasaba más de
+// ~1h sin usar la app — ver ensureToken()/signIn().
+const EVER_SIGNED_IN_KEY = 'ss_react_everSignedIn';
 
 let accessToken = null;
 let tokenExpiry  = null;
@@ -18,6 +27,11 @@ function saveToken(token, expiresIn) {
   tokenExpiry = Date.now() + expiresIn * 1000;
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(EXPIRY_KEY, String(tokenExpiry));
+  localStorage.setItem(EVER_SIGNED_IN_KEY, '1');
+}
+
+export function hasSignedInBefore() {
+  return localStorage.getItem(EVER_SIGNED_IN_KEY) === '1';
 }
 
 function loadSavedToken() {
@@ -45,7 +59,10 @@ export function isSignedIn() {
   return loadSavedToken();
 }
 
-export function signIn() {
+// `silent`: fuerza prompt:'' aunque nunca se haya guardado la marca de
+// "ya dio permiso" (la usa refreshIfNeeded() para reintentar en segundo
+// plano sin arriesgarse a disparar el diálogo completo de consentimiento).
+export function signIn({ silent } = {}) {
   return new Promise((resolve, reject) => {
     const client = initTokenClient();
     client.callback = resp => {
@@ -53,7 +70,8 @@ export function signIn() {
       saveToken(resp.access_token, resp.expires_in);
       resolve();
     };
-    client.requestAccessToken({ prompt: loadSavedToken() ? '' : 'consent' });
+    const puedeSerSilencioso = silent || loadSavedToken() || hasSignedInBefore();
+    client.requestAccessToken({ prompt: puedeSerSilencioso ? '' : 'consent' });
   });
 }
 
@@ -62,12 +80,26 @@ export function signOut() {
   accessToken = null;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(EXPIRY_KEY);
+  localStorage.removeItem(EVER_SIGNED_IN_KEY);
 }
 
 async function ensureToken() {
   if (accessToken && Date.now() < tokenExpiry - 60000) return;
   if (loadSavedToken()) return;
   await signIn();
+}
+
+// Renueva el token ANTES de que venza, mientras la pestaña sigue abierta —
+// ver useAuth.js, que llama a esto cada pocos minutos. Como ya dio permiso
+// antes, esto se resuelve solo (prompt:'' ) sin mostrarle nada al usuario
+// en la gran mayoría de los casos; si el navegador bloquea el renovado
+// silencioso (cookies de terceros restringidas, etc.) esto simplemente
+// falla en silencio y el próximo pedido real lo va a pedir de nuevo por el
+// camino normal de ensureToken().
+export async function refreshIfNeeded() {
+  if (accessToken && Date.now() < tokenExpiry - 5 * 60 * 1000) return;
+  if (!hasSignedInBefore()) return;
+  await signIn({ silent: true }).catch(() => {});
 }
 
 const SHEETS_BASE = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`;
