@@ -1,5 +1,8 @@
 /* Dos por fila, a pedido del usuario (antes una por fila, ancho completo). */
-.feria-blocks-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.feria-blocks-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; min-height: 10px; border-radius: var(--radius); transition: background .12s; }
+/* Resaltado mientras se arrastra una feria encima (Participar <-> Publicado). */
+.feria-blocks-grid--over { background: var(--brand-light, rgba(113,75,103,.08)); outline: 1.5px dashed var(--brand); outline-offset: 4px; }
+.feria-blocks-empty { grid-column: 1 / -1; text-align: center; color: var(--text-sub); font-size: 12px; padding: 14px 0; }
 
 /* Borde/fondo van en el wrap (no en .feria-block) para que la barra de
    Editar/Eliminar (mantener presionado) quede anclada DENTRO del recuadro

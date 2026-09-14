@@ -193,6 +193,15 @@ export function useVentas() {
     await reloadFerias();
   }, [ferias, reloadFerias]);
 
+  // Arrastrar una feria de un bloque a otro (Participar/Publicado) para
+  // cambiar su estado — las terminadas quedan afuera, ver VentasPage.
+  const cambiarEstadoFeria = useCallback(async (feriaId, nuevoEstado) => {
+    const f = ferias.find(x => x.id === feriaId);
+    if (!f) return;
+    await feriasApi.updateFeria({ ...f, estado: nuevoEstado });
+    await reloadFerias();
+  }, [ferias, reloadFerias]);
+
   const saveStockPlan = useCallback(async (feriaId, planStock) => {
     const f = ferias.find(x => x.id === feriaId);
     if (!f) return;
@@ -265,7 +274,7 @@ export function useVentas() {
     canales, ferias, ejecuciones, stockTestigos, stockMovimientos, ctx, loading, error,
     resumenVentasPorDia,
     saveCanal, deleteCanal, reorderCanales,
-    saveFeria, deleteFeria, reabrirFeria, terminarFeria,
+    saveFeria, deleteFeria, reabrirFeria, terminarFeria, cambiarEstadoFeria,
     saveStockPlan, registrarSalida, addObservacionDiaria, commitConteoSession
   };
 }

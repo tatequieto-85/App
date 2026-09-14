@@ -13,6 +13,7 @@ import {
 import CanalCard from './CanalCard';
 import CanalModal from './CanalModal';
 import FeriaBlock from './FeriaBlock';
+import { FeriaEstadoDndContext, FeriaEstadoDropZone, FeriaDraggable } from './FeriaEstadoDnd';
 import FeriaModal from './FeriaModal';
 import FeriaStockModal from './FeriaStockModal';
 import FeriaCounterModal from './FeriaCounterModal';
@@ -121,36 +122,41 @@ export default function VentasPage({ onBack }) {
             <EmptyState>No hay ferias en este canal. Agrega la primera con "Nueva feria".</EmptyState>
           ) : (
             <>
-              {!!porParticipar.length && (
-                <>
-                  <div className="feria-list-divider"><span>Participar</span></div>
-                  <div className="feria-blocks-grid">
-                    {porParticipar.map((f, i) => (
+              {/* Participar/Publicado se arrastran entre sí para cambiar el
+                  estado de una feria (a pedido del usuario) — por eso ambos
+                  bloques se muestran siempre, aunque estén vacíos, para
+                  tener dónde soltar. Terminados queda afuera del todo. */}
+              <FeriaEstadoDndContext onCambiarEstado={vt.cambiarEstadoFeria}>
+                <div className="feria-list-divider"><span>Participar</span></div>
+                <FeriaEstadoDropZone id="participar" className="feria-blocks-grid">
+                  {!porParticipar.length && <div className="feria-blocks-empty">Sin ferias</div>}
+                  {porParticipar.map((f, i) => (
+                    <FeriaDraggable key={f.id} id={f.id}>
                       <FeriaBlock
-                        key={f.id} feria={f} esProxima={i === 0} contactoNombre={contactoNombre(f)}
+                        feria={f} esProxima={i === 0} contactoNombre={contactoNombre(f)}
                         onAbrir={handleAbrirFeria}
                         onEdit={ff => setFeriaModal({ editing: ff })}
                         onDelete={vt.deleteFeria}
                       />
-                    ))}
-                  </div>
-                </>
-              )}
-              {!!publicados.length && (
-                <>
-                  <div className="feria-list-divider"><span>Publicados</span></div>
-                  <div className="feria-blocks-grid">
-                    {publicados.map((f, i) => (
+                    </FeriaDraggable>
+                  ))}
+                </FeriaEstadoDropZone>
+
+                <div className="feria-list-divider"><span>Publicados</span></div>
+                <FeriaEstadoDropZone id="publicado" className="feria-blocks-grid">
+                  {!publicados.length && <div className="feria-blocks-empty">Sin ferias</div>}
+                  {publicados.map((f, i) => (
+                    <FeriaDraggable key={f.id} id={f.id}>
                       <FeriaBlock
-                        key={f.id} feria={f} esProxima={i === 0} contactoNombre={contactoNombre(f)}
+                        feria={f} esProxima={i === 0} contactoNombre={contactoNombre(f)}
                         onAbrir={handleAbrirFeria}
                         onEdit={ff => setFeriaModal({ editing: ff })}
                         onDelete={vt.deleteFeria}
                       />
-                    ))}
-                  </div>
-                </>
-              )}
+                    </FeriaDraggable>
+                  ))}
+                </FeriaEstadoDropZone>
+              </FeriaEstadoDndContext>
               {!!terminados.length && (
                 <>
                   <div className="feria-list-divider"><span>Terminados</span></div>
