@@ -16,12 +16,12 @@ import './ContactoCard.css';
 // cualquier campo que matchee alcanza.
 function matchesSearch(c, query) {
   if (!query) return true;
-  return [c.nombre, c.empresa, c.posicion, c.telefono].some(campo => (campo || '').toLowerCase().includes(query));
+  return [c.nombre, c.empresa, c.posicion, c.telefono, c.sector].some(campo => (campo || '').toLowerCase().includes(query));
 }
 
 export default function ContactosPage({ onBack }) {
   const {
-    contactos, loading, error, empresas, ciudades, categorias,
+    contactos, loading, error, empresas, ciudades, sectores, categorias,
     relacionesDe, saveContacto, deleteContacto, addRelacion, removeRelacion, addObservacion
   } = useContactos();
 
@@ -84,6 +84,7 @@ export default function ContactosPage({ onBack }) {
         editingContacto={editingContacto}
         empresas={empresas}
         ciudades={ciudades}
+        sectores={sectores}
         categorias={categorias}
         vinculos={editingContacto ? relacionesDe(editingContacto.id) : []}
         otrosContactos={editingContacto ? contactos.filter(c => c.id !== editingContacto.id) : []}

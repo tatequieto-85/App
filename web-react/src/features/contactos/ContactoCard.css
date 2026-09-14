@@ -24,3 +24,24 @@
   position: absolute; left: 0; right: 0; bottom: 0;
   border-top: 1px solid var(--border);
 }
+
+/* Sin teléfono (y por lo tanto sin WhatsApp) — mismo tamaño y forma, solo
+   un gris apenas distinto al blanco de las demás tarjetas para poder
+   distinguirlas de un vistazo en la grilla. */
+.contacto-card-wrap--sin-telefono { background: var(--gray-100); }
+
+/* Botón muy sutil a propósito: chico, gris hasta que se lo toca/pasa el
+   mouse, recién ahí toma el verde de WhatsApp — no compite visualmente con
+   el nombre/empresa de la tarjeta. stopPropagation en el onClick evita que
+   dispare también el toque de "abrir detalle" de la tarjeta entera. */
+.contacto-card-whatsapp {
+  position: absolute; right: 8px; bottom: 8px;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--gray-400); background: var(--surface);
+  border: 1px solid var(--border);
+  transition: color .15s, border-color .15s, background .15s;
+}
+.contacto-card-whatsapp:hover, .contacto-card-whatsapp:active {
+  color: #25D366; border-color: #25D36655; background: #25D36614;
+}

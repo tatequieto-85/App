@@ -8,14 +8,14 @@ import { useFeedback } from '../../hooks/useFeedback';
 import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 import './ContactoModal.css';
 
-const emptyForm = { nombre: '', cumpleanos: '', edadIngreso: '', empresa: '', posicion: '', telefono: '', ciudad: '' };
+const emptyForm = { nombre: '', cumpleanos: '', edadIngreso: '', empresa: '', posicion: '', telefono: '', ciudad: '', sector: '' };
 
 // Equivalente a openContactoModal()/openEditContactoModal() en
 // ../../../contactos.js: un solo modal, editingContacto null = crear. Los
 // vínculos solo se pueden agregar editando un contacto ya guardado (ver
 // contactoAgregarVinculoSection.hidden en el original).
 export default function ContactoModal({
-  open, onClose, editingContacto, empresas, ciudades, categorias,
+  open, onClose, editingContacto, empresas, ciudades, sectores, categorias,
   vinculos, otrosContactos, onSave, onAddRelacion, onRemoveRelacion
 }) {
   const [form, setForm] = useState(emptyForm);
@@ -36,7 +36,8 @@ export default function ContactoModal({
         empresa: editingContacto.empresa,
         posicion: editingContacto.posicion,
         telefono: editingContacto.telefono,
-        ciudad: editingContacto.ciudad
+        ciudad: editingContacto.ciudad,
+        sector: editingContacto.sector || ''
       });
     } else {
       setForm(emptyForm);
@@ -67,7 +68,8 @@ export default function ContactoModal({
         empresa: form.empresa.trim(),
         posicion: form.posicion.trim(),
         telefono: form.telefono.trim(),
-        ciudad: form.ciudad.trim()
+        ciudad: form.ciudad.trim(),
+        sector: form.sector.trim()
       }, editingContacto?.id || null);
       onClose();
     } catch (err) {
@@ -109,11 +111,13 @@ export default function ContactoModal({
           <TextField label="Posición" value={form.posicion} onChange={setField('posicion')} disabled={busy} />
         </div>
         <div className="field-row">
-          <TextField label="Teléfono" value={form.telefono} onChange={setField('telefono')} disabled={busy} />
+          <TextField label="Sector" list="contactoSectorList" value={form.sector} onChange={setField('sector')} disabled={busy} />
           <TextField label="Ciudad" list="contactoCiudadList" value={form.ciudad} onChange={setField('ciudad')} disabled={busy} />
         </div>
+        <TextField label="Teléfono" value={form.telefono} onChange={setField('telefono')} disabled={busy} />
         <datalist id="contactoEmpresaList">{empresas.map(v => <option key={v} value={v} />)}</datalist>
         <datalist id="contactoCiudadList">{ciudades.map(v => <option key={v} value={v} />)}</datalist>
+        <datalist id="contactoSectorList">{sectores.map(v => <option key={v} value={v} />)}</datalist>
 
         <Button type="submit" variant="primary" disabled={busy}>
           {busy ? 'Guardando…' : (editingContacto ? 'Guardar cambios' : 'Guardar contacto')}

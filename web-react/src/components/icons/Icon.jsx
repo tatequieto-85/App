@@ -73,6 +73,9 @@ const PATHS = {
   ),
   flag: <path d="M4 22V4a1 1 0 011-1h11l-1.5 4L16 11H5" />,
   minus: <line x1="5" y1="12" x2="19" y2="12" />,
+  // Burbuja de chat, no el logo exacto — junto al teléfono y en verde
+  // WhatsApp (#25D366) ya se entiende sin reproducir la marca registrada.
+  whatsapp: <path d="M21 11.5a8.38 8.38 0 01-9.5 8.31A8.5 8.5 0 013 21l1.35-4.06a8.38 8.38 0 01-.91-3.94 8.5 8.5 0 1117.56-1.5z" />,
 
   // Catálogo amplio para que el usuario elija el ícono de un canal de venta
   // (o cualquier otra cosa creada a mano) sin depender de emojis — ver

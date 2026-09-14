@@ -30,11 +30,18 @@ export async function ensureContactosSheets() {
     await sheetsReq(':batchUpdate', { method: 'POST', body: JSON.stringify({ requests: reqs }) });
   }
 
-  const cd = await sheetsReq('/values/Contactos!A1:K1').catch(() => ({}));
-  if (!cd.values) {
+  const cd = await sheetsReq('/values/Contactos!A1:L1').catch(() => ({}));
+  const headerRow = (cd.values || [])[0] || [];
+  if (!headerRow.length) {
     await sheetsReq('/values/Contactos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID', 'Nombre', 'Cumpleanos', 'EdadIngreso', 'FechaIngreso', 'Observaciones', 'CreadoEn', 'Empresa', 'Posicion', 'Telefono', 'Ciudad']] })
+      body: JSON.stringify({ values: [['ID', 'Nombre', 'Cumpleanos', 'EdadIngreso', 'FechaIngreso', 'Observaciones', 'CreadoEn', 'Empresa', 'Posicion', 'Telefono', 'Ciudad', 'Sector']] })
+    });
+  } else if (headerRow.length < 12) {
+    // Columna Sector agregada después — hojas ya existentes solo tienen A:K.
+    await sheetsReq('/values/Contactos!L1?valueInputOption=RAW', {
+      method: 'PUT',
+      body: JSON.stringify({ values: [['Sector']] })
     });
   }
 
@@ -48,7 +55,7 @@ export async function ensureContactosSheets() {
 }
 
 export async function fetchContactos() {
-  const data = await sheetsReq('/values/Contactos!A:K');
+  const data = await sheetsReq('/values/Contactos!A:L');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
     id:            r[0] || '',
@@ -62,6 +69,7 @@ export async function fetchContactos() {
     posicion:      r[8] || '',
     telefono:      r[9] || '',
     ciudad:        r[10] || '',
+    sector:        r[11] || '',
     rowIndex:      i + 2
   })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 }
@@ -82,21 +90,21 @@ export async function fetchRelaciones() {
 }
 
 export async function appendContacto(c) {
-  await sheetsReq('/values/Contactos!A:K:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Contactos!A:L:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       crypto.randomUUID(), c.nombre, c.cumpleanos, c.edadIngreso ?? '', new Date().toISOString(),
-      '[]', new Date().toISOString(), c.empresa || '', c.posicion || '', c.telefono || '', c.ciudad || ''
+      '[]', new Date().toISOString(), c.empresa || '', c.posicion || '', c.telefono || '', c.ciudad || '', c.sector || ''
     ]] })
   });
 }
 
 export async function updateContacto(c) {
-  await sheetsReq(`/values/Contactos!B${c.rowIndex}:K${c.rowIndex}?valueInputOption=USER_ENTERED`, {
+  await sheetsReq(`/values/Contactos!B${c.rowIndex}:L${c.rowIndex}?valueInputOption=USER_ENTERED`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
       c.nombre, c.cumpleanos, c.edadIngreso ?? '', c.fechaIngreso, JSON.stringify(c.observaciones || []),
-      c.creadoEn, c.empresa || '', c.posicion || '', c.telefono || '', c.ciudad || ''
+      c.creadoEn, c.empresa || '', c.posicion || '', c.telefono || '', c.ciudad || '', c.sector || ''
     ]] })
   });
 }
@@ -165,6 +173,16 @@ export function fmtCumpleanos(mmdd) {
   const [mes, dia] = mmdd.split('-');
   const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
   return `${+dia} ${meses[+mes - 1] || ''}`;
+}
+
+// Link de wa.me a partir del teléfono guardado — este se carga siempre en
+// formato local colombiano (10 dígitos, sin +57), así que se le antepone el
+// código de país solo si el número no lo trae ya. null si no hay teléfono.
+export function waLink(telefono) {
+  const digits = (telefono || '').replace(/\D/g, '');
+  if (!digits) return null;
+  const conCodigo = digits.length <= 10 ? '57' + digits : digits;
+  return `https://wa.me/${conCodigo}`;
 }
 
 const DEFAULT_CATEGORIAS = ['Amigos', 'Familia'];

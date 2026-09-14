@@ -74,11 +74,12 @@ export function useContactos() {
 
   const empresas = [...new Set(contactos.map(c => c.empresa).filter(Boolean))].sort();
   const ciudades = [...new Set(contactos.map(c => c.ciudad).filter(Boolean))].sort();
+  const sectores = [...new Set(contactos.map(c => c.sector).filter(Boolean))].sort();
   const categorias = api.categoriasDeRelacion(relaciones);
 
   return {
     contactos, relaciones, loading, error,
-    empresas, ciudades, categorias,
+    empresas, ciudades, sectores, categorias,
     relacionesDe, saveContacto, deleteContacto, addRelacion, removeRelacion, addObservacion
   };
 }
