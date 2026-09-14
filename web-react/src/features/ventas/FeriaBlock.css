@@ -1,17 +1,28 @@
 /* Dos por fila, a pedido del usuario (antes una por fila, ancho completo). */
 .feria-blocks-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 
-.feria-block-wrap { position: relative; height: 100%; }
+/* Borde/fondo van en el wrap (no en .feria-block) para que la barra de
+   Editar/Eliminar (mantener presionado) quede anclada DENTRO del recuadro
+   en vez de aparecer como una fila suelta debajo — mismo patrón que
+   ContactoCard. */
+.feria-block-wrap {
+  position: relative; height: 100%; overflow: hidden;
+  border: 1.5px solid var(--border); border-radius: var(--radius);
+  background: var(--surface);
+}
+.feria-block-wrap--proxima { border-color: var(--brand); }
 
 .feria-block {
   height: 100%; box-sizing: border-box;
-  border: 1.5px solid var(--border); border-radius: var(--radius);
-  padding: 12px 14px; background: var(--surface);
+  padding: 12px 14px;
   cursor: pointer; user-select: none; -webkit-user-select: none;
   display: flex; flex-direction: column; gap: 8px;
 }
 .feria-block--terminada { opacity: .6; }
-.feria-block--proxima { border-color: var(--brand); }
+
+.feria-block-actions { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface); }
+
+.feria-block-precio { font-size: 11.5px; font-weight: 700; color: var(--brand); }
 
 /* Título y fechas apilados (no lado a lado) — con dos tarjetas por fila no
    entran cómodo en la misma línea. */

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRowGestures } from '../../hooks/useRowGestures';
 import { feriaConteoTotal, feriaTotalLlevados, feriaTotalVendidos, feriaHaTerminado } from '../../services/feriasApi';
-import { parseISODate } from '../../utils/format';
+import { parseISODate, fmtCOP } from '../../utils/format';
 import './FeriaBlock.css';
 
 function fmtDayMonth(iso) {
@@ -39,9 +39,9 @@ export default function FeriaBlock({ feria, esProxima, contactoNombre, onAbrir, 
   }
 
   return (
-    <div className="feria-block-wrap">
+    <div className={`feria-block-wrap${esProxima ? ' feria-block-wrap--proxima' : ''}`}>
       <div
-        className={`feria-block${terminada ? ' feria-block--terminada' : ''}${esProxima ? ' feria-block--proxima' : ''}`}
+        className={`feria-block${terminada ? ' feria-block--terminada' : ''}`}
         {...gestureProps}
       >
         <div className="feria-block-row1">
@@ -57,9 +57,10 @@ export default function FeriaBlock({ feria, esProxima, contactoNombre, onAbrir, 
           <span>👥 {feriaConteoTotal(feria)}</span>
           <span>🛒 {feriaTotalVendidos(feria)}</span>
         </div>
+        {feria.precio > 0 && <div className="feria-block-precio">💰 {fmtCOP(feria.precio)}</div>}
       </div>
       {actionsOpen && (
-        <div className="row-actions-bar">
+        <div className="row-actions-bar feria-block-actions">
           <button type="button" onClick={() => { setActionsOpen(false); onEdit(feria); }}>Editar</button>
           <button type="button" className="danger" disabled={busy} onClick={handleDelete}>Eliminar</button>
         </div>
