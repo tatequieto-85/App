@@ -60,7 +60,7 @@ export default function FeriaBlock({ feria, esProxima, contactoNombre, onAbrir, 
         )}
         <div className="feria-block-title">{feria.empresa}</div>
         {contactoNombre && (
-          <div className="feria-block-meta"><Icon name="user" size={12} />{contactoNombre}</div>
+          <div className="feria-block-meta feria-block-meta--contacto"><Icon name="user" size={12} />{contactoNombre}</div>
         )}
         <div className="feria-block-stats">
           <span><Icon name="cart" size={13} />{feriaTotalVendidos(feria)}</span>

@@ -38,6 +38,10 @@
 .feria-block-meta svg, .feria-block-row svg { flex-shrink: 0; }
 .feria-block-row--lugar { font-weight: 700; color: var(--text); }
 .feria-block-row--precio { font-weight: 700; color: var(--brand); }
+/* Persona (contacto) con la misma tipografía que Empresa — a pedido del
+   usuario, que notó que se veían distintos (Persona heredaba el estilo
+   más chico/gris de .feria-block-meta). */
+.feria-block-meta--contacto { font-size: 13.5px; font-weight: 400; color: var(--text); }
 
 .feria-block-stats { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--text); margin-top: 2px; }
 .feria-block-stats span { display: flex; align-items: center; gap: 4px; }
