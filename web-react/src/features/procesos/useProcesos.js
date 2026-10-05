@@ -189,11 +189,21 @@ export function useProcesos() {
     return updated;
   }, []);
 
+  // Frascos producidos — campo simple (sin desglose por tamaño), a pedido
+  // del usuario. Vive en evaluacion.frascosProducidos; getStockProducido
+  // (ejecucionesApi.js) ya lo suma para que Stock/Ventas vean el producto
+  // terminado de este lote.
+  const updateFrascosEjecucion = useCallback(async (ejecucion, frascosProducidos) => {
+    const updated = { ...ejecucion, evaluacion: { ...(ejecucion.evaluacion || {}), frascosProducidos } };
+    await ejecucionesApi.updateEjecucion(updated);
+    return updated;
+  }, []);
+
   return {
     recetaBlocks, recetas, compras, loading, error,
     saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups,
     saveReceta, deleteReceta, duplicateReceta,
     empezarProduccion, addObservacionEjecucion,
-    addInsumoEjecucion, removeInsumoEjecucion, updatePHEjecucion
+    addInsumoEjecucion, removeInsumoEjecucion, updatePHEjecucion, updateFrascosEjecucion
   };
 }

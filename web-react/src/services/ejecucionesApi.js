@@ -108,12 +108,17 @@ export function generateLoteId(nombreReceta) {
 }
 
 // Suma de frascos producidos para una receta — la usan tanto Ferias como
-// Stock para calcular disponibilidad.
+// Stock para calcular disponibilidad. `frascos230`/`frascos180` es el
+// desglose por tamaño que ya usaba la evaluación completa de la app
+// vanilla (todavía sin migrar); `frascosProducidos` es el campo simple
+// (sin desglose por tamaño) que se carga desde el cuadro de producción en
+// React — se suman los tres para no perder ninguno según de dónde venga
+// el dato.
 export function getStockProducido(ejecuciones, recetaId) {
   return ejecuciones
     .filter(ej => ej.recetaId === recetaId)
     .reduce((sum, ej) => {
       const ev = ej.evaluacion || {};
-      return sum + (ev.frascos230 || 0) + (ev.frascos180 || 0);
+      return sum + (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascosProducidos || 0);
     }, 0);
 }

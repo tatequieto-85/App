@@ -1,14 +1,18 @@
 /* El "cuadro" en sí, a pedido explícito del usuario — fondo+borde propios
    para distinguirlo claramente de las secciones de solo lectura (Ingredientes/
-   Etapas) de arriba. */
+   Etapas) de arriba. Espaciado reducido a propósito (el usuario reportó
+   "mucho espacio innecesario" en la primera versión): los campos/labels de
+   acá pisan los márgenes por defecto de .field-label y .receta-detail-section. */
 .ejecucion-produccion-box {
   border: 1.5px solid var(--brand); border-radius: var(--radius);
   background: var(--brand-light, rgba(113,75,103,.05));
-  padding: 14px;
+  padding: 12px 14px;
 }
+.ejecucion-produccion-box .field-label { margin-top: 10px; }
+.ejecucion-produccion-box .field-row .field-label { margin-top: 8px; }
 
 .ejecucion-produccion-subtitle {
   font-size: 11px; font-weight: 700; color: var(--text-sub);
   text-transform: uppercase; letter-spacing: .06em;
-  margin: var(--space-5) 0 6px;
+  margin: 14px 0 4px;
 }

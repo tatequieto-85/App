@@ -127,6 +127,7 @@ export default function ProcesosPage({ onBack }) {
         onAddInsumo={pr.addInsumoEjecucion}
         onRemoveInsumo={pr.removeInsumoEjecucion}
         onChangePH={pr.updatePHEjecucion}
+        onChangeFrascos={pr.updateFrascosEjecucion}
       />
     </motion.div>
   );

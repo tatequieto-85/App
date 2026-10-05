@@ -1,6 +1,6 @@
 .ejecucion-obs-list {
   max-height: 220px; overflow-y: auto;
-  margin: 10px 0;
+  margin: 4px 0 8px;
 }
 .ejecucion-obs-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .ejecucion-obs-item:last-child { border-bottom: none; }
@@ -9,4 +9,5 @@
 
 .ejecucion-obs-form { display: flex; gap: 8px; align-items: flex-start; }
 .ejecucion-obs-form .field { flex: 1; }
-.ejecucion-obs-form .btn--outline { width: auto; flex-shrink: 0; margin-top: var(--space-4); }
+.ejecucion-obs-form .field-label { margin-top: 0; }
+.ejecucion-obs-form .btn--outline { width: auto; flex-shrink: 0; }

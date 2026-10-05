@@ -1,4 +1,6 @@
-.ejecucion-insumos-list { margin: 10px 0; }
+.ejecucion-insumos-list { margin: 4px 0 8px; }
+.ejecucion-insumos-form .field-label { margin-top: 8px; }
+.ejecucion-insumos-form .field-row .field-label { margin-top: 6px; }
 .ejecucion-insumo-row {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 0; border-bottom: 1px solid var(--border);
