@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as recetasApi from '../../services/recetasApi';
 import { fetchCompras } from '../../services/comprasApi';
+import * as ejecucionesApi from '../../services/ejecucionesApi';
+import { todayISOBogota } from '../../utils/format';
 
 // Toda la lógica de negocio de Procesos (solo Recetas por ahora — ver
 // memoria del piloto sobre el alcance de esta primera pasada) vive acá,
@@ -26,7 +28,7 @@ export function useProcesos() {
     (async () => {
       try {
         setLoading(true);
-        await recetasApi.ensureRecetasSheets();
+        await Promise.all([recetasApi.ensureRecetasSheets(), ejecucionesApi.ensureEjecucionesSheet()]);
         const [blocks, recs, comprs] = await Promise.all([recetasApi.fetchRecetaBlocks(), recetasApi.fetchRecetas(), fetchCompras()]);
         if (cancelled) return;
         setRecetaBlocks(blocks);
@@ -123,9 +125,46 @@ export function useProcesos() {
     await reloadRecetas();
   }, [reloadRecetas]);
 
+  // ── Producción (arranque mínimo de un lote) ───────────────────────────
+  // A pedido del usuario: "Empezar producción" en el detalle de una receta
+  // crea un lote (RecetasEjecuciones) y abre una ventana de Observaciones
+  // donde se van agregando filas libremente. El cronómetro por etapa, la
+  // confirmación de insumos y la evaluación final todavía NO se migran —
+  // ver memoria del piloto — esto es solo el punto de partida del lote.
+
+  const empezarProduccion = useCallback(async receta => {
+    const nuevaEjecucion = {
+      id: crypto.randomUUID(),
+      recetaId: receta.id,
+      nombreReceta: receta.nombre,
+      loteId: ejecucionesApi.generateLoteId(receta.nombre),
+      fechaInicio: todayISOBogota(),
+      fechaFin: '',
+      estado: 'En progreso',
+      duracionTotal: '',
+      etapasData: [],
+      evaluacion: {},
+      creadoEn: new Date().toISOString(),
+      observations: []
+    };
+    await ejecucionesApi.appendEjecucion(nuevaEjecucion);
+    const lista = await ejecucionesApi.fetchEjecuciones();
+    return lista.find(e => e.id === nuevaEjecucion.id) || nuevaEjecucion;
+  }, []);
+
+  const addObservacionEjecucion = useCallback(async (ejecucion, text) => {
+    const updated = {
+      ...ejecucion,
+      observations: [...(ejecucion.observations || []), { text, createdAt: new Date().toISOString() }]
+    };
+    await ejecucionesApi.updateEjecucion(updated);
+    return updated;
+  }, []);
+
   return {
     recetaBlocks, recetas, compras, loading, error,
     saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups,
-    saveReceta, deleteReceta, duplicateReceta
+    saveReceta, deleteReceta, duplicateReceta,
+    empezarProduccion, addObservacionEjecucion
   };
 }

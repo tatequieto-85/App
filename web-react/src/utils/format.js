@@ -16,6 +16,12 @@ export function toISODate(d) {
 
 export function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
 
+// Portado de todayISOBogota() en ../../utils.js — "hoy" en la zona horaria
+// real del negocio (Bogotá), no la del navegador de quien esté usando la app.
+export function todayISOBogota() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+}
+
 export function fmtDateShortEs(iso) {
   if (!iso) return '';
   return parseISODate(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Bogota' });

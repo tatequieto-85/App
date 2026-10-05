@@ -12,11 +12,14 @@ import RecetaGroupModal from './RecetaGroupModal';
 import RecetaCard from './RecetaCard';
 import RecetaModal from './RecetaModal';
 import RecetaDetailModal from './RecetaDetailModal';
+import EjecucionObsModal from './EjecucionObsModal';
 import './RecetaGroupCard.css';
 import './RecetaCard.css';
 
-// Solo Recetas por ahora (grupos + crear/editar) — Ejecuciones de lote
-// (cronómetro + evaluación) todavía no se migra, ver memoria del piloto.
+// Solo Recetas por ahora (grupos + crear/editar) — el cronómetro por etapa
+// y la evaluación final de un lote todavía no se migran, ver memoria del
+// piloto. "Empezar producción" sí existe: crea el lote (RecetasEjecuciones)
+// y abre la ventana de Observaciones, a pedido explícito del usuario.
 export default function ProcesosPage({ onBack }) {
   const pr = useProcesos();
   const { ingredientes, tryAddIngrediente } = useIngredientes();
@@ -24,6 +27,7 @@ export default function ProcesosPage({ onBack }) {
   const [groupModal, setGroupModal] = useState(null); // { editing } | null
   const [recetaModal, setRecetaModal] = useState(null); // { editing } | null
   const [detailId, setDetailId] = useState(null);
+  const [obsEjecucion, setObsEjecucion] = useState(null);
 
   const group = currentGroupId ? pr.recetaBlocks.find(b => b.id === currentGroupId) : null;
   const groupIds = useMemo(() => pr.recetaBlocks.map(b => b.id), [pr.recetaBlocks]);
@@ -116,6 +120,21 @@ export default function ProcesosPage({ onBack }) {
         onClose={() => setDetailId(null)}
         receta={detailReceta}
         compras={pr.compras}
+        onEmpezarProduccion={async receta => {
+          const ejecucion = await pr.empezarProduccion(receta);
+          setDetailId(null);
+          setObsEjecucion(ejecucion);
+        }}
+      />
+
+      <EjecucionObsModal
+        open={!!obsEjecucion}
+        onClose={() => setObsEjecucion(null)}
+        ejecucion={obsEjecucion}
+        onAddObservacion={async (ejecucion, text) => {
+          const updated = await pr.addObservacionEjecucion(ejecucion, text);
+          setObsEjecucion(updated);
+        }}
       />
     </motion.div>
   );

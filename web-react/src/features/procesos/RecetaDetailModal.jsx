@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 import { fmtCOP } from '../../utils/format';
 import {
   calcularPorcentajes, pesoEnGramos, esUnidadDePeso, fmtPesoGramos,
@@ -45,8 +47,25 @@ function IngRow({ ing, mostrarPct }) {
   );
 }
 
-export default function RecetaDetailModal({ open, onClose, receta, compras }) {
+// Botón al final, a pedido del usuario: arranca un lote (RecetasEjecuciones)
+// para esta receta y abre la ventana de Observaciones (ver
+// EjecucionObsModal y empezarProduccion en useProcesos.js). El cronómetro
+// por etapa y la evaluación final todavía no están migrados — esto es solo
+// el punto de partida del lote.
+export default function RecetaDetailModal({ open, onClose, receta, compras, onEmpezarProduccion }) {
+  const [busy, setBusy] = useState(false);
   if (!receta) return null;
+
+  async function handleEmpezarProduccion() {
+    setBusy(true);
+    try {
+      await onEmpezarProduccion(receta);
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const maestros = (receta.ingredientesMaestros || []).map(normalizeIngredienteMaestro);
   // Separados igual que en el editor (ver RecetaIngredientesTable.jsx): por
   // peso/volumen (con % del total, sobre el peso PARA RECETA) vs. por
@@ -90,6 +109,10 @@ export default function RecetaDetailModal({ open, onClose, receta, compras }) {
           ? middleEtapas.map((et, i) => <EtapaDetail key={et.id || i} etapa={et} index={i} />)
           : <p className="empty-state" style={{ padding: '4px 0' }}>Esta receta no tiene etapas.</p>}
       </div>
+
+      <Button type="button" variant="primary" disabled={busy} onClick={handleEmpezarProduccion}>
+        {busy ? 'Empezando…' : 'Empezar producción'}
+      </Button>
     </Modal>
   );
 }
