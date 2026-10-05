@@ -1,0 +1,14 @@
+/* El "cuadro" en sí, a pedido explícito del usuario — fondo+borde propios
+   para distinguirlo claramente de las secciones de solo lectura (Ingredientes/
+   Etapas) de arriba. */
+.ejecucion-produccion-box {
+  border: 1.5px solid var(--brand); border-radius: var(--radius);
+  background: var(--brand-light, rgba(113,75,103,.05));
+  padding: 14px;
+}
+
+.ejecucion-produccion-subtitle {
+  font-size: 11px; font-weight: 700; color: var(--text-sub);
+  text-transform: uppercase; letter-spacing: .06em;
+  margin: var(--space-5) 0 6px;
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import { fmtCOP } from '../../utils/format';
@@ -6,6 +6,7 @@ import {
   calcularPorcentajes, pesoEnGramos, esUnidadDePeso, fmtPesoGramos,
   normalizeIngredienteMaestro, computeCostoReceta
 } from '../../services/recetasApi';
+import EjecucionProduccionBox from './EjecucionProduccionBox';
 import './RecetaDetailModal.css';
 
 // Resumen de solo lectura — un toque en la tarjeta de receta abre esto
@@ -47,25 +48,55 @@ function IngRow({ ing, mostrarPct }) {
   );
 }
 
-// Botón al final, a pedido del usuario: arranca un lote (RecetasEjecuciones)
-// para esta receta y abre la ventana de Observaciones (ver
-// EjecucionObsModal y empezarProduccion en useProcesos.js). El cronómetro
-// por etapa y la evaluación final todavía no están migrados — esto es solo
-// el punto de partida del lote.
-export default function RecetaDetailModal({ open, onClose, receta, compras, onEmpezarProduccion }) {
+// Botón al final de Etapas, a pedido del usuario: arranca un lote
+// (RecetasEjecuciones) para esta receta y, en vez de abrir una ventana
+// aparte, hace aparecer UN CUADRO debajo de Etapas, en este mismo detalle
+// (ver EjecucionProduccionBox: pH obligatorio + ingredientes usados +
+// observaciones). El cronómetro por etapa y el resto de la evaluación
+// final todavía no están migrados — esto es solo el punto de partida del
+// lote. ingredientes/onAddNewIngrediente: catálogo compartido, para poder
+// cargar los ingredientes usados dentro del cuadro.
+export default function RecetaDetailModal({
+  open, onClose, receta, compras, ingredientes, onAddNewIngrediente,
+  onEmpezarProduccion, onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH
+}) {
   const [busy, setBusy] = useState(false);
+  const [ejecucion, setEjecucion] = useState(null);
+
+  // Cada vez que se abre (o cambia de receta) arranca sin lote activo —
+  // "Empezar producción" crea uno nuevo recién en ese momento.
+  useEffect(() => {
+    if (!open) return;
+    setEjecucion(null);
+  }, [open, receta?.id]);
+
   if (!receta) return null;
 
   async function handleEmpezarProduccion() {
     setBusy(true);
     try {
-      await onEmpezarProduccion(receta);
+      const nueva = await onEmpezarProduccion(receta);
+      setEjecucion(nueva);
     } catch (err) {
       alert('Error: ' + err.message);
     } finally {
       setBusy(false);
     }
   }
+
+  async function handleAddObservacion(ej, text) {
+    setEjecucion(await onAddObservacion(ej, text));
+  }
+  async function handleAddInsumo(ej, insumo) {
+    setEjecucion(await onAddInsumo(ej, insumo));
+  }
+  async function handleRemoveInsumo(ej, idx) {
+    setEjecucion(await onRemoveInsumo(ej, idx));
+  }
+  async function handleChangePH(ej, ph) {
+    setEjecucion(await onChangePH(ej, ph));
+  }
+
   const maestros = (receta.ingredientesMaestros || []).map(normalizeIngredienteMaestro);
   // Separados igual que en el editor (ver RecetaIngredientesTable.jsx): por
   // peso/volumen (con % del total, sobre el peso PARA RECETA) vs. por
@@ -110,9 +141,18 @@ export default function RecetaDetailModal({ open, onClose, receta, compras, onEm
           : <p className="empty-state" style={{ padding: '4px 0' }}>Esta receta no tiene etapas.</p>}
       </div>
 
-      <Button type="button" variant="primary" disabled={busy} onClick={handleEmpezarProduccion}>
-        {busy ? 'Empezando…' : 'Empezar producción'}
-      </Button>
+      {ejecucion ? (
+        <EjecucionProduccionBox
+          ejecucion={ejecucion} ingredientes={ingredientes} onAddNewIngrediente={onAddNewIngrediente}
+          onAddObservacion={handleAddObservacion}
+          onAddInsumo={handleAddInsumo} onRemoveInsumo={handleRemoveInsumo}
+          onChangePH={handleChangePH}
+        />
+      ) : (
+        <Button type="button" variant="primary" disabled={busy} onClick={handleEmpezarProduccion}>
+          {busy ? 'Empezando…' : 'Empezar producción'}
+        </Button>
+      )}
     </Modal>
   );
 }

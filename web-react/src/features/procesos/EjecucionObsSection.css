@@ -1,11 +1,6 @@
-.ejecucion-obs-section {
-  margin-top: var(--space-5);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--border);
-}
 .ejecucion-obs-list {
-  max-height: 260px; overflow-y: auto;
-  margin-bottom: var(--space-3);
+  max-height: 220px; overflow-y: auto;
+  margin: 10px 0;
 }
 .ejecucion-obs-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .ejecucion-obs-item:last-child { border-bottom: none; }

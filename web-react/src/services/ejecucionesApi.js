@@ -30,26 +30,31 @@ export async function ensureEjecucionesSheet() {
     if (added) ejecucionesSheetId = added.sheetId;
   }
 
-  const ed = await sheetsReq('/values/RecetasEjecuciones!A1:L1').catch(() => ({}));
+  const ed = await sheetsReq('/values/RecetasEjecuciones!A1:M1').catch(() => ({}));
   const row = (ed.values || [])[0] || [];
   if (row.length < 11) {
-    await sheetsReq('/values/RecetasEjecuciones!A1:L1?valueInputOption=RAW', {
+    await sheetsReq('/values/RecetasEjecuciones!A1:M1?valueInputOption=RAW', {
       method: 'PUT',
       body: JSON.stringify({ values: [[
         'ID', 'RecetaID', 'NombreReceta', 'LoteID', 'FechaInicio', 'FechaFin',
-        'Estado', 'DuracionTotal', 'EtapasData', 'Evaluacion', 'CreadoEn', 'Observations'
+        'Estado', 'DuracionTotal', 'EtapasData', 'Evaluacion', 'CreadoEn', 'Observations', 'Insumos'
       ]] })
     });
   } else if (row.length < 12) {
-    await sheetsReq('/values/RecetasEjecuciones!L1?valueInputOption=RAW', {
+    await sheetsReq('/values/RecetasEjecuciones!L1:M1?valueInputOption=RAW', {
       method: 'PUT',
-      body: JSON.stringify({ values: [['Observations']] })
+      body: JSON.stringify({ values: [['Observations', 'Insumos']] })
+    });
+  } else if (row.length < 13) {
+    await sheetsReq('/values/RecetasEjecuciones!M1?valueInputOption=RAW', {
+      method: 'PUT',
+      body: JSON.stringify({ values: [['Insumos']] })
     });
   }
 }
 
 export async function fetchEjecuciones() {
-  const data = await sheetsReq('/values/RecetasEjecuciones!A:L');
+  const data = await sheetsReq('/values/RecetasEjecuciones!A:M');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
     id:            r[0]  || '',
@@ -64,6 +69,7 @@ export async function fetchEjecuciones() {
     evaluacion:    safeParseJSON(r[9], {}),
     creadoEn:      r[10] || '',
     observations:  safeParseJSON(r[11], []),
+    insumos:       safeParseJSON(r[12], []),
     rowIndex:      i + 2
   }));
 }
@@ -72,19 +78,20 @@ function ejecucionRowValues(ej) {
   return [
     ej.id, ej.recetaId, ej.nombreReceta, ej.loteId, ej.fechaInicio, ej.fechaFin || '',
     ej.estado || '', ej.duracionTotal || '', JSON.stringify(ej.etapasData || []),
-    JSON.stringify(ej.evaluacion || {}), ej.creadoEn, JSON.stringify(ej.observations || [])
+    JSON.stringify(ej.evaluacion || {}), ej.creadoEn, JSON.stringify(ej.observations || []),
+    JSON.stringify(ej.insumos || [])
   ];
 }
 
 export async function appendEjecucion(ej) {
-  await sheetsReq('/values/RecetasEjecuciones!A:L:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/RecetasEjecuciones!A:M:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [ejecucionRowValues(ej)] })
   });
 }
 
 export async function updateEjecucion(ej) {
-  await sheetsReq(`/values/RecetasEjecuciones!A${ej.rowIndex}:L${ej.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/RecetasEjecuciones!A${ej.rowIndex}:M${ej.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [ejecucionRowValues(ej)] })
   });

@@ -1,0 +1,17 @@
+.ejecucion-insumos-list { margin: 10px 0; }
+.ejecucion-insumo-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--text);
+}
+.ejecucion-insumo-row:last-child { border-bottom: none; }
+.ejecucion-insumo-nombre { flex: 1; font-weight: 600; }
+.ejecucion-insumo-cantidad { color: var(--text-sub); font-size: 12px; }
+
+.ejecucion-insumos-form {
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; background: var(--bg);
+}
+.ejecucion-insumos-form-bottom { display: flex; align-items: flex-end; gap: 10px; margin-top: 6px; }
+.ejecucion-insumos-form-bottom .field { flex: 1; margin-bottom: 0; }
+.ejecucion-insumos-form-bottom .btn--outline { flex-shrink: 0; }

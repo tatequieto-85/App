@@ -127,10 +127,12 @@ export function useProcesos() {
 
   // ── Producción (arranque mínimo de un lote) ───────────────────────────
   // A pedido del usuario: "Empezar producción" en el detalle de una receta
-  // crea un lote (RecetasEjecuciones) y abre una ventana de Observaciones
-  // donde se van agregando filas libremente. El cronómetro por etapa, la
-  // confirmación de insumos y la evaluación final todavía NO se migran —
-  // ver memoria del piloto — esto es solo el punto de partida del lote.
+  // crea un lote (RecetasEjecuciones) y hace aparecer, debajo de Etapas (en
+  // el mismo detalle, no una ventana aparte), un cuadro con pH obligatorio,
+  // ingredientes usados (con su peso) y observaciones — todo agregado a
+  // voluntad del usuario. El cronómetro por etapa y el resto de la
+  // evaluación final todavía NO se migran — ver memoria del piloto — esto
+  // es solo el punto de partida del lote.
 
   const empezarProduccion = useCallback(async receta => {
     const nuevaEjecucion = {
@@ -145,7 +147,8 @@ export function useProcesos() {
       etapasData: [],
       evaluacion: {},
       creadoEn: new Date().toISOString(),
-      observations: []
+      observations: [],
+      insumos: []
     };
     await ejecucionesApi.appendEjecucion(nuevaEjecucion);
     const lista = await ejecucionesApi.fetchEjecuciones();
@@ -161,10 +164,34 @@ export function useProcesos() {
     return updated;
   }, []);
 
+  // insumo: { nombre, cantidad, unidad } — lo que realmente se usó en este
+  // lote (puede diferir de lo planeado en la receta), a pedido del usuario.
+  const addInsumoEjecucion = useCallback(async (ejecucion, insumo) => {
+    const updated = { ...ejecucion, insumos: [...(ejecucion.insumos || []), insumo] };
+    await ejecucionesApi.updateEjecucion(updated);
+    return updated;
+  }, []);
+
+  const removeInsumoEjecucion = useCallback(async (ejecucion, idx) => {
+    const updated = { ...ejecucion, insumos: (ejecucion.insumos || []).filter((_, i) => i !== idx) };
+    await ejecucionesApi.updateEjecucion(updated);
+    return updated;
+  }, []);
+
+  // pH — campo obligatorio del lote, a pedido explícito del usuario. Vive
+  // en evaluacion.ph (mismo campo que ya usa/usaba la app vanilla para la
+  // evaluación de un lote, ver generateEjecucionAnalysis en procesos.js).
+  const updatePHEjecucion = useCallback(async (ejecucion, ph) => {
+    const updated = { ...ejecucion, evaluacion: { ...(ejecucion.evaluacion || {}), ph } };
+    await ejecucionesApi.updateEjecucion(updated);
+    return updated;
+  }, []);
+
   return {
     recetaBlocks, recetas, compras, loading, error,
     saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups,
     saveReceta, deleteReceta, duplicateReceta,
-    empezarProduccion, addObservacionEjecucion
+    empezarProduccion, addObservacionEjecucion,
+    addInsumoEjecucion, removeInsumoEjecucion, updatePHEjecucion
   };
 }
