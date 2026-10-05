@@ -164,8 +164,10 @@ export function useProcesos() {
     return updated;
   }, []);
 
-  // insumo: { nombre, cantidad, unidad } — lo que realmente se usó en este
-  // lote (puede diferir de lo planeado en la receta), a pedido del usuario.
+  // insumo: { nombre, cantidadComprada, cantidadReceta, unidad } — lo que
+  // realmente se usó en este lote (puede diferir de lo planeado en la
+  // receta), con las mismas dos cantidades (comprado/para receta) que ya
+  // tiene cada ingrediente al planificar — a pedido del usuario.
   const addInsumoEjecucion = useCallback(async (ejecucion, insumo) => {
     const updated = { ...ejecucion, insumos: [...(ejecucion.insumos || []), insumo] };
     await ejecucionesApi.updateEjecucion(updated);
