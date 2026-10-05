@@ -58,7 +58,7 @@ function IngRow({ ing, mostrarPct }) {
 // cargar los ingredientes usados dentro del cuadro.
 export default function RecetaDetailModal({
   open, onClose, receta, compras, ingredientes, onAddNewIngrediente,
-  onEmpezarProduccion, onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos
+  onEmpezarProduccion, onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos, onGuardarEjecucion
 }) {
   const [busy, setBusy] = useState(false);
   const [ejecucion, setEjecucion] = useState(null);
@@ -98,6 +98,9 @@ export default function RecetaDetailModal({
   }
   async function handleChangeFrascos(ej, frascos) {
     setEjecucion(await onChangeFrascos(ej, frascos));
+  }
+  async function handleGuardarEjecucion(ej) {
+    setEjecucion(await onGuardarEjecucion(ej));
   }
 
   const maestros = (receta.ingredientesMaestros || []).map(normalizeIngredienteMaestro);
@@ -150,6 +153,7 @@ export default function RecetaDetailModal({
           onAddObservacion={handleAddObservacion}
           onAddInsumo={handleAddInsumo} onRemoveInsumo={handleRemoveInsumo}
           onChangePH={handleChangePH} onChangeFrascos={handleChangeFrascos}
+          onGuardarEjecucion={handleGuardarEjecucion}
         />
       ) : (
         <Button type="button" variant="primary" disabled={busy} onClick={handleEmpezarProduccion}>

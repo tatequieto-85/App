@@ -199,11 +199,23 @@ export function useProcesos() {
     return updated;
   }, []);
 
+  // "Guardar ejecución" — cierra el lote: fecha de fin = hoy, estado
+  // "Completada" (mismo string que ya esperaba la app vanilla para
+  // pintarlo en verde, ver estado-ok en procesos.js). El pH ya es
+  // obligatorio para poder guardar (se valida en el botón, ver
+  // EjecucionProduccionBox.jsx) — acá solo persiste.
+  const finalizarEjecucion = useCallback(async ejecucion => {
+    const updated = { ...ejecucion, estado: 'Completada', fechaFin: todayISOBogota() };
+    await ejecucionesApi.updateEjecucion(updated);
+    return updated;
+  }, []);
+
   return {
     recetaBlocks, recetas, compras, loading, error,
     saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups,
     saveReceta, deleteReceta, duplicateReceta,
     empezarProduccion, addObservacionEjecucion,
-    addInsumoEjecucion, removeInsumoEjecucion, updatePHEjecucion, updateFrascosEjecucion
+    addInsumoEjecucion, removeInsumoEjecucion, updatePHEjecucion, updateFrascosEjecucion,
+    finalizarEjecucion
   };
 }

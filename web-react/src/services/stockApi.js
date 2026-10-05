@@ -168,7 +168,7 @@ export function getLoteResumen({ ejecuciones, ferias, stockMovimientos, stockTes
   const ej = ejecuciones.find(e => e.id === ejecucionId);
   if (!ej) return null;
   const ev          = ej.evaluacion || {};
-  const producido   = (ev.frascos230 || 0) + (ev.frascos180 || 0);
+  const producido   = (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascosProducidos || 0);
   const testigo     = stockTestigos
     .filter(t => t.ejecucionId === ejecucionId)
     .reduce((sum, t) => sum + (t.cantidad || 0), 0);
@@ -187,7 +187,7 @@ export function getLoteResumen({ ejecuciones, ferias, stockMovimientos, stockTes
 // lote más reciente con producción registrada de esa receta.
 export function getLoteParaAjuste(ejecuciones, recetaId) {
   const lotes = ejecuciones
-    .filter(ej => ej.recetaId === recetaId && (ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180))
+    .filter(ej => ej.recetaId === recetaId && (ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180 || ej.evaluacion?.frascosProducidos))
     .sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio));
   return lotes[0]?.id || '';
 }
