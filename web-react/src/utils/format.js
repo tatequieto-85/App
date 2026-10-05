@@ -44,6 +44,17 @@ export function fmtCOP(n) {
   return (n || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 }
 
+// Portado de hexToRgba() en ../../procesos.js — fondo pastel de una tarjeta
+// a partir de un color hex propio (p. ej. nivel de picante de una receta,
+// o el color elegido a mano para un grupo).
+export function hexToRgba(hex, alpha) {
+  const h = (hex || '').replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  if (full.length !== 6 || /[^0-9a-fA-F]/.test(full)) return null;
+  const n = parseInt(full, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
 // Portado de getDueStatus() en ../../tareas.js — usado por Stock para el
 // color del producto testigo según qué tan cerca está su fecha de revisión.
 export function getDueStatus(dateStr) {

@@ -1,0 +1,21 @@
+.recetagroup-color-picker { display: flex; flex-wrap: wrap; gap: 10px; }
+.recetagroup-color-swatch {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 2px solid transparent; background: currentColor;
+  cursor: pointer; padding: 0;
+}
+.recetagroup-color-swatch.is-selected { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px currentColor; }
+
+.recetagroup-icon-picker {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;
+  max-height: 190px; overflow-y: auto; padding: 6px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+}
+.recetagroup-icon-option {
+  aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); box-shadow: var(--shadow-md);
+  cursor: pointer; padding: 6px; opacity: .45;
+  transition: opacity .15s, border-color .15s;
+}
+.recetagroup-icon-option.is-selected { opacity: 1; border-color: currentColor; }

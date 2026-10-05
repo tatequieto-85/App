@@ -1,0 +1,20 @@
+.receta-detail-section { margin-top: var(--space-5); }
+.receta-detail-section:first-child { margin-top: 0; }
+.receta-detail-section-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+
+.receta-detail-ing-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--text);
+}
+.receta-detail-ing-row:last-child { border-bottom: none; }
+.receta-detail-ing-nombre { flex: 1; }
+.receta-detail-ing-cantidad { color: var(--text-sub); font-size: 12px; }
+.receta-detail-ing-pct { font-weight: 700; color: var(--brand); min-width: 44px; text-align: right; }
+
+.receta-detail-etapa { margin-bottom: 14px; }
+.receta-detail-etapa:last-child { margin-bottom: 0; }
+.receta-detail-etapa-header { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.receta-detail-instrucciones { display: flex; flex-direction: column; gap: 4px; }
+.receta-detail-instruccion-row { font-size: 13px; color: var(--text); display: flex; gap: 6px; }
+.receta-detail-instruccion-num { color: var(--text-sub); font-weight: 600; flex-shrink: 0; }

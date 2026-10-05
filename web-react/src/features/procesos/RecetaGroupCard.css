@@ -1,0 +1,24 @@
+/* Misma grilla que .home-grid/.canales-venta-grid (4 por fila, % en vez de
+   px) — se duplica a propósito para no acoplar el nombre de la clase a un
+   contexto que no es el suyo; los valores deben quedar siempre iguales. */
+.receta-groups-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2.5%;
+}
+
+.receta-group-card-wrap { position: relative; }
+
+/* Un grupo lo crea el usuario y su nombre puede ser más largo que el de un
+   módulo fijo — se trunca a una sola línea para que todas las cajas de la
+   fila midan exactamente lo mismo (mismo criterio que Ventas/canales). */
+.receta-group-card-wrap .app-card-label {
+  display: block; width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.receta-group-card-actions {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: var(--surface); border-radius: 0 0 var(--radius) var(--radius);
+  overflow: hidden; box-shadow: var(--shadow-md);
+}

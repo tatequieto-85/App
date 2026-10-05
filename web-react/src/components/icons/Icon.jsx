@@ -264,6 +264,15 @@ const PATHS = {
       <line x1="8" y1="2" x2="16" y2="2" />
       <line x1="7" y1="14" x2="17" y2="14" />
     </>
+  ),
+  // Mismo trazo que usa Procesos en la tarjeta de Módulos de la app vanilla
+  // (index.html, data-nav="procesos") — un frasco/botella, para la tarjeta
+  // de Procesos en Home.
+  beaker: (
+    <>
+      <path d="M9 3v8l-3.5 6.5a2 2 0 001.8 2.9h9.4a2 2 0 001.8-2.9L15 11V3" />
+      <line x1="6" y1="3" x2="18" y2="3" />
+    </>
   )
 };
 

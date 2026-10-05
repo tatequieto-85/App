@@ -1,0 +1,26 @@
+.receta-ing-table { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+
+.receta-ing-row {
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; background: var(--bg);
+}
+.receta-ing-row-top { display: flex; align-items: flex-end; gap: 6px; }
+.receta-ing-row-top .autocomplete-wrap { flex: 1; }
+
+.receta-ing-row-del {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  color: var(--text-sub); padding: 8px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; margin-bottom: 1px;
+}
+.receta-ing-row-del:hover:not(:disabled) { color: var(--danger); background: #EF444414; }
+
+.receta-ing-row-bottom { display: flex; align-items: flex-end; gap: 10px; margin-top: 6px; }
+.receta-ing-row-bottom .field { flex: 1; margin-bottom: 0; }
+
+.receta-ing-pct {
+  flex-shrink: 0; text-align: right; padding-bottom: 9px; min-width: 70px;
+}
+.receta-ing-pct-value { display: block; font-size: 15px; font-weight: 700; color: var(--brand); }
+.receta-ing-pct-label { display: block; font-size: 10.5px; color: var(--text-sub); }
+
+.receta-ing-total { font-size: 12.5px; color: var(--text-sub); margin-top: 2px; }

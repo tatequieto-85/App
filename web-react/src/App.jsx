@@ -8,8 +8,9 @@ import ComprasPage from './features/compras/ComprasPage';
 import StockPage from './features/stock/StockPage';
 import ContactosPage from './features/contactos/ContactosPage';
 import VentasPage from './features/ventas/VentasPage';
+import ProcesosPage from './features/procesos/ProcesosPage';
 
-const PAGES = { compras: ComprasPage, stock: StockPage, contactos: ContactosPage, ventas: VentasPage };
+const PAGES = { compras: ComprasPage, stock: StockPage, contactos: ContactosPage, ventas: VentasPage, procesos: ProcesosPage };
 
 export default function App() {
   const { checked, signedIn, signIn } = useAuth();

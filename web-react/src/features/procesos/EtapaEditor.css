@@ -1,0 +1,33 @@
+.etapa-editor { display: flex; flex-direction: column; gap: 14px; margin: 10px 0; }
+
+.etapa-editor-item {
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  padding: 12px; background: var(--bg);
+}
+.etapa-editor-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.etapa-editor-num { font-size: 12px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: .04em; }
+.etapa-editor-del {
+  background: none; border: none; cursor: pointer; color: var(--danger);
+  padding: 4px; border-radius: var(--radius-sm); display: flex; align-items: center;
+}
+.etapa-editor-del:hover:not(:disabled) { background: #EF444414; }
+
+.etapa-editor-instr-label { margin-top: 10px; display: block; }
+.etapa-editor-instrucciones { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.etapa-editor-instr-row { display: flex; align-items: center; gap: 6px; }
+.etapa-editor-instr-row .field-input { flex: 1; }
+
+.etapa-editor-tipo-btn {
+  flex-shrink: 0; width: 28px; height: 36px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); cursor: pointer; font-weight: 700; color: var(--text-sub);
+}
+.etapa-editor-tipo-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+
+.etapa-editor-instr-del {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  color: var(--text-sub); padding: 6px; display: flex; align-items: center;
+}
+.etapa-editor-instr-del:hover:not(:disabled) { color: var(--danger); }
+
+.etapa-editor-add-instr { margin-top: 10px; width: 100%; }
