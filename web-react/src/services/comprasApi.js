@@ -103,7 +103,9 @@ export async function pruneOldCompras(compras, nombre, keep = MAX_COMPRAS_POR_IN
   }
 }
 
-function getUnitPrice(compras, nombre) {
+// Exportada: también la usa Procesos para el precio estimado de un lote a
+// partir de la receta (ver computeCostoReceta en recetasApi.js).
+export function getUnitPrice(compras, nombre) {
   const last = getLatestCompra(compras, nombre);
   if (!last || !last.cantidad) return null;
   return last.precioTotal / last.cantidad;

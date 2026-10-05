@@ -4,6 +4,7 @@
 // real que ya usa la app vanilla — hojas "RecetasPlantillas" y "RecetaBlocks".
 import { sheetsReq } from './googleAuth';
 import { hexToRgba } from '../utils/format';
+import { getUnitPrice } from './comprasApi';
 
 function safeParseJSON(val, fallback) {
   if (!val) return fallback;
@@ -274,4 +275,30 @@ export function normalizeIngredienteMaestro(im) {
     cantidadComprada: im.cantidadComprada != null ? im.cantidadComprada : fallback,
     cantidadReceta: im.cantidadReceta != null ? im.cantidadReceta : fallback
   };
+}
+
+// Precio TOTAL ESTIMADO del lote a partir de la receta — junto al peso
+// total, a pedido del usuario. Usa `cantidadComprada` de CADA ingrediente
+// (de peso/volumen Y por unidad, aclarado explícitamente por el usuario:
+// "el costo del lote se debe tener en cuenta también los precios de los
+// productos que son unidad") multiplicada por su precio unitario más
+// reciente en Compras (`getUnitPrice`, mismo criterio que ya usaba
+// computeCostoProduccion en comprasApi.js para una ejecución real — acá es
+// una estimación sobre la receta, no sobre insumos confirmados de un lote
+// ya corrido). Un ingrediente sin ninguna compra registrada no se puede
+// costear — queda en `incompleto` en vez de inventarse un precio.
+export function computeCostoReceta(compras, ingredientesMaestros) {
+  let total = 0;
+  const incompleto = [];
+  (ingredientesMaestros || []).map(normalizeIngredienteMaestro).forEach(im => {
+    const qty = im.cantidadComprada || 0;
+    if (!qty) return;
+    const price = getUnitPrice(compras, im.nombre);
+    if (price == null) {
+      if (!incompleto.includes(im.nombre)) incompleto.push(im.nombre);
+      return;
+    }
+    total += qty * price;
+  });
+  return { total, incompleto };
 }

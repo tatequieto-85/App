@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as recetasApi from '../../services/recetasApi';
+import { fetchCompras } from '../../services/comprasApi';
 
 // Toda la lógica de negocio de Procesos (solo Recetas por ahora — ver
 // memoria del piloto sobre el alcance de esta primera pasada) vive acá,
 // mismo patrón que useVentas.js: grupos (RecetaBlocks) + recetas
-// (RecetasPlantillas), ambos CRUD completo.
+// (RecetasPlantillas), ambos CRUD completo. También lee Compras (solo
+// lectura, módulo ya migrado) para estimar el precio total de un lote a
+// partir de su receta — ver computeCostoReceta en recetasApi.js.
 export function useProcesos() {
   const [recetaBlocks, setRecetaBlocks] = useState([]);
   const [recetas, setRecetas] = useState([]);
+  const [compras, setCompras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -23,10 +27,11 @@ export function useProcesos() {
       try {
         setLoading(true);
         await recetasApi.ensureRecetasSheets();
-        const [blocks, recs] = await Promise.all([recetasApi.fetchRecetaBlocks(), recetasApi.fetchRecetas()]);
+        const [blocks, recs, comprs] = await Promise.all([recetasApi.fetchRecetaBlocks(), recetasApi.fetchRecetas(), fetchCompras()]);
         if (cancelled) return;
         setRecetaBlocks(blocks);
         setRecetas(recs);
+        setCompras(comprs);
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -101,7 +106,7 @@ export function useProcesos() {
   }, [reloadRecetas]);
 
   return {
-    recetaBlocks, recetas, loading, error,
+    recetaBlocks, recetas, compras, loading, error,
     saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups,
     saveReceta, deleteReceta
   };

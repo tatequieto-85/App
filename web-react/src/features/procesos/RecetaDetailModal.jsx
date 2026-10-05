@@ -1,5 +1,9 @@
 import Modal from '../../components/ui/Modal';
-import { calcularPorcentajes, pesoEnGramos, esUnidadDePeso, fmtPesoGramos, normalizeIngredienteMaestro } from '../../services/recetasApi';
+import { fmtCOP } from '../../utils/format';
+import {
+  calcularPorcentajes, pesoEnGramos, esUnidadDePeso, fmtPesoGramos,
+  normalizeIngredienteMaestro, computeCostoReceta
+} from '../../services/recetasApi';
 import './RecetaDetailModal.css';
 
 // Resumen de solo lectura — un toque en la tarjeta de receta abre esto
@@ -41,16 +45,17 @@ function IngRow({ ing, mostrarPct }) {
   );
 }
 
-export default function RecetaDetailModal({ open, onClose, receta }) {
+export default function RecetaDetailModal({ open, onClose, receta, compras }) {
   if (!receta) return null;
   const maestros = (receta.ingredientesMaestros || []).map(normalizeIngredienteMaestro);
   // Separados igual que en el editor (ver RecetaIngredientesTable.jsx): por
   // peso/volumen (con % del total, sobre el peso PARA RECETA) vs. por
-  // unidad (no entra al total, el costo del lote igual los tiene en
-  // cuenta — eso vive en Ejecuciones, todavía sin migrar).
+  // unidad (no entra al peso total, pero sí al precio — ver
+  // computeCostoReceta, usa cantidadComprada de TODOS los ingredientes).
   const porPeso = calcularPorcentajes(maestros.filter(m => esUnidadDePeso(m.unidad)));
   const porUnidad = maestros.filter(m => !esUnidadDePeso(m.unidad));
   const pesoTotal = porPeso.reduce((sum, m) => sum + (pesoEnGramos(m.cantidadReceta, m.unidad) || 0), 0);
+  const { total: costoTotal, incompleto } = computeCostoReceta(compras, maestros);
   const middleEtapas = (receta.etapas || []).filter(e => !e.fija);
 
   return (
@@ -58,8 +63,16 @@ export default function RecetaDetailModal({ open, onClose, receta }) {
       {!!maestros.length && (
         <div className="receta-detail-section">
           <h4 className="receta-detail-section-title">Ingredientes</h4>
-          {pesoTotal > 0 && (
-            <p className="receta-detail-peso-total">Peso total de la receta: <strong>{fmtPesoGramos(pesoTotal)}</strong></p>
+          {(pesoTotal > 0 || costoTotal > 0) && (
+            <div className="receta-detail-totales">
+              {pesoTotal > 0 && (
+                <p className="receta-detail-peso-total">Peso total de la receta: <strong>{fmtPesoGramos(pesoTotal)}</strong></p>
+              )}
+              <p className="receta-detail-peso-total">Precio total del lote: <strong>{fmtCOP(costoTotal)}</strong></p>
+              {!!incompleto.length && (
+                <p className="receta-detail-costo-incompleto">Incompleto: sin precio registrado de {incompleto.join(', ')}.</p>
+              )}
+            </div>
           )}
           {porPeso.map((ing, i) => <IngRow key={`p${i}`} ing={ing} mostrarPct />)}
           {!!porUnidad.length && (

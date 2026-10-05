@@ -23,15 +23,19 @@
 .receta-ing-pct-value { font-size: 15px; font-weight: 700; color: var(--brand); }
 .receta-ing-pct-label { font-size: 11px; color: var(--text-sub); }
 
-/* Peso total de la receta — destacado arriba de todo, a pedido explícito
-   del usuario ("quiero que me diga el total en peso de la receta"). */
+/* Peso total de la receta y precio total estimado del lote — destacados
+   arriba de todo, a pedido explícito del usuario ("quiero que me diga el
+   total en peso de la receta" / "que aparezca el precio total del lote"
+   donde aparece el peso). */
 .receta-ing-total-banner {
-  display: flex; align-items: baseline; justify-content: space-between;
   background: var(--brand-light, rgba(113,75,103,.08));
   border: 1.5px solid var(--brand); border-radius: var(--radius-sm);
-  padding: 10px 14px; font-size: 13px; color: var(--text);
+  padding: 10px 14px; color: var(--text);
 }
+.receta-ing-total-row { display: flex; align-items: baseline; justify-content: space-between; font-size: 13px; }
+.receta-ing-total-row + .receta-ing-total-row { margin-top: 4px; }
 .receta-ing-total-banner strong { font-size: 16px; color: var(--brand); }
+.receta-ing-total-incompleto { font-size: 11.5px; color: var(--text-sub); margin: 6px 0 0; }
 
 /* Dos grupos separados — medidos por peso/volumen (calculan % del total)
    vs. "por unidad" (conteo, no entra al total ni tiene %) — a pedido

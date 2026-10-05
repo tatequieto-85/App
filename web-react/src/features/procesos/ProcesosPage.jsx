@@ -105,6 +105,7 @@ export default function ProcesosPage({ onBack }) {
         onClose={() => setRecetaModal(null)}
         editingReceta={recetaModal?.editing || null}
         ingredientes={ingredientes}
+        compras={pr.compras}
         onAddNewIngrediente={tryAddIngrediente}
         onSave={(datos, editingId) => pr.saveReceta(datos, editingId, currentGroupId)}
       />
@@ -113,6 +114,7 @@ export default function ProcesosPage({ onBack }) {
         open={!!detailId}
         onClose={() => setDetailId(null)}
         receta={detailReceta}
+        compras={pr.compras}
       />
     </motion.div>
   );

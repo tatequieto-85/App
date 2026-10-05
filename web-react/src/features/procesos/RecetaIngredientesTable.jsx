@@ -2,8 +2,8 @@ import Button from '../../components/ui/Button';
 import Icon from '../../components/icons/Icon';
 import ThousandsField from '../../components/ui/ThousandsField';
 import IngredienteAutocomplete from '../ingredientes/IngredienteAutocomplete';
-import { parseThousandsInput } from '../../utils/format';
-import { calcularPorcentajes, pesoEnGramos, esUnidadDePeso, fmtPesoGramos } from '../../services/recetasApi';
+import { parseThousandsInput, fmtCOP } from '../../utils/format';
+import { calcularPorcentajes, pesoEnGramos, esUnidadDePeso, fmtPesoGramos, computeCostoReceta } from '../../services/recetasApi';
 import './RecetaIngredientesTable.css';
 
 function getUnidad(ingredientes, nombre) {
@@ -85,7 +85,7 @@ function IngRowUnidad({ fila, idx, unidad, onUpdate, onRemove, ingredientes, onA
 // medidos por peso/volumen (g/kg/ml/L, con comprado/receta y % en vivo —
 // 1 ml = 1 g) y los medidos "por unidad" (conteo, no entra al total ni
 // tiene %, es otra magnitud).
-export default function RecetaIngredientesTable({ filas, onChange, ingredientes, onAddNew, disabled }) {
+export default function RecetaIngredientesTable({ filas, onChange, ingredientes, compras, onAddNew, disabled }) {
   const filasConUnidad = filas.map((f, i) => ({ ...f, unidad: getUnidad(ingredientes, f.nombre), idx: i }));
   const porPeso = filasConUnidad.filter(f => !f.unidad || esUnidadDePeso(f.unidad));
   const porUnidad = filasConUnidad.filter(f => f.unidad && !esUnidadDePeso(f.unidad));
@@ -95,6 +95,17 @@ export default function RecetaIngredientesTable({ filas, onChange, ingredientes,
   );
   const pesoTotal = porPeso.reduce(
     (sum, f) => sum + (pesoEnGramos(parseThousandsInput(f.recetaDraft), f.unidad) || 0), 0
+  );
+
+  // Precio total estimado del lote — junto al peso, a pedido del usuario.
+  // Usa el peso/cantidad COMPRADA de TODOS los ingredientes (de peso Y por
+  // unidad, el usuario aclaró que el costo también tiene en cuenta estos
+  // últimos) × su precio unitario más reciente en Compras.
+  const { total: costoTotal, incompleto } = computeCostoReceta(
+    compras,
+    filasConUnidad
+      .filter(f => f.nombre.trim())
+      .map(f => ({ nombre: f.nombre, unidad: f.unidad, cantidadComprada: parseThousandsInput(f.compradoDraft) }))
   );
 
   function addRow() {
@@ -109,9 +120,21 @@ export default function RecetaIngredientesTable({ filas, onChange, ingredientes,
 
   return (
     <div className="receta-ing-table">
-      {pesoTotal > 0 && (
+      {(pesoTotal > 0 || costoTotal > 0) && (
         <div className="receta-ing-total-banner">
-          Peso total de la receta <strong>{fmtPesoGramos(pesoTotal)}</strong>
+          {pesoTotal > 0 && (
+            <div className="receta-ing-total-row">
+              <span>Peso total de la receta</span>
+              <strong>{fmtPesoGramos(pesoTotal)}</strong>
+            </div>
+          )}
+          <div className="receta-ing-total-row">
+            <span>Precio total del lote</span>
+            <strong>{fmtCOP(costoTotal)}</strong>
+          </div>
+          {!!incompleto.length && (
+            <p className="receta-ing-total-incompleto">Incompleto: sin precio registrado de {incompleto.join(', ')}.</p>
+          )}
         </div>
       )}
 

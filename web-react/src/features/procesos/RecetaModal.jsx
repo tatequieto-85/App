@@ -17,7 +17,7 @@ import './RecetaModal.css';
 // ingredientes/onAddNewIngrediente: catálogo compartido (ver
 // features/ingredientes/useIngredientes.js) para el autocomplete de cada
 // fila de ingrediente.
-export default function RecetaModal({ open, onClose, editingReceta, ingredientes, onAddNewIngrediente, onSave }) {
+export default function RecetaModal({ open, onClose, editingReceta, ingredientes, compras, onAddNewIngrediente, onSave }) {
   const [nombre, setNombre] = useState('');
   const [etapas, setEtapas] = useState([]);
   const [ingFilas, setIngFilas] = useState([]);
@@ -90,7 +90,7 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
         <label className="field-label receta-modal-section-label">Ingredientes</label>
         <RecetaIngredientesTable
           filas={ingFilas} onChange={setIngFilas}
-          ingredientes={ingredientes} onAddNew={onAddNewIngrediente} disabled={busy}
+          ingredientes={ingredientes} compras={compras} onAddNew={onAddNewIngrediente} disabled={busy}
         />
 
         <label className="field-label receta-modal-section-label">Etapas</label>
