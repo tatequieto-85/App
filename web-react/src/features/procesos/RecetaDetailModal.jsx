@@ -1,5 +1,5 @@
 import Modal from '../../components/ui/Modal';
-import { calcularPorcentajes } from '../../services/recetasApi';
+import { calcularPorcentajes, pesoEnGramos, esUnidadDePeso, fmtPesoGramos } from '../../services/recetasApi';
 import './RecetaDetailModal.css';
 
 // Resumen de solo lectura — un toque en la tarjeta de receta abre esto
@@ -24,23 +24,41 @@ function EtapaDetail({ etapa, index }) {
   );
 }
 
+function IngRow({ ing }) {
+  return (
+    <div className="receta-detail-ing-row">
+      <span className="receta-detail-ing-nombre">{ing.nombre}</span>
+      <span className="receta-detail-ing-cantidad">{ing.cantidadTotal} {ing.unidad}</span>
+      {ing.porcentaje != null && <span className="receta-detail-ing-pct">{ing.porcentaje.toFixed(1)}%</span>}
+    </div>
+  );
+}
+
 export default function RecetaDetailModal({ open, onClose, receta }) {
   if (!receta) return null;
-  const ingredientesConPct = calcularPorcentajes(receta.ingredientesMaestros || []);
+  const maestros = receta.ingredientesMaestros || [];
+  // Separados igual que en el editor (ver RecetaIngredientesTable.jsx): por
+  // peso/volumen (con % del total) vs. por unidad (no entra al total).
+  const porPeso = calcularPorcentajes(maestros.filter(m => esUnidadDePeso(m.unidad)));
+  const porUnidad = maestros.filter(m => !esUnidadDePeso(m.unidad));
+  const pesoTotal = porPeso.reduce((sum, m) => sum + (pesoEnGramos(m.cantidadTotal, m.unidad) || 0), 0);
   const middleEtapas = (receta.etapas || []).filter(e => !e.fija);
 
   return (
     <Modal open={open} onClose={onClose} showBack title={receta.nombre}>
-      {!!ingredientesConPct.length && (
+      {!!maestros.length && (
         <div className="receta-detail-section">
           <h4 className="receta-detail-section-title">Ingredientes</h4>
-          {ingredientesConPct.map((ing, i) => (
-            <div key={i} className="receta-detail-ing-row">
-              <span className="receta-detail-ing-nombre">{ing.nombre}</span>
-              <span className="receta-detail-ing-cantidad">{ing.cantidadTotal} {ing.unidad}</span>
-              <span className="receta-detail-ing-pct">{ing.porcentaje != null ? `${ing.porcentaje.toFixed(1)}%` : '—'}</span>
-            </div>
-          ))}
+          {pesoTotal > 0 && (
+            <p className="receta-detail-peso-total">Peso total de la receta: <strong>{fmtPesoGramos(pesoTotal)}</strong></p>
+          )}
+          {porPeso.map((ing, i) => <IngRow key={`p${i}`} ing={ing} />)}
+          {!!porUnidad.length && (
+            <>
+              <p className="receta-detail-subtitle">Por unidad</p>
+              {porUnidad.map((ing, i) => <IngRow key={`u${i}`} ing={ing} />)}
+            </>
+          )}
         </div>
       )}
 

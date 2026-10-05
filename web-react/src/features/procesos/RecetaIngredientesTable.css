@@ -23,4 +23,23 @@
 .receta-ing-pct-value { display: block; font-size: 15px; font-weight: 700; color: var(--brand); }
 .receta-ing-pct-label { display: block; font-size: 10.5px; color: var(--text-sub); }
 
-.receta-ing-total { font-size: 12.5px; color: var(--text-sub); margin-top: 2px; }
+/* Peso total de la receta — destacado arriba de todo, a pedido explícito
+   del usuario ("quiero que me diga el total en peso de la receta"). */
+.receta-ing-total-banner {
+  display: flex; align-items: baseline; justify-content: space-between;
+  background: var(--brand-light, rgba(113,75,103,.08));
+  border: 1.5px solid var(--brand); border-radius: var(--radius-sm);
+  padding: 10px 14px; font-size: 13px; color: var(--text);
+}
+.receta-ing-total-banner strong { font-size: 16px; color: var(--brand); }
+
+/* Dos grupos separados — medidos por peso/volumen (calculan % del total)
+   vs. "por unidad" (conteo, no entra al total ni tiene %) — a pedido
+   explícito del usuario. El título solo se muestra si hay ambos grupos;
+   con uno solo no hace falta separar nada visualmente. */
+.receta-ing-group { display: flex; flex-direction: column; gap: 10px; }
+.receta-ing-group-title {
+  font-size: 11px; font-weight: 700; color: var(--text-sub);
+  text-transform: uppercase; letter-spacing: .06em; margin: 4px 0 0;
+}
+.receta-ing-group-empty { font-size: 12.5px; color: var(--text-sub); margin: 0; }

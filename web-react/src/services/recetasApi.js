@@ -228,6 +228,21 @@ export function pesoEnGramos(cantidad, unidad) {
   return (Number(cantidad) || 0) * factor;
 }
 
+// true si la unidad es de peso/volumen (entra al total y al % de la
+// receta); false para "unidades" u otra unidad de conteo — esas se
+// separan del todo, a pedido del usuario ("todo lo que sea unidad se
+// separe de lo que son otras medidas de peso").
+export function esUnidadDePeso(unidad) {
+  return UNIDAD_A_GRAMOS[(unidad || '').trim().toLowerCase()] != null;
+}
+
+// Formato legible del peso total: en kg con hasta 2 decimales si llega a
+// 1000 g, si no en gramos enteros.
+export function fmtPesoGramos(g) {
+  if (g >= 1000) return `${(g / 1000).toLocaleString('es-CO', { maximumFractionDigits: 2 })} kg`;
+  return `${Math.round(g).toLocaleString('es-CO')} g`;
+}
+
 // filas: [{ nombre, cantidadTotal, unidad }] → misma lista con `.porcentaje`
 // agregado (0-100, o null si su unidad no es convertible a peso).
 export function calcularPorcentajes(filas) {
