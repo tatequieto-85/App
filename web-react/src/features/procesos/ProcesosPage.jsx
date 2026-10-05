@@ -76,6 +76,7 @@ export default function ProcesosPage({ onBack }) {
                   onAbrir={setDetailId}
                   onEdit={rr => setRecetaModal({ editing: rr })}
                   onDelete={pr.deleteReceta}
+                  onDuplicate={pr.duplicateReceta}
                 />
               ))}
             </div>

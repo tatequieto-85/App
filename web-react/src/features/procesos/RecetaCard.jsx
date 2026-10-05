@@ -5,10 +5,12 @@ import { nivelPicanteStyle } from '../../services/recetasApi';
 import './RecetaCard.css';
 
 // Un toque abre el detalle de solo lectura (ingredientes + etapas);
-// mantener presionada revela Editar/Borrar — mismo patrón que FeriaBlock en
-// Ventas. El color no se elige a mano: sale del nivel de picante detectado
-// a partir de los ingredientes (ver detectNivelPicante en recetasApi.js).
-export default function RecetaCard({ receta, onAbrir, onEdit, onDelete }) {
+// mantener presionada revela Duplicar (arriba) y Editar/Borrar (abajo) —
+// mismo patrón de ancla dentro del recuadro que FeriaBlock en Ventas, con
+// una fila extra a pedido del usuario. El color no se elige a mano: sale
+// del nivel de picante detectado a partir de los ingredientes (ver
+// detectNivelPicante en recetasApi.js).
+export default function RecetaCard({ receta, onAbrir, onEdit, onDelete, onDuplicate }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrapRef = useCloseOnOutsideClick(actionsOpen, () => setActionsOpen(false));
@@ -32,6 +34,18 @@ export default function RecetaCard({ receta, onAbrir, onEdit, onDelete }) {
     }
   }
 
+  async function handleDuplicate() {
+    setBusy(true);
+    try {
+      await onDuplicate(receta);
+      setActionsOpen(false);
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div ref={wrapRef} className="receta-card-wrap" style={{ borderColor }}>
       <div className="receta-card" style={{ background: bg || undefined }} {...gestureProps}>
@@ -42,9 +56,12 @@ export default function RecetaCard({ receta, onAbrir, onEdit, onDelete }) {
         </div>
       </div>
       {actionsOpen && (
-        <div className="row-actions-bar receta-card-actions">
-          <button type="button" onClick={() => { setActionsOpen(false); onEdit(receta); }}>Editar</button>
-          <button type="button" className="danger" disabled={busy} onClick={handleDelete}>Eliminar</button>
+        <div className="receta-card-actions">
+          <button type="button" className="receta-card-duplicate-btn" disabled={busy} onClick={handleDuplicate}>Duplicar</button>
+          <div className="row-actions-bar">
+            <button type="button" onClick={() => { setActionsOpen(false); onEdit(receta); }}>Editar</button>
+            <button type="button" className="danger" disabled={busy} onClick={handleDelete}>Eliminar</button>
+          </div>
         </div>
       )}
     </div>

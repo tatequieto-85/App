@@ -105,9 +105,27 @@ export function useProcesos() {
     await reloadRecetas();
   }, [reloadRecetas]);
 
+  // Copia completa (etapas + ingredientes) en el mismo grupo, con "(copia)"
+  // en el nombre para distinguirla — a pedido del usuario, revelado con
+  // mantener presionado junto a Editar/Eliminar. Las etapas se duplican con
+  // ids nuevos (sin pisar los de la receta original).
+  const duplicateReceta = useCallback(async receta => {
+    await recetasApi.appendReceta({
+      id: crypto.randomUUID(),
+      nombre: `${receta.nombre} (copia)`,
+      descripcion: receta.descripcion || '',
+      etapas: (receta.etapas || []).map(et => ({ ...et, id: crypto.randomUUID() })),
+      ingredientesMaestros: receta.ingredientesMaestros || [],
+      blockId: receta.blockId || '',
+      nivelPicante: receta.nivelPicante || '',
+      creadoEn: new Date().toISOString()
+    });
+    await reloadRecetas();
+  }, [reloadRecetas]);
+
   return {
     recetaBlocks, recetas, compras, loading, error,
     saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups,
-    saveReceta, deleteReceta
+    saveReceta, deleteReceta, duplicateReceta
   };
 }
