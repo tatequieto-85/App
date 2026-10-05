@@ -243,13 +243,35 @@ export function fmtPesoGramos(g) {
   return `${Math.round(g).toLocaleString('es-CO')} g`;
 }
 
-// filas: [{ nombre, cantidadTotal, unidad }] → misma lista con `.porcentaje`
-// agregado (0-100, o null si su unidad no es convertible a peso).
+// filas: [{ nombre, cantidadReceta, unidad }] → misma lista con
+// `.porcentaje` agregado (0-100, o null si su unidad no es convertible a
+// peso). Usa cantidadReceta (lo que efectivamente entra a la receta
+// después de procesar, p. ej. cebolla ya caramelizada) — NO
+// cantidadComprada (ver comentario en appendReceta/updateReceta más abajo).
 export function calcularPorcentajes(filas) {
-  const pesos = filas.map(f => pesoEnGramos(f.cantidadTotal, f.unidad));
+  const pesos = filas.map(f => pesoEnGramos(f.cantidadReceta, f.unidad));
   const total = pesos.reduce((s, p) => s + (p || 0), 0);
   return filas.map((f, i) => ({
     ...f,
     porcentaje: pesos[i] != null && total > 0 ? (pesos[i] / total) * 100 : null
   }));
+}
+
+// Un ingrediente de receta guarda DOS cantidades, a pedido del usuario:
+// `cantidadComprada` (lo que se compra antes de procesar, p. ej. 200 g de
+// cebolla cruda — la base real del costo de producción, cuando se migre
+// Ejecuciones) y `cantidadReceta` (lo que efectivamente entra a la receta
+// después de procesar, p. ej. 100 g de cebolla ya caramelizada — la base
+// del peso total/% de la receta, ver calcularPorcentajes). Datos guardados
+// ANTES de este cambio solo tenían `cantidadTotal` (una sola cantidad,
+// comprada y de receta a la vez, sin pérdida de proceso) — se normalizan
+// acá para no romper recetas viejas.
+export function normalizeIngredienteMaestro(im) {
+  const fallback = im.cantidadTotal ?? 0;
+  return {
+    nombre: im.nombre || '',
+    unidad: im.unidad || '',
+    cantidadComprada: im.cantidadComprada != null ? im.cantidadComprada : fallback,
+    cantidadReceta: im.cantidadReceta != null ? im.cantidadReceta : fallback
+  };
 }

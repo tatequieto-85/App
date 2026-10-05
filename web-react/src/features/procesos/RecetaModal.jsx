@@ -6,6 +6,7 @@ import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
 import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 import { parseThousandsInput, formatThousandsValue } from '../../utils/format';
+import { normalizeIngredienteMaestro } from '../../services/recetasApi';
 import EtapaEditor from './EtapaEditor';
 import RecetaIngredientesTable from './RecetaIngredientesTable';
 import './RecetaModal.css';
@@ -35,7 +36,11 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
     );
     setIngFilas(
       editingReceta
-        ? (editingReceta.ingredientesMaestros || []).map(im => ({ nombre: im.nombre, cantidadDraft: formatThousandsValue(im.cantidadTotal) }))
+        ? (editingReceta.ingredientesMaestros || []).map(normalizeIngredienteMaestro).map(im => ({
+            nombre: im.nombre,
+            compradoDraft: formatThousandsValue(im.cantidadComprada),
+            recetaDraft: formatThousandsValue(im.cantidadReceta)
+          }))
         : []
     );
     initialRef.current = { nombre: n };
@@ -58,10 +63,11 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
       .filter(f => f.nombre.trim())
       .map(f => ({
         nombre: f.nombre.trim(),
-        cantidadTotal: parseThousandsInput(f.cantidadDraft) || 0,
+        cantidadComprada: parseThousandsInput(f.compradoDraft) || 0,
+        cantidadReceta: parseThousandsInput(f.recetaDraft) || 0,
         unidad: ingredientes.find(i => i.nombre.toLowerCase() === f.nombre.trim().toLowerCase())?.unidad || ''
       }));
-    if (ingredientesMaestros.some(im => im.cantidadTotal < 0)) {
+    if (ingredientesMaestros.some(im => im.cantidadComprada < 0 || im.cantidadReceta < 0)) {
       return showFeedback('Las cantidades de ingredientes no pueden ser negativas.', 'err');
     }
 

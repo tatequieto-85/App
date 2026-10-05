@@ -14,14 +14,14 @@
 }
 .receta-ing-row-del:hover:not(:disabled) { color: var(--danger); background: #EF444414; }
 
-.receta-ing-row-bottom { display: flex; align-items: flex-end; gap: 10px; margin-top: 6px; }
-.receta-ing-row-bottom .field { flex: 1; margin-bottom: 0; }
-
-.receta-ing-pct {
-  flex-shrink: 0; text-align: right; padding-bottom: 9px; min-width: 70px;
+/* % del peso de la receta, en su propia línea — ya no cabe al lado de dos
+   campos de cantidad (comprado + receta) como antes, con uno solo. */
+.receta-ing-row-pct-line {
+  display: flex; align-items: baseline; gap: 6px; justify-content: flex-end;
+  margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border);
 }
-.receta-ing-pct-value { display: block; font-size: 15px; font-weight: 700; color: var(--brand); }
-.receta-ing-pct-label { display: block; font-size: 10.5px; color: var(--text-sub); }
+.receta-ing-pct-value { font-size: 15px; font-weight: 700; color: var(--brand); }
+.receta-ing-pct-label { font-size: 11px; color: var(--text-sub); }
 
 /* Peso total de la receta — destacado arriba de todo, a pedido explícito
    del usuario ("quiero que me diga el total en peso de la receta"). */
