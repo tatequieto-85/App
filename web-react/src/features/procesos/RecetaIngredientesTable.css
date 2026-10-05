@@ -14,6 +14,19 @@
 }
 .receta-ing-row-del:hover:not(:disabled) { color: var(--danger); background: #EF444414; }
 
+/* Fila "bloqueada" (colapsada) — a pedido del usuario: mientras se agrega
+   un ingrediente nuevo, los anteriores se compactan a una sola línea sin
+   los títulos de campo, con comprado y receta EN LA MISMA fila. Un toque
+   la reactiva (ver IngRowCollapsed en el JSX). */
+.receta-ing-row--collapsed {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer;
+}
+.receta-ing-row--collapsed:hover { border-color: var(--brand); }
+.receta-ing-row-collapsed-nombre { font-size: 13px; font-weight: 700; color: var(--text); flex-shrink: 0; }
+.receta-ing-row-collapsed-cantidades { font-size: 12.5px; color: var(--text-sub); flex: 1; text-align: right; }
+.receta-ing-row-collapsed-pct { font-size: 12.5px; font-weight: 700; color: var(--brand); flex-shrink: 0; }
+
 /* % del peso de la receta, en su propia línea — ya no cabe al lado de dos
    campos de cantidad (comprado + receta) como antes, con uno solo. */
 .receta-ing-row-pct-line {

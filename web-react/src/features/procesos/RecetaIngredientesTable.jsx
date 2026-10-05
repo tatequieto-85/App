@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Button from '../../components/ui/Button';
 import Icon from '../../components/icons/Icon';
 import ThousandsField from '../../components/ui/ThousandsField';
@@ -11,12 +12,42 @@ function getUnidad(ingredientes, nombre) {
   return found?.unidad || '';
 }
 
-// Fila de un ingrediente "por peso/volumen" — dos cantidades, a pedido
-// explícito del usuario: lo que se COMPRA antes de procesar (p. ej. 200 g
-// de cebolla cruda — la base del costo de producción, cuando se migre
-// Ejecuciones) y lo que efectivamente entra a la RECETA después de
-// procesar (p. ej. 100 g ya caramelizada — la base del % y el peso total
-// de la receta, ver RecetaModal.jsx).
+function DeleteBtn({ idx, onRemove, disabled }) {
+  return (
+    <button
+      type="button" className="receta-ing-row-del" disabled={disabled}
+      onClick={e => { e.stopPropagation(); onRemove(idx); }}
+      aria-label="Quitar ingrediente"
+    >
+      <Icon name="trash" size={15} />
+    </button>
+  );
+}
+
+// Fila COLAPSADA ("bloqueada") — a pedido del usuario: mientras se va
+// agregando un ingrediente nuevo, el anterior se compacta a una sola línea
+// sin los títulos de los campos (ni "Ingrediente", ni "Peso comprado", ni
+// "Peso para receta"), con comprado y receta en la MISMA fila. Un toque la
+// vuelve a activar (y colapsa la que estuviera activa).
+function IngRowCollapsed({ fila, idx, unidad, pct, esPeso, onActivate, onRemove, disabled }) {
+  const cantidadesTxt = esPeso
+    ? `${fila.compradoDraft || 0} → ${fila.recetaDraft || 0} ${unidad}`
+    : `${fila.recetaDraft || 0} ${unidad}`;
+  return (
+    <div className="receta-ing-row receta-ing-row--collapsed" onClick={() => onActivate(idx)}>
+      <span className="receta-ing-row-collapsed-nombre">{fila.nombre || '(sin nombre)'}</span>
+      <span className="receta-ing-row-collapsed-cantidades">{cantidadesTxt}</span>
+      {esPeso && pct != null && <span className="receta-ing-row-collapsed-pct">{pct.toFixed(1)}%</span>}
+      <DeleteBtn idx={idx} onRemove={onRemove} disabled={disabled} />
+    </div>
+  );
+}
+
+// Fila ACTIVA de un ingrediente "por peso/volumen" — dos cantidades, a
+// pedido explícito del usuario: lo que se COMPRA antes de procesar (p. ej.
+// 200 g de cebolla cruda — la base del costo de producción) y lo que
+// efectivamente entra a la RECETA después de procesar (p. ej. 100 g ya
+// caramelizada — la base del % y el peso total de la receta).
 function IngRowPeso({ fila, idx, unidad, pct, onUpdate, onRemove, ingredientes, onAddNew, disabled }) {
   return (
     <div className="receta-ing-row">
@@ -28,9 +59,7 @@ function IngRowPeso({ fila, idx, unidad, pct, onUpdate, onRemove, ingredientes, 
           ingredientes={ingredientes}
           onAddNew={onAddNew}
         />
-        <button type="button" className="receta-ing-row-del" disabled={disabled} onClick={() => onRemove(idx)} aria-label="Quitar ingrediente">
-          <Icon name="trash" size={15} />
-        </button>
+        <DeleteBtn idx={idx} onRemove={onRemove} disabled={disabled} />
       </div>
       <div className="field-row">
         <ThousandsField
@@ -52,8 +81,8 @@ function IngRowPeso({ fila, idx, unidad, pct, onUpdate, onRemove, ingredientes, 
   );
 }
 
-// Fila "por unidad" (conteo, p. ej. "unidades") — una sola cantidad, no hay
-// distinción comprado/receta porque no se procesa (no hay merma de peso).
+// Fila ACTIVA "por unidad" (conteo, p. ej. "unidades") — una sola cantidad,
+// no hay distinción comprado/receta porque no se procesa (no hay merma).
 function IngRowUnidad({ fila, idx, unidad, onUpdate, onRemove, ingredientes, onAddNew, disabled }) {
   return (
     <div className="receta-ing-row">
@@ -65,9 +94,7 @@ function IngRowUnidad({ fila, idx, unidad, onUpdate, onRemove, ingredientes, onA
           ingredientes={ingredientes}
           onAddNew={onAddNew}
         />
-        <button type="button" className="receta-ing-row-del" disabled={disabled} onClick={() => onRemove(idx)} aria-label="Quitar ingrediente">
-          <Icon name="trash" size={15} />
-        </button>
+        <DeleteBtn idx={idx} onRemove={onRemove} disabled={disabled} />
       </div>
       <ThousandsField
         label={`Cantidad${unidad ? ` (${unidad})` : ''}`} placeholder="0"
@@ -81,11 +108,18 @@ function IngRowUnidad({ fila, idx, unidad, onUpdate, onRemove, ingredientes, onA
 
 // Filas de ingredientes agregadas/quitadas a voluntad del usuario (a pedido
 // explícito, en vez del checklist fijo sobre todo el catálogo que usaba la
-// app vanilla). Se separan en dos grupos, también a pedido explícito: los
-// medidos por peso/volumen (g/kg/ml/L, con comprado/receta y % en vivo —
-// 1 ml = 1 g) y los medidos "por unidad" (conteo, no entra al total ni
-// tiene %, es otra magnitud).
+// app vanilla). Se separan en dos grupos: por peso/volumen (g/kg/ml/L, con
+// comprado/receta y % en vivo — 1 ml = 1 g) y por unidad (conteo, no entra
+// al peso total ni tiene %). Solo UNA fila está "activa" (expandida, con
+// los campos editables) a la vez — a pedido del usuario, para no saturar
+// la pantalla con muchos ingredientes abiertos: agregar una fila nueva
+// activa esa y colapsa la anterior; tocar una fila colapsada la reactiva.
+// Al editar una receta ya guardada, todas arrancan colapsadas (mismo
+// estilo, pedido explícito del usuario) — es estado de UI, no de datos, así
+// que vive local acá y no en RecetaModal.
 export default function RecetaIngredientesTable({ filas, onChange, ingredientes, compras, onAddNew, disabled }) {
+  const [activeIdx, setActiveIdx] = useState(null);
+
   const filasConUnidad = filas.map((f, i) => ({ ...f, unidad: getUnidad(ingredientes, f.nombre), idx: i }));
   const porPeso = filasConUnidad.filter(f => !f.unidad || esUnidadDePeso(f.unidad));
   const porUnidad = filasConUnidad.filter(f => f.unidad && !esUnidadDePeso(f.unidad));
@@ -110,12 +144,39 @@ export default function RecetaIngredientesTable({ filas, onChange, ingredientes,
 
   function addRow() {
     onChange([...filas, { nombre: '', compradoDraft: '', recetaDraft: '' }]);
+    setActiveIdx(filas.length);
   }
   function updateRow(idx, patch) {
     onChange(filas.map((f, i) => i === idx ? { ...f, ...patch } : f));
   }
   function removeRow(idx) {
     onChange(filas.filter((_, i) => i !== idx));
+    setActiveIdx(null);
+  }
+
+  function renderFila(f, esPeso) {
+    const pct = esPeso ? conPorcentajes.find(c => c.idx === f.idx)?.porcentaje : null;
+    if (f.idx !== activeIdx) {
+      return (
+        <IngRowCollapsed
+          key={f.idx} fila={f} idx={f.idx} unidad={f.unidad} pct={pct} esPeso={esPeso}
+          onActivate={setActiveIdx} onRemove={removeRow} disabled={disabled}
+        />
+      );
+    }
+    return esPeso ? (
+      <IngRowPeso
+        key={f.idx} fila={f} idx={f.idx} unidad={f.unidad} pct={pct}
+        onUpdate={updateRow} onRemove={removeRow}
+        ingredientes={ingredientes} onAddNew={onAddNew} disabled={disabled}
+      />
+    ) : (
+      <IngRowUnidad
+        key={f.idx} fila={f} idx={f.idx} unidad={f.unidad}
+        onUpdate={updateRow} onRemove={removeRow}
+        ingredientes={ingredientes} onAddNew={onAddNew} disabled={disabled}
+      />
+    );
   }
 
   return (
@@ -141,27 +202,14 @@ export default function RecetaIngredientesTable({ filas, onChange, ingredientes,
       <div className="receta-ing-group">
         {!!porUnidad.length && <h5 className="receta-ing-group-title">Por peso / volumen</h5>}
         {porPeso.length
-          ? porPeso.map(f => (
-              <IngRowPeso
-                key={f.idx} fila={f} idx={f.idx} unidad={f.unidad}
-                pct={conPorcentajes.find(c => c.idx === f.idx)?.porcentaje}
-                onUpdate={updateRow} onRemove={removeRow}
-                ingredientes={ingredientes} onAddNew={onAddNew} disabled={disabled}
-              />
-            ))
+          ? porPeso.map(f => renderFila(f, true))
           : !porUnidad.length && <p className="receta-ing-group-empty">Sin ingredientes todavía.</p>}
       </div>
 
       {!!porUnidad.length && (
         <div className="receta-ing-group">
           <h5 className="receta-ing-group-title">Por unidad</h5>
-          {porUnidad.map(f => (
-            <IngRowUnidad
-              key={f.idx} fila={f} idx={f.idx} unidad={f.unidad}
-              onUpdate={updateRow} onRemove={removeRow}
-              ingredientes={ingredientes} onAddNew={onAddNew} disabled={disabled}
-            />
-          ))}
+          {porUnidad.map(f => renderFila(f, false))}
         </div>
       )}
 
