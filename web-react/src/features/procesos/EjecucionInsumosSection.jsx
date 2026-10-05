@@ -33,8 +33,8 @@ export default function EjecucionInsumosSection({ ejecucion, ingredientes, onAdd
     e.preventDefault();
     const nombreTrim = nombre.trim();
     const unidadIng = getUnidad(ingredientes, nombreTrim);
-    const comprada = parseThousandsInput(compradoDraft);
-    const receta = esUnidadDePeso(unidadIng) ? parseThousandsInput(recetaDraft) : comprada;
+    const comprada = parseThousandsInput(compradoDraft) || 0;
+    const receta = esUnidadDePeso(unidadIng) ? (parseThousandsInput(recetaDraft) || 0) : comprada;
     if (!nombreTrim || !comprada) return;
     setBusy(true);
     try {

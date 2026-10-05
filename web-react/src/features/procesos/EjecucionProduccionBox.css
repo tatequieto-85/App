@@ -18,3 +18,14 @@
 }
 
 .ejecucion-produccion-guardar-btn { margin-top: 16px; }
+
+/* Precio total del lote — receta + lo que se agregue acá, en vivo (a
+   pedido explícito del usuario). */
+.ejecucion-produccion-costo {
+  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+  margin-top: 14px; padding: 8px 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 12.5px; color: var(--text);
+}
+.ejecucion-produccion-costo strong { font-size: 15px; color: var(--brand); }
+.ejecucion-produccion-costo-incompleto { flex-basis: 100%; font-size: 11px; color: var(--text-sub); margin: 2px 0 0; }

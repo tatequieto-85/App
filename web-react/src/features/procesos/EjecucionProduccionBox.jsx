@@ -5,7 +5,8 @@ import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
 import EjecucionInsumosSection from './EjecucionInsumosSection';
 import EjecucionObsSection from './EjecucionObsSection';
-import { fmtDateShortEs } from '../../utils/format';
+import { fmtDateShortEs, fmtCOP } from '../../utils/format';
+import { computeCostoReceta } from '../../services/recetasApi';
 import './EjecucionProduccionBox.css';
 
 // Un solo cuadro, debajo de Etapas, apenas se toca "Empezar producción" (ver
@@ -15,8 +16,8 @@ import './EjecucionProduccionBox.css';
 // y un botón final "Guardar ejecución" que cierra el lote (requiere pH
 // cargado, ver finalizarEjecucion en useProcesos.js).
 export default function EjecucionProduccionBox({
-  ejecucion, ingredientes, onAddNewIngrediente,
-  onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos, onGuardarEjecucion
+  ejecucion, ingredientes, onAddNewIngrediente, recetaIngredientes, compras,
+  onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos, onGuardarEjecucion, onClose
 }) {
   const [phDraft, setPhDraft] = useState(ejecucion.evaluacion?.ph != null ? String(ejecucion.evaluacion.ph) : '');
   const [phTouched, setPhTouched] = useState(false);
@@ -38,6 +39,16 @@ export default function EjecucionProduccionBox({
   const phVacio = phTouched && !phDraft.trim();
   const yaGuardada = ejecucion.estado === 'Completada';
 
+  // Precio total del lote, en vivo — a pedido explícito del usuario: si se
+  // agregan ingredientes acá (no planeados en la receta), el precio del
+  // lote tiene que sumarlos también, no solo los de la receta original.
+  const { total: costoLote, incompleto: costoIncompleto } = computeCostoReceta(
+    compras, [...(recetaIngredientes || []), ...(ejecucion.insumos || [])]
+  );
+
+  // Al guardar con éxito, se muestra el mensaje un instante y se cierra
+  // solo — antes se quedaba en la misma ventana sin indicar que había
+  // terminado, y el usuario lo reportó como que "no pasaba nada".
   async function handleGuardarEjecucion() {
     setPhTouched(true);
     if (!phDraft.trim()) return showFeedback('El pH es obligatorio para guardar la ejecución.', 'err');
@@ -45,9 +56,9 @@ export default function EjecucionProduccionBox({
     try {
       await onGuardarEjecucion(ejecucion);
       showFeedback('Ejecución guardada.', 'ok');
+      setTimeout(onClose, 900);
     } catch (err) {
       showFeedback('Error: ' + err.message, 'err');
-    } finally {
       setGuardando(false);
     }
   }
@@ -70,6 +81,16 @@ export default function EjecucionProduccionBox({
           onBlur={handleFrascosBlur}
         />
       </div>
+
+      {costoLote > 0 && (
+        <div className="ejecucion-produccion-costo">
+          <span>Precio total del lote</span>
+          <strong>{fmtCOP(costoLote)}</strong>
+          {!!costoIncompleto.length && (
+            <p className="ejecucion-produccion-costo-incompleto">Incompleto: sin precio registrado de {costoIncompleto.join(', ')}.</p>
+          )}
+        </div>
+      )}
 
       <p className="ejecucion-produccion-subtitle">Ingredientes usados</p>
       <EjecucionInsumosSection

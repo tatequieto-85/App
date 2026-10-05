@@ -150,10 +150,12 @@ export default function RecetaDetailModal({
       {ejecucion ? (
         <EjecucionProduccionBox
           ejecucion={ejecucion} ingredientes={ingredientes} onAddNewIngrediente={onAddNewIngrediente}
+          recetaIngredientes={maestros} compras={compras}
           onAddObservacion={handleAddObservacion}
           onAddInsumo={handleAddInsumo} onRemoveInsumo={handleRemoveInsumo}
           onChangePH={handleChangePH} onChangeFrascos={handleChangeFrascos}
           onGuardarEjecucion={handleGuardarEjecucion}
+          onClose={onClose}
         />
       ) : (
         <Button type="button" variant="primary" disabled={busy} onClick={handleEmpezarProduccion}>
