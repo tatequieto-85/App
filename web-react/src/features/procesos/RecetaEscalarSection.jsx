@@ -31,6 +31,11 @@ export default function RecetaEscalarSection({ maestros, pesoTotalActual, onEsca
     ? nuevaCantidad / ingSel.cantidadComprada
     : null;
   const nuevoPesoTotal = factor != null ? pesoTotalActual * factor : null;
+  // Mismo criterio que el resto de la app para convertir peso a volumen
+  // (1 ml ≈ 1 g, ver UNIDAD_A_GRAMOS en recetasApi.js) — cuántos frascos
+  // enteros rinde ese peso, a pedido explícito del usuario.
+  const frascos230 = nuevoPesoTotal != null ? Math.floor(nuevoPesoTotal / 230) : null;
+  const frascos130 = nuevoPesoTotal != null ? Math.floor(nuevoPesoTotal / 130) : null;
 
   async function handleActualizar() {
     if (!factor) return;
@@ -67,7 +72,10 @@ export default function RecetaEscalarSection({ maestros, pesoTotalActual, onEsca
       )}
       {nuevoPesoTotal != null && (
         <div className="receta-escalar-resultado">
-          <p>Peso total de la receta con ese cálculo: <strong>{fmtPesoGramos(nuevoPesoTotal)}</strong></p>
+          <p>
+            Peso total de la receta con ese cálculo: <strong>{fmtPesoGramos(nuevoPesoTotal)}</strong>
+            <span className="receta-escalar-frascos"> · ≈{frascos230} frascos de 230 ml o {frascos130} de 130 ml</span>
+          </p>
           <Button type="button" variant="primary" disabled={busy} onClick={handleActualizar}>
             {busy ? 'Actualizando…' : 'Actualizar receta y cambiar todos los gramos de cada producto manteniendo los porcentajes'}
           </Button>
