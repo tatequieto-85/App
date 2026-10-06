@@ -45,6 +45,14 @@ export function useTareas() {
     return porCat;
   }, [tasks]);
 
+  // Realizado/Cancelado no se guardan como un estado más — la tarea se
+  // archiva (sale de KanbanTasks, queda en TareasHistorial) y desaparece
+  // de la lista activa, a pedido explícito del usuario.
+  const archivar = useCallback(async task => {
+    await tareasApi.appendTareaHistorial(task);
+    await tareasApi.deleteKanbanTaskRow(task.rowIndex);
+  }, []);
+
   // Crea o actualiza — `editId` null = crear. `datos` ya viene con los
   // campos del formulario (ver TaskModal.jsx); los de Gantt (projectId,
   // startDate, dependsOn, timeSessions) se preservan del original al
@@ -54,17 +62,25 @@ export function useTareas() {
       const task = tasks.find(t => t.id === editId);
       if (!task) return;
       const updated = { ...task, ...datos };
-      await tareasApi.updateKanbanTask(updated);
+      if (tareasApi.ARCHIVABLE_STATES.includes(updated.status)) await archivar(updated);
+      else await tareasApi.updateKanbanTask(updated);
     } else {
       const now = new Date().toISOString();
-      await tareasApi.appendKanbanTask({
+      const nueva = {
         id: crypto.randomUUID(), createdAt: now, updatedAt: now,
         observations: [], dependsOn: [], timeSessions: [], sortOrder: null,
         ...datos
-      });
+      };
+      if (tareasApi.ARCHIVABLE_STATES.includes(nueva.status)) {
+        // Nunca llegó a existir en KanbanTasks — no hay fila que borrar,
+        // solo queda el registro en el historial directo.
+        await tareasApi.appendTareaHistorial(nueva);
+      } else {
+        await tareasApi.appendKanbanTask(nueva);
+      }
     }
     await reloadTasks();
-  }, [tasks, reloadTasks]);
+  }, [tasks, archivar, reloadTasks]);
 
   const deleteTask = useCallback(async (rowIndex) => {
     await tareasApi.deleteKanbanTaskRow(rowIndex);
@@ -74,9 +90,11 @@ export function useTareas() {
   const changeStatus = useCallback(async (taskId, newStatus) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task || task.status === newStatus) return;
-    await tareasApi.updateKanbanTask({ ...task, status: newStatus });
+    const updated = { ...task, status: newStatus };
+    if (tareasApi.ARCHIVABLE_STATES.includes(newStatus)) await archivar(updated);
+    else await tareasApi.updateKanbanTask(updated);
     await reloadTasks();
-  }, [tasks, reloadTasks]);
+  }, [tasks, archivar, reloadTasks]);
 
   const toggleSubtask = useCallback(async (taskId, idx) => {
     const task = tasks.find(t => t.id === taskId);

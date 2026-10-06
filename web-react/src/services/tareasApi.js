@@ -1,12 +1,14 @@
 // Portado de ../../tareas.js — primera pasada, a propósito acotada
-// (acordado con el usuario): Kanban + modal de tarea + detalle. Quedan
-// pendientes para una vuelta siguiente, ninguno tocado acá: Lista, Gantt
-// (y sus campos projectId/startDate/dependsOn — se leen/preservan tal
-// cual al editar, nunca se pisan), cronómetro por tarea, Historial
-// (archivado automático de tareas Realizado/Cancelado — acá se quedan
-// como cualquier otra columna), filtros personalizados, gestión de
-// tablero/áreas, mención @contacto y adjuntos en observaciones, y
-// suscripción a Google/iOS Calendar.
+// (acordado con el usuario): lista de tareas (no Kanban, a pedido
+// explícito) + modal de tarea + detalle. Quedan pendientes para una
+// vuelta siguiente, ninguno tocado acá: Gantt (y sus campos
+// projectId/startDate/dependsOn — se leen/preservan tal cual al editar,
+// nunca se pisan), cronómetro por tarea, una pantalla para VER el
+// historial archivado (el archivado en sí SÍ está acá, ver
+// ARCHIVABLE_STATES/appendTareaHistorial — a pedido explícito del
+// usuario: "donde cuando se realiza se elimina la tarea"), filtros
+// personalizados, gestión de tablero/áreas, mención @contacto y adjuntos
+// en observaciones, y suscripción a Google/iOS Calendar.
 import { sheetsReq } from './googleAuth';
 
 function safeParseJSON(val, fallback) {
@@ -15,6 +17,12 @@ function safeParseJSON(val, fallback) {
 }
 
 export const TERMINAL_STATES = ['Realizado', 'Cancelado', 'Postpuesto'];
+// Un estado terminal NO siempre se archiva: "Postpuesto" se queda a la
+// vista (sigue siendo una tarea activa, solo pospuesta) — mismo criterio
+// que ../../tareas.js. Al llegar a Realizado/Cancelado, la tarea se saca
+// de KanbanTasks y se guarda en TareasHistorial (nunca se borra sin
+// dejar rastro).
+export const ARCHIVABLE_STATES = ['Realizado', 'Cancelado'];
 
 export const DEFAULT_COLUMNS = [
   { name: 'Pendiente',   color: '#6B5050', terminal: false },
@@ -27,23 +35,29 @@ export const DEFAULT_COLUMNS = [
 export const DEFAULT_AREAS = ['Marketing', 'Ventas', 'Producción', 'Administración'];
 
 let kanbanTasksSheetId = null;
+let tareasHistorialSheetId = null;
 
-// Solo las dos hojas que necesita este alcance — GanttProjects (y su CRUD)
+// Tres hojas: las dos del tablero/lista + TareasHistorial (donde quedan
+// archivadas las tareas Realizado/Cancelado). GanttProjects (y su CRUD)
 // queda para cuando se migre Gantt.
 export async function ensureKanbanSheets() {
   const info = await sheetsReq('');
   const tabs = info.sheets || [];
   const hasTasks = tabs.find(s => s.properties.title === 'KanbanTasks');
   const hasConf  = tabs.find(s => s.properties.title === 'KanbanConfig');
+  const hasHist  = tabs.find(s => s.properties.title === 'TareasHistorial');
   if (hasTasks) kanbanTasksSheetId = hasTasks.properties.sheetId;
+  if (hasHist)  tareasHistorialSheetId = hasHist.properties.sheetId;
 
   const reqs = [];
   if (!hasTasks) reqs.push({ addSheet: { properties: { title: 'KanbanTasks' } } });
   if (!hasConf)  reqs.push({ addSheet: { properties: { title: 'KanbanConfig' } } });
+  if (!hasHist)  reqs.push({ addSheet: { properties: { title: 'TareasHistorial' } } });
   if (reqs.length) {
     const res = await sheetsReq(':batchUpdate', { method: 'POST', body: JSON.stringify({ requests: reqs }) });
     res.replies?.forEach(r => {
       if (r.addSheet?.properties?.title === 'KanbanTasks') kanbanTasksSheetId = r.addSheet.properties.sheetId;
+      if (r.addSheet?.properties?.title === 'TareasHistorial') tareasHistorialSheetId = r.addSheet.properties.sheetId;
     });
   }
 
@@ -68,6 +82,34 @@ export async function ensureKanbanSheets() {
       ] })
     });
   }
+
+  const hd = await sheetsReq('/values/TareasHistorial!A1').catch(() => ({}));
+  if (!hd.values) {
+    await sheetsReq('/values/TareasHistorial!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+      method: 'POST',
+      body: JSON.stringify({ values: [[
+        'ID', 'NombrePersonalizado', 'Area', 'Title', 'Status', 'DueDate', 'StartDate',
+        'Observations', 'TimeSessions', 'Subtasks', 'CreatedAt', 'CompletadoEn'
+      ]] })
+    });
+  }
+}
+
+// Archiva una tarea (Realizado/Cancelado) — sale de KanbanTasks para
+// siempre y queda en TareasHistorial, a pedido explícito del usuario
+// ("donde cuando se realiza se elimina la tarea"). Sin pantalla propia
+// para VER el historial todavía (queda para una vuelta siguiente) — esto
+// solo evita que el dato se pierda del todo.
+export async function appendTareaHistorial(t) {
+  if (!tareasHistorialSheetId) await ensureKanbanSheets();
+  await sheetsReq('/values/TareasHistorial!A:L:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', {
+    method: 'POST',
+    body: JSON.stringify({ values: [[
+      t.id, '', t.area, t.title, t.status, t.dueDate, t.startDate || '',
+      JSON.stringify(t.observations || []), JSON.stringify(t.timeSessions || []), JSON.stringify(t.subtasks || []),
+      t.createdAt, new Date().toISOString()
+    ]] })
+  });
 }
 
 export async function fetchKanbanConfig() {

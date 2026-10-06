@@ -5,7 +5,7 @@ import FabButton from '../../components/ui/FabButton';
 import Icon from '../../components/icons/Icon';
 import EmptyState from '../../components/ui/EmptyState';
 import { useTareas } from './useTareas';
-import KanbanBoard from './KanbanBoard';
+import TaskList from './TaskList';
 import TaskModal from './TaskModal';
 import TaskDetailModal from './TaskDetailModal';
 import './TareasPage.css';
@@ -13,11 +13,14 @@ import './TareasPage.css';
 const DUE_LABELS = { hoy: 'Hoy', atrasado: 'Atrasadas', futuro: 'A futuro' };
 
 // Primera pasada de Tareas (el módulo más grande de la app vanilla) —
-// alcance acordado con el usuario: Kanban + modal de tarea + detalle.
-// Quedan pendientes para una vuelta siguiente: Lista, Gantt, cronómetro,
-// filtros personalizados, Historial (archivado automático), gestión de
-// tablero/áreas/proyectos y suscripción a Google/iOS Calendar — ver
-// tareasApi.js para el detalle completo de qué se dejó afuera y por qué.
+// alcance acordado con el usuario: lista de tareas (sin Kanban, a pedido
+// explícito) + modal de tarea + detalle. Realizado/Cancelado se archivan
+// solas y desaparecen de la lista (también a pedido explícito, ver
+// useTareas.js). Quedan pendientes para una vuelta siguiente: Gantt,
+// cronómetro, filtros personalizados, una pantalla para ver el historial
+// archivado, gestión de tablero/áreas/proyectos y suscripción a
+// Google/iOS Calendar — ver tareasApi.js para el detalle completo de qué
+// se dejó afuera y por qué.
 export default function TareasPage({ onBack }) {
   const {
     loading, error, columns, areas, tasks, tareasPorDueCategory,
@@ -85,13 +88,11 @@ export default function TareasPage({ onBack }) {
         !tasks.length
           ? <EmptyState>Todavía no hay tareas. Agrega la primera con el botón de abajo.</EmptyState>
           : (
-            <KanbanBoard
+            <TaskList
               columns={columns} tasks={tasks}
-              onChangeStatus={changeStatus}
               onOpenDetail={setDetailId}
               onEdit={task => setTaskModal({ editing: task })}
               onDelete={handleDelete}
-              onAddCard={colName => setTaskModal({ editing: null, defaultStatus: colName })}
             />
           )
       )}
