@@ -24,7 +24,7 @@ const DUE_LABELS = { hoy: 'Hoy', atrasado: 'Atrasadas', futuro: 'A futuro' };
 export default function TareasPage({ onBack }) {
   const {
     loading, error, columns, areas, tasks, tareasPorDueCategory,
-    saveTask, deleteTask, changeStatus, toggleSubtask, addSubtask, addObservacion
+    saveTask, deleteTask, changeStatus, addObservacion
   } = useTareas();
 
   const [taskModal, setTaskModal] = useState(null); // { editing, defaultStatus } | null
@@ -116,8 +116,6 @@ export default function TareasPage({ onBack }) {
         task={detailTask}
         columns={columns}
         onChangeStatus={changeStatus}
-        onToggleSubtask={toggleSubtask}
-        onAddSubtask={addSubtask}
         onAddObservacion={addObservacion}
         onEdit={task => { setDetailId(null); setTaskModal({ editing: task }); }}
       />

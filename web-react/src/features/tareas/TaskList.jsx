@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Icon from '../../components/icons/Icon';
 import { useRowGestures } from '../../hooks/useRowGestures';
 import { fmtDayMonthSlash } from '../../utils/format';
-import { getDueStatus, TERMINAL_STATES } from '../../services/tareasApi';
+import { getDueStatus } from '../../services/tareasApi';
 import './TaskList.css';
 
 const PRIORITY_LABELS = { alta: 'Alta', media: 'Media', baja: 'Baja' };
@@ -10,9 +10,9 @@ const PRIORITY_LABELS = { alta: 'Alta', media: 'Media', baja: 'Baja' };
 // Un toque abre el detalle, mantener presionada revela Editar/Borrar en
 // una fila propia debajo (mismo patrón — y la misma idea de "fila de
 // acciones" en vez de meterlo en la última columna — que ya usaba esta
-// tabla en la app vanilla, ver renderKanbanList()). Realizado/Cancelado
-// no aparecen acá: se archivan apenas llegan a ese estado (ver
-// useTareas.js), nunca se ven en esta lista.
+// tabla en la app vanilla, ver renderKanbanList()). "Finalizada" no
+// aparece acá: se archiva apenas llega a ese estado (ver useTareas.js),
+// nunca se ve en esta lista.
 function TaskRow({ task, columns, actionsOpen, onOpenActions, onOpen, onEdit, onDelete }) {
   const [busy, setBusy] = useState(false);
   const gestureProps = useRowGestures({
@@ -24,7 +24,6 @@ function TaskRow({ task, columns, actionsOpen, onOpenActions, onOpen, onEdit, on
   const color = col?.color || '#999';
   const dueStatus = getDueStatus(task.dueDate);
   const dueLabel = !task.dueDate ? '—' : dueStatus === 'vencido' ? 'Vencida' : dueStatus === 'hoy' ? 'Hoy' : fmtDayMonthSlash(task.dueDate);
-  const stCount = (task.subtasks || []).length;
 
   async function handleDelete() {
     if (!window.confirm('¿Eliminar esta tarea?')) return;
@@ -44,7 +43,6 @@ function TaskRow({ task, columns, actionsOpen, onOpenActions, onOpen, onEdit, on
         <td>
           <span className="task-list-area">{task.area}</span>
           <strong className="task-list-title">{task.title}</strong>
-          {!!stCount && <span className="task-list-subcount">{stCount} sub-tarea{stCount !== 1 ? 's' : ''}</span>}
         </td>
         <td><span className="task-list-status-pill" style={{ background: `${color}22`, color }}>{task.status}</span></td>
         <td><span className={`task-list-due task-list-due--${dueStatus}`}>{dueLabel}</span></td>
@@ -69,7 +67,6 @@ function TaskRow({ task, columns, actionsOpen, onOpenActions, onOpen, onEdit, on
 }
 
 export default function TaskList({ columns, tasks, onOpenDetail, onEdit, onDelete }) {
-  const [showTerminal, setShowTerminal] = useState(false);
   const [actionsOpenId, setActionsOpenId] = useState(null);
 
   useEffect(() => {
@@ -80,34 +77,25 @@ export default function TaskList({ columns, tasks, onOpenDetail, onEdit, onDelet
     return () => document.removeEventListener('click', onDocClick);
   }, []);
 
-  const termCount = tasks.filter(t => TERMINAL_STATES.includes(t.status)).length;
-  let visible = showTerminal ? tasks : tasks.filter(t => !TERMINAL_STATES.includes(t.status));
-  visible = [...visible].sort((a, b) => (a.dueDate || '9999') < (b.dueDate || '9999') ? -1 : 1);
+  const visible = [...tasks].sort((a, b) => (a.dueDate || '9999') < (b.dueDate || '9999') ? -1 : 1);
+
+  if (!visible.length) return null;
 
   return (
-    <>
-      {!!visible.length && (
-        <div className="table-scroll">
-          <table className="tasks-table">
-            <thead><tr><th>Área / Tarea</th><th>Estado</th><th>Fecha límite</th><th>Prioridad</th></tr></thead>
-            <tbody>
-              {visible.map(task => (
-                <TaskRow
-                  key={task.id} task={task} columns={columns}
-                  actionsOpen={actionsOpenId === task.id}
-                  onOpenActions={setActionsOpenId}
-                  onOpen={onOpenDetail} onEdit={onEdit} onDelete={onDelete}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {!!termCount && (
-        <button type="button" className="task-list-toggle-terminal" onClick={() => setShowTerminal(v => !v)}>
-          {showTerminal ? 'Ocultar pospuestas' : `Pospuestas (${termCount})`}
-        </button>
-      )}
-    </>
+    <div className="table-scroll">
+      <table className="tasks-table">
+        <thead><tr><th>Área / Tarea</th><th>Estado</th><th>Fecha límite</th><th>Prioridad</th></tr></thead>
+        <tbody>
+          {visible.map(task => (
+            <TaskRow
+              key={task.id} task={task} columns={columns}
+              actionsOpen={actionsOpenId === task.id}
+              onOpenActions={setActionsOpenId}
+              onOpen={onOpenDetail} onEdit={onEdit} onDelete={onDelete}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

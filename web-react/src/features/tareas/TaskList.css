@@ -1,7 +1,6 @@
 .task-list-row { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .task-list-area { display: block; font-size: 11px; color: var(--text-sub); }
 .task-list-title { display: block; font-size: 13px; color: var(--brand); }
-.task-list-subcount { font-size: 11px; color: var(--text-sub); }
 
 .task-list-status-pill {
   display: inline-block; padding: 2px 8px; border-radius: 10px;
@@ -16,10 +15,3 @@
 .task-list-priority--alta { color: var(--danger); background: #C0392B18; }
 .task-list-priority--media { color: #B7791F; background: #B7791F18; }
 .task-list-priority--baja { color: var(--green); background: #7A9C3E18; }
-
-.task-list-toggle-terminal {
-  display: block; width: 100%; margin-top: 10px; padding: 10px;
-  background: none; border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
-  color: var(--text-sub); font-size: 12.5px; font-weight: 600; cursor: pointer;
-}
-.task-list-toggle-terminal:hover { border-color: var(--brand); color: var(--brand); }

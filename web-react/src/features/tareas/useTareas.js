@@ -96,22 +96,6 @@ export function useTareas() {
     await reloadTasks();
   }, [tasks, archivar, reloadTasks]);
 
-  const toggleSubtask = useCallback(async (taskId, idx) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-    const subtasks = (task.subtasks || []).map((s, i) => i === idx ? { ...s, done: !s.done } : s);
-    await tareasApi.updateKanbanTask({ ...task, subtasks });
-    await reloadTasks();
-  }, [tasks, reloadTasks]);
-
-  const addSubtask = useCallback(async (taskId, subtask) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-    const subtasks = [...(task.subtasks || []), subtask];
-    await tareasApi.updateKanbanTask({ ...task, subtasks });
-    await reloadTasks();
-  }, [tasks, reloadTasks]);
-
   const addObservacion = useCallback(async (taskId, text) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
@@ -122,6 +106,6 @@ export function useTareas() {
 
   return {
     loading, error, columns, areas, tasks, tareasPorDueCategory,
-    saveTask, deleteTask, changeStatus, toggleSubtask, addSubtask, addObservacion
+    saveTask, deleteTask, changeStatus, addObservacion
   };
 }

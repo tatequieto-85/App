@@ -16,21 +16,17 @@ function safeParseJSON(val, fallback) {
   try { return JSON.parse(val); } catch { return fallback; }
 }
 
-export const TERMINAL_STATES = ['Realizado', 'Cancelado', 'Postpuesto'];
-// Un estado terminal NO siempre se archiva: "Postpuesto" se queda a la
-// vista (sigue siendo una tarea activa, solo pospuesta) — mismo criterio
-// que ../../tareas.js. Al llegar a Realizado/Cancelado, la tarea se saca
-// de KanbanTasks y se guarda en TareasHistorial (nunca se borra sin
-// dejar rastro).
-export const ARCHIVABLE_STATES = ['Realizado', 'Cancelado'];
+// Tres estados únicamente, a pedido explícito del usuario (simplificó de
+// los 6 originales de la app vanilla). "Finalizada" es el único terminal
+// y el único que se archiva — al llegar ahí la tarea sale de KanbanTasks
+// y se guarda en TareasHistorial (nunca se borra sin dejar rastro).
+export const TERMINAL_STATES = ['Finalizada'];
+export const ARCHIVABLE_STATES = ['Finalizada'];
 
 export const DEFAULT_COLUMNS = [
-  { name: 'Pendiente',   color: '#6B5050', terminal: false },
+  { name: 'Tarea nueva', color: '#6B5050', terminal: false },
   { name: 'En proceso',  color: '#714B67', terminal: false },
-  { name: 'En revisión', color: '#7A9C3E', terminal: false },
-  { name: 'Realizado',   color: '#2E7D32', terminal: true },
-  { name: 'Cancelado',   color: '#C62828', terminal: true },
-  { name: 'Postpuesto',  color: '#546E7A', terminal: true }
+  { name: 'Finalizada',  color: '#2E7D32', terminal: true }
 ];
 export const DEFAULT_AREAS = ['Marketing', 'Ventas', 'Producción', 'Administración'];
 
@@ -72,8 +68,14 @@ export async function ensureKanbanSheets() {
     });
   }
 
-  const kd = await sheetsReq('/values/KanbanConfig!A1').catch(() => ({}));
-  if (!kd.values) {
+  const kd = await sheetsReq('/values/KanbanConfig!A:B').catch(() => ({}));
+  const kdRows = kd.values || [];
+  const colRowIdx = kdRows.findIndex(r => r[0] === 'columns');
+  // Las columnas no son editables por el usuario todavía (gestión de
+  // tablero queda para una vuelta siguiente) — se sincronizan siempre con
+  // DEFAULT_COLUMNS para que un cambio acá (como la simplificación a 3
+  // estados) se vea reflejado aunque el Sheet ya tuviera una config vieja.
+  if (colRowIdx === -1) {
     await sheetsReq('/values/KanbanConfig!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
       body: JSON.stringify({ values: [
@@ -81,6 +83,17 @@ export async function ensureKanbanSheets() {
         ['areas', JSON.stringify(DEFAULT_AREAS)]
       ] })
     });
+  } else {
+    await sheetsReq(`/values/KanbanConfig!B${colRowIdx + 1}?valueInputOption=RAW`, {
+      method: 'PUT',
+      body: JSON.stringify({ values: [[JSON.stringify(DEFAULT_COLUMNS)]] })
+    });
+    if (!kdRows.find(r => r[0] === 'areas')) {
+      await sheetsReq('/values/KanbanConfig!A:B:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+        method: 'POST',
+        body: JSON.stringify({ values: [['areas', JSON.stringify(DEFAULT_AREAS)]] })
+      });
+    }
   }
 
   const hd = await sheetsReq('/values/TareasHistorial!A1').catch(() => ({}));

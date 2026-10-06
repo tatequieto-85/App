@@ -1,35 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import TextField from '../../components/ui/TextField';
 import Select from '../../components/ui/Select';
-import Icon from '../../components/icons/Icon';
-import { fmtDayMonthSlash, fmtDateTime, toISODate } from '../../utils/format';
+import { fmtDayMonthSlash, fmtDateTime } from '../../utils/format';
 import { getDueStatus } from '../../services/tareasApi';
 import './TaskDetailModal.css';
 
 const PRIORITY_LABELS = { alta: 'Alta', media: 'Media', baja: 'Baja' };
 
-// Solo lectura + unas pocas acciones puntuales (cambiar estado, tildar
-// sub-tareas, agregar una sub-tarea u observación) — sin cronómetro, sin
-// mención @contacto ni adjuntos en observaciones (quedan para una vuelta
-// siguiente, ver tareasApi.js). "Editar" abre TaskModal para el resto de
-// los campos.
-export default function TaskDetailModal({ open, onClose, task, columns, onChangeStatus, onToggleSubtask, onAddSubtask, onAddObservacion, onEdit }) {
-  const [subText, setSubText] = useState('');
-  const [subStart, setSubStart] = useState('');
-  const [subEnd, setSubEnd] = useState('');
+// Solo lectura + unas pocas acciones puntuales (cambiar estado, agregar
+// una observación) — sin cronómetro, sin sub-tareas (sacadas de la
+// interfaz a pedido del usuario), sin mención @contacto ni adjuntos en
+// observaciones (quedan para una vuelta siguiente, ver tareasApi.js).
+// "Editar" abre TaskModal para el resto de los campos.
+export default function TaskDetailModal({ open, onClose, task, columns, onChangeStatus, onAddObservacion, onEdit }) {
   const [obsText, setObsText] = useState('');
   const [busyStatus, setBusyStatus] = useState(false);
-  const [busySubtask, setBusySubtask] = useState(false);
   const [busyObs, setBusyObs] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    const today = toISODate(new Date());
-    setSubText(''); setSubStart(today); setSubEnd(today);
-    setObsText('');
-  }, [open, task?.id]);
 
   if (!task) return null;
 
@@ -46,32 +34,6 @@ export default function TaskDetailModal({ open, onClose, task, columns, onChange
       alert('Error al cambiar estado: ' + err.message);
     } finally {
       setBusyStatus(false);
-    }
-  }
-
-  async function handleToggleSubtask(idx) {
-    setBusySubtask(true);
-    try {
-      await onToggleSubtask(task.id, idx);
-    } catch (err) {
-      alert('Error: ' + err.message);
-    } finally {
-      setBusySubtask(false);
-    }
-  }
-
-  async function handleAddSubtask() {
-    const text = subText.trim();
-    if (!text) return;
-    setBusySubtask(true);
-    try {
-      await onAddSubtask(task.id, { text, startDate: subStart, dueDate: subEnd, done: false });
-      const today = toISODate(new Date());
-      setSubText(''); setSubStart(today); setSubEnd(today);
-    } catch (err) {
-      alert('Error: ' + err.message);
-    } finally {
-      setBusySubtask(false);
     }
   }
 
@@ -109,37 +71,6 @@ export default function TaskDetailModal({ open, onClose, task, columns, onChange
       {task.priority && (
         <div className="task-detail-row"><span className="task-detail-label">Prioridad</span><span className="task-detail-value">{PRIORITY_LABELS[task.priority]}</span></div>
       )}
-      {task.desc && (
-        <div className="task-detail-row task-detail-row--col"><span className="task-detail-label">Descripción</span><span className="task-detail-value">{task.desc}</span></div>
-      )}
-
-      <div className="task-detail-row task-detail-row--col">
-        <span className="task-detail-label">Sub-tareas</span>
-        <div className="task-detail-subtasks">
-          {(task.subtasks || []).length ? task.subtasks.map((s, i) => {
-            const range = s.startDate && s.dueDate && s.startDate !== s.dueDate
-              ? `${fmtDayMonthSlash(s.startDate)} → ${fmtDayMonthSlash(s.dueDate)}`
-              : (s.dueDate ? fmtDayMonthSlash(s.dueDate) : '');
-            return (
-              <div key={i} className={`task-detail-subtask${s.done ? ' done' : ''}`}>
-                <button type="button" className="task-detail-subtask-check" disabled={busySubtask} onClick={() => handleToggleSubtask(i)} aria-label={s.done ? 'Marcar pendiente' : 'Marcar realizada'}>
-                  {s.done && <Icon name="check" size={11} />}
-                </button>
-                <span className="task-detail-subtask-text">{s.text}</span>
-                {range && <span className="task-detail-subtask-date">{range}</span>}
-              </div>
-            );
-          }) : <p className="empty-state" style={{ padding: '4px 0' }}>Sin sub-tareas aún.</p>}
-        </div>
-        <div className="task-detail-subtask-add">
-          <input type="text" className="field-input" placeholder="Nueva sub-tarea…" value={subText} onChange={e => setSubText(e.target.value)} disabled={busySubtask} />
-          <div className="task-detail-subtask-add-dates">
-            <input type="date" className="field-input" value={subStart} onChange={e => setSubStart(e.target.value)} disabled={busySubtask} title="Fecha de inicio" />
-            <input type="date" className="field-input" value={subEnd} onChange={e => setSubEnd(e.target.value)} disabled={busySubtask} title="Fecha de fin" />
-          </div>
-          <Button type="button" variant="outline" disabled={busySubtask} onClick={handleAddSubtask}>+ Agregar sub-tarea</Button>
-        </div>
-      </div>
 
       <div className="task-detail-row task-detail-row--meta"><span className="task-detail-label">Creada</span><span className="task-detail-value">{fmtDateTime(task.createdAt)}</span></div>
       <div className="task-detail-row task-detail-row--meta"><span className="task-detail-label">Actualizada</span><span className="task-detail-value">{fmtDateTime(task.updatedAt)}</span></div>
