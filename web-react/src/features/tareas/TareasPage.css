@@ -1,0 +1,27 @@
+.tareas-due-badges { display: flex; gap: 8px; margin-bottom: 12px; }
+.tareas-due-badge-wrap { position: relative; flex: 1; }
+.tareas-due-badge {
+  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-sub); font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.tareas-due-badge strong { font-size: 16px; color: var(--text); }
+.tareas-due-badge--hoy strong { color: #B7791F; }
+.tareas-due-badge--atrasado strong { color: var(--danger); }
+.tareas-due-badge.active { border-color: var(--brand); }
+
+.tareas-due-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md); max-height: 240px; overflow-y: auto;
+}
+.tareas-due-dropdown-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  width: 100%; padding: 8px 10px; border: none; border-bottom: 1px solid var(--border);
+  background: none; text-align: left; cursor: pointer;
+}
+.tareas-due-dropdown-item:last-child { border-bottom: none; }
+.tareas-due-dropdown-item:hover { background: var(--bg); }
+.tareas-due-dropdown-title { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.tareas-due-dropdown-meta { font-size: 11px; color: var(--text-sub); }
+.tareas-due-dropdown-empty { padding: 10px; font-size: 12px; color: var(--text-sub); text-align: center; }

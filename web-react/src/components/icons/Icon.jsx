@@ -281,6 +281,14 @@ const PATHS = {
       <line x1="12" y1="15" x2="12" y2="3" />
     </>
   ),
+  // Mismo trazo que usa Tareas en la tarjeta de Módulos de la app vanilla
+  // (index.html, data-nav="tareas") — un check dentro de una carpeta/caja.
+  checkSquare: (
+    <>
+      <polyline points="9 11 12 14 22 4" />
+      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+    </>
+  ),
   // Mismo trazo que usa QR en la tarjeta de Módulos de la app vanilla
   // (index.html, data-nav="qr").
   qr: (

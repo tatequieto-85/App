@@ -10,5 +10,6 @@ export const MODULE_REGISTRY = [
   { id: 'contactos', label: 'Contactos', icon: 'user', color: 'rose', screen: 'contactos' },
   { id: 'ventas', label: 'Ventas', icon: 'flag', color: 'rose', screen: 'ventas' },
   { id: 'procesos', label: 'Procesos', icon: 'beaker', color: 'green', screen: 'procesos' },
-  { id: 'qr', label: 'QR', icon: 'qr', color: 'purple', screen: 'qr' }
+  { id: 'qr', label: 'QR', icon: 'qr', color: 'purple', screen: 'qr' },
+  { id: 'tareas', label: 'Tareas', icon: 'checkSquare', color: 'teal', screen: 'tareas' }
 ];

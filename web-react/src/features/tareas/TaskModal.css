@@ -1,0 +1,10 @@
+.task-subtasks-editor { margin-top: 2px; }
+.task-subtask-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.task-subtask-row .field-input { font-size: 13px; padding: 8px 10px; }
+.task-subtask-date { flex-shrink: 0; width: 128px; }
+.task-subtask-remove {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%;
+  background: none; border: none; color: var(--text-sub); cursor: pointer;
+}
+.task-subtask-remove:hover { background: var(--bg); color: var(--danger); }

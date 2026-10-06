@@ -28,6 +28,19 @@ export function fmtDateShortEs(iso) {
   return parseISODate(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Bogota' });
 }
 
+// Portado de fmtDate() en ../../../utils.js — a diferencia de
+// fmtDateShortEs (solo día), esto incluye día de semana + hora, para
+// timestamps tipo CreadoEn/ActualizadoEn. `iso` acá SÍ es un datetime
+// completo (no un "YYYY-MM-DD"), así que usa `new Date` directo, no
+// parseISODate.
+export function fmtDateTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('es-CO', {
+    timeZone: 'America/Bogota',
+    weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+  });
+}
+
 export function fmtDayMonthSlash(iso) {
   if (!iso) return '';
   const d = parseISODate(iso);
