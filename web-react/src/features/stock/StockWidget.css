@@ -1,0 +1,12 @@
+/* Cuadro 1x1 — a pedido explícito del usuario: segunda fila, dos
+   columnas (230 ml / 130 ml) sin título, solo el número; tercera fila,
+   el valor total. Todo compacto, el widget mide ~112px de lado. */
+.stock-widget-frascos {
+  display: flex; gap: 6px;
+}
+.stock-widget-frasco-num {
+  flex: 1; font-size: 20px; font-weight: 800; color: var(--brand); line-height: 1;
+}
+.stock-widget-valor {
+  margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--text);
+}

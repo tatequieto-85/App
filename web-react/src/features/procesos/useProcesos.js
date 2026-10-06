@@ -215,9 +215,19 @@ export function useProcesos() {
   // "Completada" (mismo string que ya esperaba la app vanilla para
   // pintarlo en verde, ver estado-ok en procesos.js). El pH ya es
   // obligatorio para poder guardar (se valida en el botón, ver
-  // EjecucionProduccionBox.jsx) — acá solo persiste.
-  const finalizarEjecucion = useCallback(async ejecucion => {
-    const updated = { ...ejecucion, estado: 'Completada', fechaFin: todayISOBogota() };
+  // EjecucionProduccionBox.jsx) — acá solo persiste. `costoTotal`: el
+  // precio del lote YA calculado en EjecucionProduccionBox (receta +
+  // insumos agregados) se guarda congelado en evaluacion.costoTotal —
+  // bug real reportado por el usuario: el widget de Stock mostraba $0
+  // porque recalculaba el costo leyendo la receta en vivo, y si esa
+  // receta se borraba después (pasa seguido, ver resumenRows huérfanas en
+  // useStock.js) el costo se volvía imposible de reconstruir. Con el
+  // valor congelado al cerrar, sobrevive aunque la receta desaparezca.
+  const finalizarEjecucion = useCallback(async (ejecucion, costoTotal) => {
+    const updated = {
+      ...ejecucion, estado: 'Completada', fechaFin: todayISOBogota(),
+      evaluacion: { ...(ejecucion.evaluacion || {}), ...(costoTotal != null ? { costoTotal } : {}) }
+    };
     await ejecucionesApi.updateEjecucion(updated);
     return updated;
   }, []);

@@ -116,9 +116,16 @@ export function useStock() {
       disponible230 += (ev.frascos230 || 0) * ratio;
       disponible130 += (ev.frascos130 || 0) * ratio;
 
-      const receta = recetas.find(r => r.id === ej.recetaId);
-      const maestros = [...(receta?.ingredientesMaestros || []), ...(ej.insumos || [])];
-      const { total: costoLote } = computeCostoReceta(compras, maestros);
+      // Preferir el costo congelado al cerrar el lote (evaluacion.
+      // costoTotal) — sobrevive aunque la receta se borre después. Si el
+      // lote es viejo (cerrado antes de que esto existiera) o todavía no
+      // se cerró, se recalcula en vivo como antes.
+      let costoLote = ev.costoTotal;
+      if (costoLote == null) {
+        const receta = recetas.find(r => r.id === ej.recetaId);
+        const maestros = [...(receta?.ingredientesMaestros || []), ...(ej.insumos || [])];
+        costoLote = computeCostoReceta(compras, maestros).total;
+      }
       valor += (costoLote / resumen.producido) * resumen.disponible;
     });
     return { valor, disponible230: Math.round(disponible230), disponible130: Math.round(disponible130) };

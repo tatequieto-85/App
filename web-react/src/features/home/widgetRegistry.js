@@ -9,7 +9,7 @@ import VentasWidget from '../ventas/VentasWidget';
 // módulo (ver memoria del piloto), no se deciden solos.
 export const WIDGET_REGISTRY = [
   { id: 'compras', label: 'Insumos', icon: 'cart', span: 1, Component: ComprasWidget },
-  { id: 'stock', label: 'Stock', icon: 'box', span: 2, Component: StockWidget },
+  { id: 'stock', label: 'Stock', icon: 'box', span: 1, Component: StockWidget },
   { id: 'contactos', label: 'Contactos', icon: 'user', span: 1, Component: ContactosWidget },
   { id: 'ventas', label: 'Ventas', icon: 'flag', span: 1, Component: VentasWidget }
 ];
