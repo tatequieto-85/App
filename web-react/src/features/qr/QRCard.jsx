@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Icon from '../../components/icons/Icon';
 import { useRowGestures } from '../../hooks/useRowGestures';
 import { useCloseOnOutsideClick } from '../../hooks/useCloseOnOutsideClick';
+import QRAmpliado from './QRAmpliado';
 import './QRCard.css';
 
 function descargarQR(q) {
@@ -11,16 +12,22 @@ function descargarQR(q) {
   a.click();
 }
 
-// Descargar/Copiar link son acciones sutiles siempre visibles (no
-// destructivas, mismo criterio que el botón de WhatsApp en ContactoCard)
-// — mantener presionada la tarjeta revela Eliminar (regla 5 de
-// convenciones de UI, la única acción destructiva acá).
+// Un toque en la tarjeta amplía el QR a pantalla completa (a pedido
+// explícito del usuario, para poder escanearlo desde otro celular — ver
+// QRAmpliado.jsx). Descargar/Copiar link son acciones sutiles siempre
+// visibles (no destructivas, mismo criterio que el botón de WhatsApp en
+// ContactoCard) — mantener presionada la tarjeta revela Eliminar (regla 5
+// de convenciones de UI, la única acción destructiva acá).
 export default function QRCard({ qr, onDelete }) {
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [ampliado, setAmpliado] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const wrapRef = useCloseOnOutsideClick(actionsOpen, () => setActionsOpen(false));
-  const gestureProps = useRowGestures({ onLongPress: () => setActionsOpen(true) });
+  const gestureProps = useRowGestures({
+    onTap: () => setAmpliado(true),
+    onLongPress: () => setActionsOpen(true)
+  });
 
   async function handleCopiar(e) {
     e.stopPropagation();
@@ -70,6 +77,7 @@ export default function QRCard({ qr, onDelete }) {
           <button type="button" className="danger" disabled={busy} onClick={handleDelete}>Eliminar</button>
         </div>
       )}
+      <QRAmpliado open={ampliado} onClose={() => setAmpliado(false)} qr={qr} />
     </div>
   );
 }

@@ -1,0 +1,13 @@
+.qr-ampliado-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; padding: var(--space-5);
+  padding-top: calc(var(--space-5) + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+}
+.qr-ampliado-img {
+  width: 100%; max-width: 420px; aspect-ratio: 1 / 1;
+  object-fit: contain;
+}
+.qr-ampliado-nombre { font-size: 15px; font-weight: 700; color: var(--text); text-align: center; }
