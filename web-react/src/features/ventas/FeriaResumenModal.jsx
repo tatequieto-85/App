@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import Icon from '../../components/icons/Icon';
+import { useRowGestures } from '../../hooks/useRowGestures';
+import { useCloseOnOutsideClick } from '../../hooks/useCloseOnOutsideClick';
 import { feriaToText } from '../../services/feriasApi';
-import { fmtCOP, fmtDateShortEs } from '../../utils/format';
+import { fmtCOP, fmtDateShortEs, fmtDayMonthSlash } from '../../utils/format';
 import './FeriaResumenModal.css';
 
 // Se muestra en vez del conteo una vez que la feria ya pasó por calendario
@@ -45,6 +48,59 @@ function ConteoProductos({ feria, ejecuciones }) {
   );
 }
 
+// Fila de una venta/muestra YA registrada — mantener presionada revela
+// Borrar, a pedido explícito del usuario (antes no había forma de sacar
+// una mal cargada, solo de agregar). Mismo patrón long-press que el resto
+// de la app (ver regla 5 de convenciones de UI).
+function SalidaRow({ item, onDelete }) {
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const wrapRef = useCloseOnOutsideClick(actionsOpen, () => setActionsOpen(false));
+  const gestureProps = useRowGestures({ onLongPress: () => setActionsOpen(true) });
+
+  async function handleDelete() {
+    if (!window.confirm(`¿Borrar esta ${item.cantidad} unidad(es) de ${item.recetaNombre} del ${fmtDayMonthSlash(item.fecha)}?`)) return;
+    setBusy(true);
+    try {
+      await onDelete();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setBusy(false);
+      setActionsOpen(false);
+    }
+  }
+
+  return (
+    <div ref={wrapRef} className="feria-salida-row-wrap">
+      <div className="feria-salida-row" {...gestureProps}>
+        <span className="feria-salida-row-fecha">{fmtDayMonthSlash(item.fecha)}</span>
+        <span className="feria-salida-row-nombre">{item.recetaNombre}</span>
+        <span className="feria-salida-row-cantidad">{item.cantidad}</span>
+      </div>
+      {actionsOpen && (
+        <div className="row-actions-bar feria-salida-row-actions">
+          <button type="button" className="danger" disabled={busy} onClick={handleDelete}>{busy ? 'Borrando…' : 'Borrar'}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SalidasLista({ titulo, items, onRemove }) {
+  if (!items.length) return null;
+  return (
+    <div className="feria-section">
+      <h4 className="feria-section-title">{titulo}</h4>
+      <div className="feria-salidas-lista">
+        {items.map((item, i) => (
+          <SalidaRow key={i} item={item} onDelete={() => onRemove(i)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function downloadFeriaTxt(feria, ejecuciones, contactoNombre) {
   const text = feriaToText(feria, ejecuciones, fmtCOP, fmtDateShortEs, contactoNombre);
   const blob = new Blob([text], { type: 'text/plain' });
@@ -56,7 +112,7 @@ function downloadFeriaTxt(feria, ejecuciones, contactoNombre) {
   URL.revokeObjectURL(url);
 }
 
-export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, contactos }) {
+export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, contactos, onRemoveSalida }) {
   if (!feria) return null;
   const contactoNombre = contactos?.find(c => c.id === feria.contactoId)?.nombre || '';
 
@@ -68,6 +124,17 @@ export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, c
         <h4 className="feria-section-title">Conteo de productos</h4>
         <ConteoProductos feria={feria} ejecuciones={ejecuciones} />
       </div>
+
+      <SalidasLista
+        titulo="Ventas registradas"
+        items={feria.ventas || []}
+        onRemove={i => onRemoveSalida(feria.id, 'ventas', i)}
+      />
+      <SalidasLista
+        titulo="Muestras registradas"
+        items={feria.muestras || []}
+        onRemove={i => onRemoveSalida(feria.id, 'muestras', i)}
+      />
 
       <Button variant="primary" onClick={() => downloadFeriaTxt(feria, ejecuciones, contactoNombre)}>Descargar resumen</Button>
     </Modal>

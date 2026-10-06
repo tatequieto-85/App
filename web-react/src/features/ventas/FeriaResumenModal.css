@@ -11,3 +11,20 @@
   background: #F59E0B18; color: #B7791F; font-size: 12px; font-weight: 600;
 }
 .feria-resumen-warn svg { flex-shrink: 0; }
+
+/* Ventas/muestras ya registradas, con mantener presionada para borrar una
+   mal cargada — a pedido explícito del usuario (antes solo se podía
+   agregar). Mismo patrón que .receta-group-header-wrap. */
+.feria-salidas-lista { max-height: 220px; overflow-y: auto; }
+.feria-salida-row-wrap { position: relative; }
+.feria-salida-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 2px; border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--text);
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+.feria-salida-row-wrap:last-child .feria-salida-row { border-bottom: none; }
+.feria-salida-row-fecha { color: var(--text-sub); font-size: 11.5px; flex-shrink: 0; }
+.feria-salida-row-nombre { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feria-salida-row-cantidad { color: var(--brand); font-weight: 700; flex-shrink: 0; }
+.feria-salida-row-actions { border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 4px; }

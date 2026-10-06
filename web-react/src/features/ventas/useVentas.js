@@ -245,6 +245,19 @@ export function useVentas() {
     await reloadFerias();
   }, [ferias, ejecuciones, reloadFerias]);
 
+  // Borrar una venta/muestra ya registrada — a pedido explícito del
+  // usuario: antes solo se podía agregar (registrarSalida), nunca sacar
+  // una mal cargada. `index`: posición dentro de feria[arrField], tal
+  // cual se lista en FeriaResumenModal.
+  const removeSalida = useCallback(async (feriaId, arrField, index) => {
+    const f = ferias.find(x => x.id === feriaId);
+    if (!f) return;
+    const items = [...(f[arrField] || [])];
+    items.splice(index, 1);
+    await feriasApi.updateFeria({ ...f, [arrField]: items });
+    await reloadFerias();
+  }, [ferias, reloadFerias]);
+
   const addObservacionDiaria = useCallback(async (feriaId, fecha, text) => {
     const f = ferias.find(x => x.id === feriaId);
     if (!f) return;
@@ -275,6 +288,6 @@ export function useVentas() {
     resumenVentasPorDia,
     saveCanal, deleteCanal, reorderCanales,
     saveFeria, deleteFeria, reabrirFeria, terminarFeria, cambiarEstadoFeria,
-    saveStockPlan, registrarSalida, addObservacionDiaria, commitConteoSession
+    saveStockPlan, registrarSalida, removeSalida, addObservacionDiaria, commitConteoSession
   };
 }

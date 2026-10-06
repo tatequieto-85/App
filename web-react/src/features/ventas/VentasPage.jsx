@@ -240,6 +240,7 @@ export default function VentasPage({ onBack }) {
         feria={openFeria}
         ejecuciones={vt.ejecuciones}
         contactos={contactos}
+        onRemoveSalida={vt.removeSalida}
       />
     </motion.div>
   );
