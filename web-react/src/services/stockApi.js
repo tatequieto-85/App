@@ -195,6 +195,28 @@ export function getLoteResumen({ ejecuciones, ferias, stockMovimientos, stockTes
   };
 }
 
+// Disponible REAL de un lote puntual, con el mismo criterio que
+// getStockDisponibleGeneral (el que confía el Resumen: resta lo
+// efectivamente VENDIDO, no lo "comprometido" en planes de ferias viejas
+// — ver `disponible` de getLoteResumen arriba, pensado para Ventas/plan
+// de stock, no para esto). Sumar esta función lote por lote de una misma
+// receta da EXACTO lo mismo que getStockDisponibleGeneral de esa receta
+// — a diferencia de repartir el disponible general proporcionalmente
+// entre lotes (bug real reportado por el usuario: si un lote más barato
+// de una receta ya se agotó y queda el más caro, repartir "promediaba"
+// el costo y subestimaba el valor total del stock). Usado para costear
+// el stock lote por lote (ver resumenStockTotal/trazabilidadRows en
+// useStock.js).
+export function getStockDisponibleLoteReal({ ejecuciones, ferias, stockMovimientos }, ejecucionId) {
+  const ej = ejecuciones.find(e => e.id === ejecucionId);
+  if (!ej) return 0;
+  const ev = ej.evaluacion || {};
+  const producido = (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascos130 || 0) + (ev.frascosProducidos || 0);
+  const vendido = getStockVendidoLote(ferias, ejecucionId);
+  const ajustes = getStockAjustesNetosLote(stockMovimientos, ejecucionId);
+  return producido - vendido + ajustes;
+}
+
 // El ajuste manual se guarda por receta, pero el plan de stock de Ferias
 // elige cuánto llevar lote por lote — sin un lote asignado, un ajuste nunca
 // se vería reflejado ahí. Se atribuye solo, sin preguntarle al usuario, al

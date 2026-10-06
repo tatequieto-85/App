@@ -113,48 +113,33 @@ export function useStock() {
   }, [ejecuciones, ferias, stockMovimientos, stockTestigos, recetas, compras]);
 
   // Valor total del stock + desglose 230/130 ml — a pedido explícito del
-  // usuario, para el widget de Home. Ojo: el "disponible" POR LOTE
-  // (getLoteResumen, el que usa Trazabilidad/Ventas) resta lo
-  // COMPROMETIDO en TODAS las ferias que alguna vez planearon ese lote
-  // —incluidas las ya terminadas— y NO resta lo vendido; eso podía dejar
-  // el disponible de cada lote en 0 aunque el Resumen (que resta lo
-  // VENDIDO de verdad, ver getStockDisponibleGeneral) mostrara stock real
-  // — bug real reportado por el usuario ("en Stock dice 10, en el widget
-  // 0"). Acá se parte del disponible GENERAL por receta (el mismo que ya
-  // confía el Resumen) y se reparte entre los lotes de esa receta,
-  // proporcional a lo que produjo cada uno, para poder costear por lote y
-  // por tamaño de frasco sin perder consistencia con el Resumen.
+  // usuario, para el widget de Home. El disponible de cada lote sale de
+  // getStockDisponibleLoteReal (resta lo VENDIDO de ese lote puntual,
+  // mismo criterio que el Resumen) — NO del `disponible` de
+  // getLoteResumen (que resta lo "comprometido" en TODAS las ferias que
+  // alguna vez lo planearon, útil para Ventas pero no para esto) NI de
+  // repartir el disponible general de la receta proporcionalmente entre
+  // sus lotes (bug real reportado por el usuario: si una receta tiene
+  // varios lotes y uno más barato ya se agotó mientras queda el más
+  // caro, repartir "promediaba" el costo y subestimaba el valor total).
+  // Cada lote se costea con SU PROPIO costoLote, exacto.
   const resumenStockTotal = useMemo(() => {
     let valor = 0;
     let disponible230 = 0;
     let disponible130 = 0;
 
-    const lotesPorReceta = new Map();
     ejecuciones.forEach(ej => {
-      const id = ej.recetaId || '';
-      if (!lotesPorReceta.has(id)) lotesPorReceta.set(id, []);
-      lotesPorReceta.get(id).push(ej);
-    });
+      const disponibleLote = stockApi.getStockDisponibleLoteReal(ctx, ej.id);
+      if (disponibleLote <= 0) return;
+      const ev = ej.evaluacion || {};
+      const producidoLote = (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascos130 || 0) + (ev.frascosProducidos || 0);
+      if (producidoLote <= 0) return;
+      const ratio = disponibleLote / producidoLote;
+      disponible230 += (ev.frascos230 || 0) * ratio;
+      disponible130 += (ev.frascos130 || 0) * ratio;
 
-    lotesPorReceta.forEach((lotes, recetaId) => {
-      const disponibleGeneral = stockApi.getStockDisponibleGeneral(ctx, recetaId);
-      if (disponibleGeneral <= 0) return;
-      const producidoTotal = lotes.reduce((s, ej) => s + (stockApi.getLoteResumen(ctx, ej.id)?.producido || 0), 0);
-      if (producidoTotal <= 0) return;
-
-      lotes.forEach(ej => {
-        const producidoLote = stockApi.getLoteResumen(ctx, ej.id)?.producido || 0;
-        if (producidoLote <= 0) return;
-        const disponibleLote = disponibleGeneral * (producidoLote / producidoTotal);
-
-        const ev = ej.evaluacion || {};
-        const ratio = disponibleLote / producidoLote;
-        disponible230 += (ev.frascos230 || 0) * ratio;
-        disponible130 += (ev.frascos130 || 0) * ratio;
-
-        const costoLote = getCostoLote(ej, recetas, compras);
-        valor += (costoLote / producidoLote) * disponibleLote;
-      });
+      const costoLote = getCostoLote(ej, recetas, compras);
+      valor += (costoLote / producidoLote) * disponibleLote;
     });
 
     return { valor, disponible230: Math.round(disponible230), disponible130: Math.round(disponible130) };
