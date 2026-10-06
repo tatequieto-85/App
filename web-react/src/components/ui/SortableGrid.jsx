@@ -13,7 +13,7 @@ function SortableItem({ id, span, children }) {
     gridColumn: span > 1 ? `span ${span}` : undefined
   };
   return (
-    <div ref={setNodeRef} style={style} className="sortable-item" {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className="sortable-item" data-span={span} {...attributes} {...listeners}>
       {children}
     </div>
   );

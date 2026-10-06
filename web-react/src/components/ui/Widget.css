@@ -4,12 +4,13 @@
   gap: 10px;
 }
 
-/* Cada espacio del grid de widgets es cuadrado (ancho = alto). Solo se
-   aplica acá (no a .sortable-item en general, que también usa el grid de
-   Módulos) y solo cubre widgets de 1 columna — un widget de 2 o 3 (span)
-   todavía no existe; cuando haga falta uno, esto necesita revisarse para
-   que sean "N cuadrados de ancho" en vez de un cuadrado gigante. */
-.widgets-grid .sortable-item { aspect-ratio: 1 / 1; max-height: 25vh; }
+/* Cada espacio del grid de widgets de 1 columna es cuadrado (ancho =
+   alto). Un widget de span 2/3 (primer caso: Stock, ver widgetRegistry.js)
+   NO hereda esto — un cuadrado de 2 columnas de ancho queda demasiado
+   alto y deja un hueco vacío al lado si no hay otro widget en esa fila —
+   solo se le pone un alto razonable, por contenido. */
+.widgets-grid .sortable-item[data-span="1"] { aspect-ratio: 1 / 1; max-height: 25vh; }
+.widgets-grid .sortable-item:not([data-span="1"]) { max-height: 25vh; }
 
 .widget {
   height: 100%; display: flex; flex-direction: column;

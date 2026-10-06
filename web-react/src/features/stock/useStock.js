@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchRecetas } from '../../services/recetasApi';
+import { fetchRecetas, computeCostoReceta } from '../../services/recetasApi';
 import { fetchEjecuciones } from '../../services/ejecucionesApi';
 import { fetchFerias } from '../../services/feriasApi';
+import { fetchCompras } from '../../services/comprasApi';
 import * as stockApi from '../../services/stockApi';
 
 // Toda la lógica de negocio de Stock vive acá. Lee, además de sus propias
@@ -14,6 +15,7 @@ export function useStock() {
   const [recetas, setRecetas] = useState([]);
   const [ejecuciones, setEjecuciones] = useState([]);
   const [ferias, setFerias] = useState([]);
+  const [compras, setCompras] = useState([]);
   const [stockTestigos, setStockTestigos] = useState([]);
   const [stockMovimientos, setStockMovimientos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,11 +37,12 @@ export function useStock() {
       try {
         setLoading(true);
         await stockApi.ensureStockSheets();
-        const [r, e, f] = await Promise.all([fetchRecetas(), fetchEjecuciones(), fetchFerias()]);
+        const [r, e, f, c] = await Promise.all([fetchRecetas(), fetchEjecuciones(), fetchFerias(), fetchCompras()]);
         if (cancelled) return;
         setRecetas(r);
         setEjecuciones(e);
         setFerias(f);
+        setCompras(c);
         await reloadStockData();
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -91,6 +94,36 @@ export function useStock() {
     return lotes.map(ej => ({ ejecucion: ej, resumen: stockApi.getLoteResumen(ctx, ej.id) }));
   }, [ejecuciones, ferias, stockMovimientos, stockTestigos]);
 
+  // Valor total del stock + desglose 230/130 ml — a pedido explícito del
+  // usuario, para el widget de Home. Por cada lote con disponible > 0: el
+  // costo de ESE lote (receta + insumos agregados en producción, mismo
+  // cálculo que "Precio total del lote" en Procesos) se divide entre los
+  // frascos que salieron, dando un costo por frasco; multiplicado por el
+  // disponible de ese lote y sumado entre todos los lotes da el valor
+  // total. Las ventas/ajustes no distinguen tamaño de frasco (una sola
+  // cantidad por lote) — el disponible se reparte entre 230/130 en la
+  // misma proporción en que se produjeron (campo registrado al ejecutar
+  // la receta), a pedido explícito del usuario.
+  const resumenStockTotal = useMemo(() => {
+    let valor = 0;
+    let disponible230 = 0;
+    let disponible130 = 0;
+    ejecuciones.forEach(ej => {
+      const resumen = stockApi.getLoteResumen(ctx, ej.id);
+      if (!resumen || resumen.disponible <= 0 || resumen.producido <= 0) return;
+      const ev = ej.evaluacion || {};
+      const ratio = resumen.disponible / resumen.producido;
+      disponible230 += (ev.frascos230 || 0) * ratio;
+      disponible130 += (ev.frascos130 || 0) * ratio;
+
+      const receta = recetas.find(r => r.id === ej.recetaId);
+      const maestros = [...(receta?.ingredientesMaestros || []), ...(ej.insumos || [])];
+      const { total: costoLote } = computeCostoReceta(compras, maestros);
+      valor += (costoLote / resumen.producido) * resumen.disponible;
+    });
+    return { valor, disponible230: Math.round(disponible230), disponible130: Math.round(disponible130) };
+  }, [ejecuciones, ferias, stockMovimientos, stockTestigos, recetas, compras]);
+
   // Lotes con stock disponible — para el selector de "Apartar testigo".
   const lotesConStock = useMemo(() => {
     return ejecuciones
@@ -136,7 +169,7 @@ export function useStock() {
 
   return {
     loading, error,
-    resumenRows, trazabilidadRows, lotesConStock, testigoRows,
+    resumenRows, resumenStockTotal, trazabilidadRows, lotesConStock, testigoRows,
     saveAjuste, apartarTestigo, updateTestigoEstado, deleteTestigo
   };
 }
