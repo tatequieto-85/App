@@ -7,6 +7,7 @@ import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
 import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 import { toISODate } from '../../utils/format';
+import { ARCHIVABLE_STATES } from '../../services/tareasApi';
 
 const PRIORITY_OPTIONS = [
   { value: '', label: 'Elegir…' },
@@ -64,6 +65,10 @@ export default function TaskModal({ open, onClose, editingTask, columns, areas, 
     if (!tituloTrim) return showFeedback('La descripción es obligatoria.', 'err');
     if (!due) return showFeedback('La fecha límite es obligatoria.', 'err');
     if (!priority) return showFeedback('La prioridad es obligatoria.', 'err');
+    // Igual que en TaskDetailModal: guardar en un estado archivable
+    // (Finalizada) saca la tarea de la lista para siempre, se pide
+    // confirmación antes, a pedido explícito del usuario.
+    if (ARCHIVABLE_STATES.includes(status) && !window.confirm('Al finalizar, la tarea se archiva y desaparece de la lista. ¿Continuar?')) return;
 
     setBusy(true);
     try {

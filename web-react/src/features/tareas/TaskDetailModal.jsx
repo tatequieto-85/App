@@ -4,7 +4,7 @@ import Button from '../../components/ui/Button';
 import TextField from '../../components/ui/TextField';
 import Select from '../../components/ui/Select';
 import { fmtDayMonthSlash, fmtDateTime } from '../../utils/format';
-import { getDueStatus } from '../../services/tareasApi';
+import { getDueStatus, ARCHIVABLE_STATES } from '../../services/tareasApi';
 import './TaskDetailModal.css';
 
 const PRIORITY_LABELS = { alta: 'Alta', media: 'Media', baja: 'Baja' };
@@ -27,6 +27,13 @@ export default function TaskDetailModal({ open, onClose, task, columns, onChange
   async function handleChangeStatus(e) {
     const nuevo = e.target.value;
     if (nuevo === task.status) return;
+    // Al pasar a un estado archivable (Finalizada) la tarea sale de la
+    // lista para siempre (ver useTareas.js) — se pide confirmación antes,
+    // a pedido explícito del usuario.
+    if (ARCHIVABLE_STATES.includes(nuevo) && !window.confirm('Al finalizar, la tarea se archiva y desaparece de la lista. ¿Continuar?')) {
+      e.target.value = task.status;
+      return;
+    }
     setBusyStatus(true);
     try {
       await onChangeStatus(task.id, nuevo);
