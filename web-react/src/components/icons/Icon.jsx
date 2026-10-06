@@ -273,6 +273,26 @@ const PATHS = {
       <path d="M9 3v8l-3.5 6.5a2 2 0 001.8 2.9h9.4a2 2 0 001.8-2.9L15 11V3" />
       <line x1="6" y1="3" x2="18" y2="3" />
     </>
+  ),
+  download: (
+    <>
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </>
+  ),
+  // Mismo trazo que usa QR en la tarjeta de Módulos de la app vanilla
+  // (index.html, data-nav="qr").
+  qr: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <line x1="14" y1="14" x2="14" y2="21" />
+      <line x1="21" y1="14" x2="21" y2="21" />
+      <line x1="17.5" y1="14" x2="17.5" y2="17.5" />
+      <line x1="14" y1="17.5" x2="21" y2="17.5" />
+    </>
   )
 };
 

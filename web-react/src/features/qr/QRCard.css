@@ -1,0 +1,35 @@
+.qr-card-wrap {
+  position: relative; overflow: hidden;
+  border: 1.5px solid var(--border); border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.qr-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px; cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+
+.qr-card-img {
+  width: 56px; height: 56px; flex-shrink: 0;
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: #fff; object-fit: contain; padding: 4px;
+}
+
+.qr-card-info { flex: 1; min-width: 0; }
+.qr-card-nombre { font-size: 14px; font-weight: 700; color: var(--text); }
+.qr-card-link {
+  display: block; font-size: 12px; color: var(--brand);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.qr-card-botones { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.qr-card-boton-sutil {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: none; border: none; color: var(--text-sub); cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.qr-card-boton-sutil:hover { background: var(--bg); color: var(--brand); }
+
+.qr-card-eliminar-bar { border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }

@@ -9,8 +9,9 @@ import StockPage from './features/stock/StockPage';
 import ContactosPage from './features/contactos/ContactosPage';
 import VentasPage from './features/ventas/VentasPage';
 import ProcesosPage from './features/procesos/ProcesosPage';
+import QRPage from './features/qr/QRPage';
 
-const PAGES = { compras: ComprasPage, stock: StockPage, contactos: ContactosPage, ventas: VentasPage, procesos: ProcesosPage };
+const PAGES = { compras: ComprasPage, stock: StockPage, contactos: ContactosPage, ventas: VentasPage, procesos: ProcesosPage, qr: QRPage };
 
 export default function App() {
   const { checked, signedIn, signIn } = useAuth();
