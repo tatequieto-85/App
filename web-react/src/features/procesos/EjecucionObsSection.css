@@ -7,7 +7,4 @@
 .ejecucion-obs-text { font-size: 13px; color: var(--text); white-space: pre-wrap; }
 .ejecucion-obs-date { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
 
-.ejecucion-obs-form { display: flex; gap: 8px; align-items: flex-start; }
-.ejecucion-obs-form .field { flex: 1; }
 .ejecucion-obs-form .field-label { margin-top: 0; }
-.ejecucion-obs-form .btn--outline { width: auto; flex-shrink: 0; }

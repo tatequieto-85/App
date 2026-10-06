@@ -11,6 +11,39 @@
 .ejecucion-produccion-box .field-label { margin-top: 10px; }
 .ejecucion-produccion-box .field-row .field-label { margin-top: 8px; }
 
+/* Cabecera en una sola fila — nombre+fecha a la izquierda, #Lote a la
+   derecha (a pedido explícito del usuario, orden fijo de todo el cuadro). */
+.ejecucion-produccion-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 8px; flex-wrap: wrap;
+}
+.ejecucion-produccion-header-left {
+  display: flex; align-items: baseline; gap: 8px; min-width: 0;
+  text-align: left;
+}
+.ejecucion-produccion-header-left strong { font-size: 14px; }
+.ejecucion-produccion-fecha { font-size: 12px; color: var(--text-sub); }
+.ejecucion-produccion-header-right {
+  font-size: 12px; color: var(--text-sub); text-align: right; flex-shrink: 0;
+}
+
+/* Disparador sutil "+" para agregar ingrediente/observación — a pedido
+   explícito del usuario, en vez de un formulario siempre visible: abre un
+   modal propio (ver EjecucionInsumosSection/EjecucionObsSection). */
+.ejecucion-add-trigger {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; padding: 6px 2px; margin-top: 4px;
+  background: none; border: none; cursor: pointer;
+  font-size: 12.5px; color: var(--text-sub);
+}
+.ejecucion-add-trigger:hover { color: var(--brand); }
+.ejecucion-add-trigger .icon-plus-circle {
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1px solid var(--border); flex-shrink: 0;
+}
+.ejecucion-add-trigger:hover .icon-plus-circle { border-color: var(--brand); }
+
 .ejecucion-produccion-subtitle {
   font-size: 11px; font-weight: 700; color: var(--text-sub);
   text-transform: uppercase; letter-spacing: .06em;

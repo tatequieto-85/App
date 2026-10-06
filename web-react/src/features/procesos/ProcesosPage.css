@@ -1,0 +1,9 @@
+.receta-groups-sections { display: flex; flex-direction: column; }
+
+/* Línea muy sutil entre grupos, a pedido explícito del usuario — mismo
+   gris que ya separa filas/tarjetas en el resto de la app (var(--border)),
+   no un color nuevo. El primer grupo no lleva línea arriba. */
+.receta-group-section + .receta-group-section {
+  border-top: 1px solid var(--border);
+  margin-top: 14px; padding-top: 10px;
+}

@@ -5,7 +5,7 @@ import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
 import EjecucionInsumosSection from './EjecucionInsumosSection';
 import EjecucionObsSection from './EjecucionObsSection';
-import { fmtDateShortEs, fmtCOP } from '../../utils/format';
+import { fmtDayMonthYearShort, fmtCOP } from '../../utils/format';
 import { computeCostoReceta } from '../../services/recetasApi';
 import './EjecucionProduccionBox.css';
 
@@ -72,8 +72,23 @@ export default function EjecucionProduccionBox({
 
   return (
     <div className="receta-detail-section ejecucion-produccion-box">
-      <h4 className="receta-detail-section-title">Producción — Lote {ejecucion.loteId}</h4>
-      <p className="modal-contexto">{ejecucion.nombreReceta} — iniciado {fmtDateShortEs(ejecucion.fechaInicio)}</p>
+      <div className="ejecucion-produccion-header">
+        <div className="ejecucion-produccion-header-left">
+          <strong>{ejecucion.nombreReceta}</strong>
+          <span className="ejecucion-produccion-fecha">{fmtDayMonthYearShort(ejecucion.fechaInicio)}</span>
+        </div>
+        <div className="ejecucion-produccion-header-right">#{ejecucion.loteId}</div>
+      </div>
+
+      {costoLote > 0 && (
+        <div className="ejecucion-produccion-costo">
+          <span>Precio total del lote</span>
+          <strong>{fmtCOP(costoLote)}</strong>
+          {!!costoIncompleto.length && (
+            <p className="ejecucion-produccion-costo-incompleto">Incompleto: sin precio registrado de {costoIncompleto.join(', ')}.</p>
+          )}
+        </div>
+      )}
 
       <div className="field-row">
         <TextField
@@ -94,17 +109,7 @@ export default function EjecucionProduccionBox({
         />
       </div>
 
-      {costoLote > 0 && (
-        <div className="ejecucion-produccion-costo">
-          <span>Precio total del lote</span>
-          <strong>{fmtCOP(costoLote)}</strong>
-          {!!costoIncompleto.length && (
-            <p className="ejecucion-produccion-costo-incompleto">Incompleto: sin precio registrado de {costoIncompleto.join(', ')}.</p>
-          )}
-        </div>
-      )}
-
-      <p className="ejecucion-produccion-subtitle">Ingredientes usados</p>
+      <p className="ejecucion-produccion-subtitle">Ingredientes adicionales</p>
       <EjecucionInsumosSection
         ejecucion={ejecucion} ingredientes={ingredientes} onAddNewIngrediente={onAddNewIngrediente}
         onAddInsumo={onAddInsumo} onRemoveInsumo={onRemoveInsumo}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import Icon from '../../components/icons/Icon';
 import ThousandsField from '../../components/ui/ThousandsField';
@@ -18,8 +19,11 @@ function getUnidad(ingredientes, nombre) {
 // peso/volumen lleva DOS pesos (comprado antes de procesar y el que
 // efectivamente entró a la receta — pueden diferir, p. ej. cebolla
 // caramelizada); uno "por unidad" (conteo) lleva una sola cantidad, no hay
-// noción de merma de proceso para algo que se cuenta.
+// noción de merma de proceso para algo que se cuenta. El alta ya no es un
+// formulario siempre visible — a pedido explícito del usuario, se abre en
+// una ventana propia detrás de un botón sutil de "+".
 export default function EjecucionInsumosSection({ ejecucion, ingredientes, onAddNewIngrediente, onAddInsumo, onRemoveInsumo }) {
+  const [open, setOpen] = useState(false);
   const [nombre, setNombre] = useState('');
   const [compradoDraft, setCompradoDraft] = useState('');
   const [recetaDraft, setRecetaDraft] = useState('');
@@ -28,6 +32,13 @@ export default function EjecucionInsumosSection({ ejecucion, ingredientes, onAdd
   const insumos = ejecucion.insumos || [];
   const unidad = getUnidad(ingredientes, nombre);
   const esPeso = !unidad || esUnidadDePeso(unidad);
+
+  function abrir() {
+    setNombre('');
+    setCompradoDraft('');
+    setRecetaDraft('');
+    setOpen(true);
+  }
 
   async function handleAdd(e) {
     e.preventDefault();
@@ -39,9 +50,7 @@ export default function EjecucionInsumosSection({ ejecucion, ingredientes, onAdd
     setBusy(true);
     try {
       await onAddInsumo(ejecucion, { nombre: nombreTrim, cantidadComprada: comprada, cantidadReceta: receta, unidad: unidadIng });
-      setNombre('');
-      setCompradoDraft('');
-      setRecetaDraft('');
+      setOpen(false);
     } finally {
       setBusy(false);
     }
@@ -74,41 +83,49 @@ export default function EjecucionInsumosSection({ ejecucion, ingredientes, onAdd
           );
         }) : <div className="empty-state" style={{ padding: '8px 0' }}>Aún sin ingredientes cargados</div>}
       </div>
-      <form onSubmit={handleAdd} className="ejecucion-insumos-form">
-        <IngredienteAutocomplete
-          label="Ingrediente" placeholder="Nombre…"
-          value={nombre} onChange={setNombre}
-          ingredientes={ingredientes} onAddNew={onAddNewIngrediente}
-        />
-        {esPeso ? (
-          <div className="field-row">
-            <ThousandsField
-              label={`Peso comprado${unidad ? ` (${unidad})` : ''}`} placeholder="0"
-              value={compradoDraft}
-              onChange={v => {
-                setCompradoDraft(v);
-                // "Peso para receta" sigue a "Peso comprado" por defecto,
-                // mismo criterio que al planificar la receta — se deja de
-                // sincronizar en cuanto se toca el campo de receta a mano.
-                if (recetaDraft === '' || recetaDraft === compradoDraft) setRecetaDraft(v);
-              }}
-              disabled={busy}
-            />
-            <ThousandsField
-              label={`Peso para receta${unidad ? ` (${unidad})` : ''}`} placeholder="0"
-              value={recetaDraft} onChange={setRecetaDraft} disabled={busy}
-            />
-          </div>
-        ) : (
-          <ThousandsField
-            label={`Cantidad${unidad ? ` (${unidad})` : ''}`} placeholder="0"
-            value={compradoDraft} onChange={setCompradoDraft} disabled={busy}
+
+      <button type="button" className="ejecucion-add-trigger" onClick={abrir}>
+        <span className="icon-plus-circle"><Icon name="plus" size={12} /></span>
+        Agregar ingrediente
+      </button>
+
+      <Modal open={open} onClose={() => setOpen(false)} showBack title="Nuevo ingrediente">
+        <form onSubmit={handleAdd} className="ejecucion-insumos-form">
+          <IngredienteAutocomplete
+            label="Ingrediente" placeholder="Nombre…"
+            value={nombre} onChange={setNombre}
+            ingredientes={ingredientes} onAddNew={onAddNewIngrediente}
           />
-        )}
-        <Button type="submit" variant="outline" disabled={busy} className="ejecucion-insumos-add-btn">
-          {busy ? 'Guardando…' : 'Agregar'}
-        </Button>
-      </form>
+          {esPeso ? (
+            <div className="field-row">
+              <ThousandsField
+                label={`Peso comprado${unidad ? ` (${unidad})` : ''}`} placeholder="0"
+                value={compradoDraft}
+                onChange={v => {
+                  setCompradoDraft(v);
+                  // "Peso para receta" sigue a "Peso comprado" por defecto,
+                  // mismo criterio que al planificar la receta — se deja de
+                  // sincronizar en cuanto se toca el campo de receta a mano.
+                  if (recetaDraft === '' || recetaDraft === compradoDraft) setRecetaDraft(v);
+                }}
+                disabled={busy}
+              />
+              <ThousandsField
+                label={`Peso para receta${unidad ? ` (${unidad})` : ''}`} placeholder="0"
+                value={recetaDraft} onChange={setRecetaDraft} disabled={busy}
+              />
+            </div>
+          ) : (
+            <ThousandsField
+              label={`Cantidad${unidad ? ` (${unidad})` : ''}`} placeholder="0"
+              value={compradoDraft} onChange={setCompradoDraft} disabled={busy}
+            />
+          )}
+          <Button type="submit" variant="primary" disabled={busy} className="ejecucion-insumos-add-btn">
+            {busy ? 'Guardando…' : 'Agregar'}
+          </Button>
+        </form>
+      </Modal>
     </div>
   );
 }
