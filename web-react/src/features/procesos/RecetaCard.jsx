@@ -7,9 +7,9 @@ import './RecetaCard.css';
 // Un toque abre el detalle de solo lectura (ingredientes + etapas);
 // mantener presionada revela Duplicar (arriba) y Editar/Borrar (abajo) —
 // mismo patrón de ancla dentro del recuadro que FeriaBlock en Ventas, con
-// una fila extra a pedido del usuario. El color no se elige a mano: sale
-// del nivel de picante detectado a partir de los ingredientes (ver
-// detectNivelPicante en recetasApi.js).
+// una fila extra a pedido del usuario. Sin color por nivel de picante (se
+// sacó a pedido explícito del usuario) — el nivel se muestra como texto
+// plano, mismo color que el resto de los metadatos de la tarjeta.
 export default function RecetaCard({ receta, onAbrir, onEdit, onDelete, onDuplicate }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -19,7 +19,7 @@ export default function RecetaCard({ receta, onAbrir, onEdit, onDelete, onDuplic
     onLongPress: () => setActionsOpen(true)
   });
 
-  const { bg, borderColor, label, color } = nivelPicanteStyle(receta.nivelPicante);
+  const { label } = nivelPicanteStyle(receta.nivelPicante);
   const numEtapas = (receta.etapas || []).filter(e => !e.fija).length;
 
   async function handleDelete() {
@@ -47,12 +47,11 @@ export default function RecetaCard({ receta, onAbrir, onEdit, onDelete, onDuplic
   }
 
   return (
-    <div ref={wrapRef} className="receta-card-wrap" style={{ borderColor }}>
-      <div className="receta-card" style={{ background: bg || undefined }} {...gestureProps}>
+    <div ref={wrapRef} className="receta-card-wrap">
+      <div className="receta-card" {...gestureProps}>
         <div className="receta-card-title">{receta.nombre}</div>
         <div className="receta-card-meta">
-          <span className="receta-card-nivel" style={{ color }}>{label}</span>
-          <span> · {numEtapas} etapa{numEtapas !== 1 ? 's' : ''}</span>
+          <span>{label} · {numEtapas} etapa{numEtapas !== 1 ? 's' : ''}</span>
         </div>
       </div>
       {actionsOpen && (

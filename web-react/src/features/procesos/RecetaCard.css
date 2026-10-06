@@ -1,4 +1,4 @@
-.receta-cards-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.receta-cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 
 /* Borde/fondo van en el wrap (no en .receta-card) para que la barra de
    Editar/Eliminar quede anclada DENTRO del recuadro — mismo patrón que
@@ -17,14 +17,13 @@
 
 .receta-card {
   height: 100%; box-sizing: border-box;
-  padding: 12px 14px;
+  padding: 10px 10px;
   cursor: pointer; user-select: none; -webkit-user-select: none;
   display: flex; flex-direction: column; justify-content: center; gap: 4px;
 }
 
-.receta-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
-.receta-card-meta { font-size: 11.5px; color: var(--text-sub); }
-.receta-card-nivel { font-weight: 700; }
+.receta-card-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.receta-card-meta { font-size: 11px; color: var(--text-sub); }
 
 /* "Duplicar" en su propia fila ARRIBA de Editar/Eliminar, a pedido del
    usuario — mismo contenedor anclado dentro del recuadro (el overflow:
