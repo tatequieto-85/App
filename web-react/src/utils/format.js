@@ -15,6 +15,7 @@ export function toISODate(d) {
 }
 
 export function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+export function addMonths(d, n) { const r = new Date(d); r.setMonth(r.getMonth() + n); return r; }
 
 // Portado de todayISOBogota() en ../../utils.js — "hoy" en la zona horaria
 // real del negocio (Bogotá), no la del navegador de quien esté usando la app.

@@ -2,6 +2,20 @@
 import { sheetsReq } from './googleAuth';
 import { getStockProducido } from './ejecucionesApi';
 import { getStockComprometidoLote, getStockVendidoLote } from './feriasApi';
+import { parseISODate, toISODate, addMonths } from '../utils/format';
+
+// Vida útil fija de 6 meses desde que se cerró el lote (fechaFin — si
+// todavía no se cerró, desde que arrancó la producción) — a pedido
+// explícito del usuario: antes la columna "Venc." de Trazabilidad leía
+// `evaluacion.fechaVencimiento`, un campo que nunca llegó a escribirse
+// desde React (quedaba siempre en "—").
+export function getFechaVencimientoLote(ejecucion) {
+  const base = ejecucion.fechaFin || ejecucion.fechaInicio;
+  if (!base) return '';
+  const d = parseISODate(base);
+  if (isNaN(d.getTime())) return '';
+  return toISODate(addMonths(d, 6));
+}
 
 let stockTestigosSheetId = null;
 let stockMovimientosSheetId = null;
