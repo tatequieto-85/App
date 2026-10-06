@@ -125,6 +125,17 @@ export function useProcesos() {
     await reloadRecetas();
   }, [reloadRecetas]);
 
+  // Escalar receta: a pedido explícito del usuario, desde el detalle se
+  // puede elegir UN ingrediente de la receta y la cantidad que se va a
+  // comprar de ese ingrediente — el resto de los ingredientes (de
+  // peso/volumen, ver esUnidadDePeso) se reescalan por el mismo factor
+  // para mantener exactamente los mismos porcentajes (ver cálculo en
+  // RecetaEscalarSection.jsx, acá solo persiste el resultado ya calculado).
+  const escalarReceta = useCallback(async (receta, ingredientesMaestros) => {
+    await recetasApi.updateReceta({ ...receta, ingredientesMaestros });
+    await reloadRecetas();
+  }, [reloadRecetas]);
+
   // ── Producción (arranque mínimo de un lote) ───────────────────────────
   // A pedido del usuario: "Empezar producción" en el detalle de una receta
   // crea un lote (RecetasEjecuciones) y hace aparecer, debajo de Etapas (en
@@ -214,7 +225,7 @@ export function useProcesos() {
   return {
     recetaBlocks, recetas, compras, loading, error,
     saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups,
-    saveReceta, deleteReceta, duplicateReceta,
+    saveReceta, deleteReceta, duplicateReceta, escalarReceta,
     empezarProduccion, addObservacionEjecucion,
     addInsumoEjecucion, removeInsumoEjecucion, updatePHEjecucion, updateFrascosEjecucion,
     finalizarEjecucion

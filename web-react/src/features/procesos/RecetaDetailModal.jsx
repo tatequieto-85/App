@@ -7,6 +7,7 @@ import {
   normalizeIngredienteMaestro, computeCostoReceta
 } from '../../services/recetasApi';
 import EjecucionProduccionBox from './EjecucionProduccionBox';
+import RecetaEscalarSection from './RecetaEscalarSection';
 import './RecetaDetailModal.css';
 
 // Resumen de solo lectura — un toque en la tarjeta de receta abre esto
@@ -58,7 +59,8 @@ function IngRow({ ing, mostrarPct }) {
 // cargar los ingredientes usados dentro del cuadro.
 export default function RecetaDetailModal({
   open, onClose, receta, compras, ingredientes, onAddNewIngrediente,
-  onEmpezarProduccion, onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos, onGuardarEjecucion
+  onEmpezarProduccion, onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos, onGuardarEjecucion,
+  onEscalarReceta
 }) {
   const [busy, setBusy] = useState(false);
   const [ejecucion, setEjecucion] = useState(null);
@@ -179,9 +181,15 @@ export default function RecetaDetailModal({
           onClose={onClose}
         />
       ) : (
-        <Button type="button" variant="primary" disabled={busy} onClick={handleEmpezarProduccion}>
-          {busy ? 'Empezando…' : 'Empezar producción'}
-        </Button>
+        <>
+          <RecetaEscalarSection
+            maestros={maestros} pesoTotalActual={pesoTotal}
+            onEscalar={nuevosMaestros => onEscalarReceta(receta, nuevosMaestros)}
+          />
+          <Button type="button" variant="primary" disabled={busy} onClick={handleEmpezarProduccion}>
+            {busy ? 'Empezando…' : 'Empezar producción'}
+          </Button>
+        </>
       )}
     </Modal>
   );

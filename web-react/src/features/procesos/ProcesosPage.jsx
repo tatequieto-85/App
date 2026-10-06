@@ -126,6 +126,7 @@ export default function ProcesosPage({ onBack }) {
         onChangePH={pr.updatePHEjecucion}
         onChangeFrascos={pr.updateFrascosEjecucion}
         onGuardarEjecucion={pr.finalizarEjecucion}
+        onEscalarReceta={pr.escalarReceta}
       />
     </motion.div>
   );
