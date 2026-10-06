@@ -23,7 +23,9 @@ export default function FeriaStockModal({ open, onClose, feria, ejecuciones, ctx
 
   if (!feria) return null;
 
-  const lotes = ejecuciones.filter(ej => (ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180));
+  const lotes = ejecuciones.filter(ej =>
+    ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180 || ej.evaluacion?.frascos130 || ej.evaluacion?.frascosProducidos
+  );
 
   async function handleSave() {
     const newPlan = {};

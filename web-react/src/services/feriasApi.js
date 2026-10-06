@@ -269,7 +269,11 @@ export function getStockDisponibleLote({ ejecuciones, ferias, stockMovimientos, 
   const ej = ejecuciones.find(e => e.id === ejecucionId);
   if (!ej) return 0;
   const ev = ej.evaluacion || {};
-  const producido = (ev.frascos230 || 0) + (ev.frascos180 || 0);
+  // Mismas cuatro fuentes que getLoteResumen en stockApi.js — frascos130 se
+  // había quedado afuera acá (bug real: Ventas → Eventos mostraba un
+  // disponible distinto al del módulo Stock para cualquier lote envasado
+  // en 130 ml, reportado por el usuario).
+  const producido = (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascos130 || 0) + (ev.frascosProducidos || 0);
   const testigo = stockTestigos
     .filter(t => t.ejecucionId === ejecucionId)
     .reduce((sum, t) => sum + (t.cantidad || 0), 0);
