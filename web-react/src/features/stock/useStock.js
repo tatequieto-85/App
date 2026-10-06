@@ -62,7 +62,7 @@ export function useStock() {
   // Trazabilidad: un lote (ejecución con producción envasada) por fila.
   const trazabilidadRows = useMemo(() => {
     const lotes = ejecuciones
-      .filter(ej => ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180 || ej.evaluacion?.frascosProducidos)
+      .filter(ej => ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180 || ej.evaluacion?.frascos130 || ej.evaluacion?.frascosProducidos)
       .slice()
       .sort((a, b) => (b.fechaFin || '') < (a.fechaFin || '') ? -1 : 1);
     return lotes.map(ej => ({ ejecucion: ej, resumen: stockApi.getLoteResumen(ctx, ej.id) }));

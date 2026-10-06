@@ -37,7 +37,7 @@ function IngRowCollapsed({ fila, idx, unidad, pct, esPeso, onActivate, onRemove,
     <div className="receta-ing-row receta-ing-row--collapsed" onClick={() => onActivate(idx)}>
       <span className="receta-ing-row-collapsed-nombre">{fila.nombre || '(sin nombre)'}</span>
       <span className="receta-ing-row-collapsed-cantidades">{cantidadesTxt}</span>
-      {esPeso && pct != null && <span className="receta-ing-row-collapsed-pct">{pct.toFixed(1)}%</span>}
+      {esPeso && pct != null && <span className="receta-ing-row-collapsed-pct">{pct.toFixed(2)}%</span>}
       <DeleteBtn idx={idx} onRemove={onRemove} disabled={disabled} />
     </div>
   );
@@ -64,7 +64,15 @@ function IngRowPeso({ fila, idx, unidad, pct, onUpdate, onRemove, ingredientes, 
       <div className="field-row">
         <ThousandsField
           label={`Peso comprado${unidad ? ` (${unidad})` : ''}`} placeholder="0"
-          value={fila.compradoDraft} onChange={v => onUpdate(idx, { compradoDraft: v })}
+          value={fila.compradoDraft}
+          onChange={v => onUpdate(idx, {
+            compradoDraft: v,
+            // "Peso para receta" sigue a "Peso comprado" por defecto — a
+            // pedido del usuario, el caso más común es sin merma de
+            // proceso. Se deja de sincronizar en cuanto el usuario toca el
+            // campo de receta a mano y lo deja distinto del comprado.
+            ...(fila.recetaDraft === '' || fila.recetaDraft === fila.compradoDraft ? { recetaDraft: v } : {})
+          })}
           disabled={disabled}
         />
         <ThousandsField
@@ -74,7 +82,7 @@ function IngRowPeso({ fila, idx, unidad, pct, onUpdate, onRemove, ingredientes, 
         />
       </div>
       <div className="receta-ing-row-pct-line">
-        <span className="receta-ing-pct-value">{pct != null ? `${pct.toFixed(1)}%` : '—'}</span>
+        <span className="receta-ing-pct-value">{pct != null ? `${pct.toFixed(2)}%` : '—'}</span>
         <span className="receta-ing-pct-label">del peso de la receta</span>
       </div>
     </div>

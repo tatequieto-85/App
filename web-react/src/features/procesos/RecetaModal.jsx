@@ -17,9 +17,13 @@ import './RecetaModal.css';
 // ingredientes/onAddNewIngrediente: catálogo compartido (ver
 // features/ingredientes/useIngredientes.js) para el autocomplete de cada
 // fila de ingrediente.
+//
+// Producción = una sola etapa fija llamada "Ejecución", a pedido explícito
+// del usuario — ya no hay nombre de etapa ni "+ Agregar etapa" (ver
+// EtapaEditor.jsx); acá solo se maneja la lista plana de instrucciones.
 export default function RecetaModal({ open, onClose, editingReceta, ingredientes, compras, onAddNewIngrediente, onSave }) {
   const [nombre, setNombre] = useState('');
-  const [etapas, setEtapas] = useState([]);
+  const [instrucciones, setInstrucciones] = useState([]);
   const [ingFilas, setIngFilas] = useState([]);
   const [busy, setBusy] = useState(false);
   const [feedback, showFeedback] = useFeedback();
@@ -29,9 +33,12 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
     if (!open) return;
     const n = editingReceta ? editingReceta.nombre : '';
     setNombre(n);
-    setEtapas(
+    // Recetas de antes de este cambio podían tener varias etapas con
+    // nombre propio — al editarlas, sus instrucciones se juntan todas acá
+    // (sin perder ninguna), ya que ahora solo existe una "Ejecución".
+    setInstrucciones(
       editingReceta
-        ? (editingReceta.etapas || []).filter(e => !e.fija).map(e => ({ id: e.id || crypto.randomUUID(), nombre: e.nombre, instrucciones: e.instrucciones || [] }))
+        ? (editingReceta.etapas || []).filter(e => !e.fija).flatMap(e => e.instrucciones || [])
         : []
     );
     setIngFilas(
@@ -46,7 +53,7 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
     initialRef.current = { nombre: n };
   }, [open, editingReceta]);
 
-  const isDirty = () => nombre.trim() !== initialRef.current.nombre || etapas.length > 0 || ingFilas.some(f => f.nombre.trim());
+  const isDirty = () => nombre.trim() !== initialRef.current.nombre || instrucciones.length > 0 || ingFilas.some(f => f.nombre.trim());
   const close = useDirtyGuard(isDirty, onClose);
 
   async function handleSubmit(e) {
@@ -54,10 +61,8 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
     const nombreTrim = nombre.trim();
     if (!nombreTrim) return showFeedback('El nombre de la receta es obligatorio.', 'err');
 
-    const middleEtapas = etapas
-      .map(et => ({ ...et, nombre: et.nombre.trim(), instrucciones: (et.instrucciones || []).filter(i => i.text.trim()) }))
-      .filter(et => et.nombre);
-    if (!middleEtapas.length) return showFeedback('Agrega al menos una etapa.', 'err');
+    const instruccionesLimpias = instrucciones.filter(i => i.text.trim());
+    const middleEtapas = [{ id: crypto.randomUUID(), nombre: 'Ejecución', instrucciones: instruccionesLimpias, insumos: [], fija: false }];
 
     const ingredientesMaestros = ingFilas
       .filter(f => f.nombre.trim())
@@ -93,8 +98,7 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
           ingredientes={ingredientes} compras={compras} onAddNew={onAddNewIngrediente} disabled={busy}
         />
 
-        <label className="field-label receta-modal-section-label">Etapas</label>
-        <EtapaEditor etapas={etapas} onChange={setEtapas} disabled={busy} />
+        <EtapaEditor instrucciones={instrucciones} onChange={setInstrucciones} disabled={busy} />
 
         <Button type="submit" variant="primary" disabled={busy}>
           {busy ? 'Guardando…' : 'Guardar receta'}

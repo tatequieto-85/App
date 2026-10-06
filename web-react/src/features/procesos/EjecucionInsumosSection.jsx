@@ -84,7 +84,15 @@ export default function EjecucionInsumosSection({ ejecucion, ingredientes, onAdd
           <div className="field-row">
             <ThousandsField
               label={`Peso comprado${unidad ? ` (${unidad})` : ''}`} placeholder="0"
-              value={compradoDraft} onChange={setCompradoDraft} disabled={busy}
+              value={compradoDraft}
+              onChange={v => {
+                setCompradoDraft(v);
+                // "Peso para receta" sigue a "Peso comprado" por defecto,
+                // mismo criterio que al planificar la receta — se deja de
+                // sincronizar en cuanto se toca el campo de receta a mano.
+                if (recetaDraft === '' || recetaDraft === compradoDraft) setRecetaDraft(v);
+              }}
+              disabled={busy}
             />
             <ThousandsField
               label={`Peso para receta${unidad ? ` (${unidad})` : ''}`} placeholder="0"

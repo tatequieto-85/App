@@ -11,17 +11,19 @@ import './EjecucionProduccionBox.css';
 
 // Un solo cuadro, debajo de Etapas, apenas se toca "Empezar producción" (ver
 // RecetaDetailModal.jsx) — a pedido explícito del usuario: no es una
-// ventana aparte. Junta pH (obligatorio), frascos producidos, ingredientes
-// usados (con su peso) y observaciones — campos/filas agregados a voluntad —
-// y un botón final "Guardar ejecución" que cierra el lote (requiere pH
-// cargado, ver finalizarEjecucion en useProcesos.js).
+// ventana aparte. Junta pH (obligatorio) + frascos producidos por tamaño
+// (230 ml / 130 ml, misma fila que el pH), ingredientes usados (con su
+// peso) y observaciones — campos/filas agregados a voluntad — y un botón
+// final "Guardar ejecución" que cierra el lote (requiere pH cargado, ver
+// finalizarEjecucion en useProcesos.js).
 export default function EjecucionProduccionBox({
   ejecucion, ingredientes, onAddNewIngrediente, recetaIngredientes, compras,
   onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos, onGuardarEjecucion, onClose
 }) {
   const [phDraft, setPhDraft] = useState(ejecucion.evaluacion?.ph != null ? String(ejecucion.evaluacion.ph) : '');
   const [phTouched, setPhTouched] = useState(false);
-  const [frascosDraft, setFrascosDraft] = useState(ejecucion.evaluacion?.frascosProducidos != null ? String(ejecucion.evaluacion.frascosProducidos) : '');
+  const [frascos230Draft, setFrascos230Draft] = useState(ejecucion.evaluacion?.frascos230 != null ? String(ejecucion.evaluacion.frascos230) : '');
+  const [frascos130Draft, setFrascos130Draft] = useState(ejecucion.evaluacion?.frascos130 != null ? String(ejecucion.evaluacion.frascos130) : '');
   const [guardando, setGuardando] = useState(false);
   const [feedback, showFeedback] = useFeedback();
 
@@ -31,9 +33,14 @@ export default function EjecucionProduccionBox({
     if (!isNaN(n)) await onChangePH(ejecucion, n);
   }
 
-  async function handleFrascosBlur() {
-    const n = parseInt(frascosDraft, 10);
-    if (!isNaN(n)) await onChangeFrascos(ejecucion, n);
+  async function handleFrascos230Blur() {
+    const n = parseInt(frascos230Draft, 10);
+    if (!isNaN(n)) await onChangeFrascos(ejecucion, 'frascos230', n);
+  }
+
+  async function handleFrascos130Blur() {
+    const n = parseInt(frascos130Draft, 10);
+    if (!isNaN(n)) await onChangeFrascos(ejecucion, 'frascos130', n);
   }
 
   const phVacio = phTouched && !phDraft.trim();
@@ -76,9 +83,14 @@ export default function EjecucionProduccionBox({
           error={phVacio ? 'El pH es obligatorio.' : ''}
         />
         <TextField
-          label="Frascos producidos" placeholder="0" inputMode="numeric"
-          value={frascosDraft} onChange={e => setFrascosDraft(e.target.value)}
-          onBlur={handleFrascosBlur}
+          label="Frasco 230 ml" placeholder="0" inputMode="numeric"
+          value={frascos230Draft} onChange={e => setFrascos230Draft(e.target.value)}
+          onBlur={handleFrascos230Blur}
+        />
+        <TextField
+          label="Frasco 130 ml" placeholder="0" inputMode="numeric"
+          value={frascos130Draft} onChange={e => setFrascos130Draft(e.target.value)}
+          onBlur={handleFrascos130Blur}
         />
       </div>
 

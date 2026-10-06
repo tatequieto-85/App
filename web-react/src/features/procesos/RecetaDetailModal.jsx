@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import { fmtCOP } from '../../utils/format';
@@ -43,7 +43,7 @@ function IngRow({ ing, mostrarPct }) {
     <div className="receta-detail-ing-row">
       <span className="receta-detail-ing-nombre">{ing.nombre}</span>
       <span className="receta-detail-ing-cantidad">{cantidadTxt}</span>
-      {mostrarPct && ing.porcentaje != null && <span className="receta-detail-ing-pct">{ing.porcentaje.toFixed(1)}%</span>}
+      {mostrarPct && ing.porcentaje != null && <span className="receta-detail-ing-pct">{ing.porcentaje.toFixed(2)}%</span>}
     </div>
   );
 }
@@ -63,11 +63,39 @@ export default function RecetaDetailModal({
   const [busy, setBusy] = useState(false);
   const [ejecucion, setEjecucion] = useState(null);
 
+  // El cuadro de producción tiene varios campos independientes (pH, dos
+  // tamaños de frasco, agregar insumo/observación) que se guardan cada uno
+  // al perder el foco — cada guardado es un read-modify-write sobre
+  // evaluacion ({...evaluacion, [campo]: valor}). Si dos pierden el foco
+  // en sucesión rápida (p. ej. tabular de pH a Frasco 230 a Frasco 130, el
+  // flujo esperado al estar los tres en la misma fila) ambos arrancan del
+  // mismo `ejecucion` desactualizado y el que termina después pisa por
+  // completo el cambio del otro — bug real encontrado con Playwright. Se
+  // encadenan todas las actualizaciones en una sola cola (siempre contra
+  // el último resultado conocido, vía ref) para que nunca se pisen.
+  const ejecucionRef = useRef(null);
+  useEffect(() => { ejecucionRef.current = ejecucion; }, [ejecucion]);
+  const updateQueueRef = useRef(Promise.resolve());
+
+  function queueUpdate(fn) {
+    const run = updateQueueRef.current
+      .catch(() => {})
+      .then(() => fn(ejecucionRef.current))
+      .then(result => {
+        ejecucionRef.current = result;
+        setEjecucion(result);
+        return result;
+      });
+    updateQueueRef.current = run;
+    return run;
+  }
+
   // Cada vez que se abre (o cambia de receta) arranca sin lote activo —
   // "Empezar producción" crea uno nuevo recién en ese momento.
   useEffect(() => {
     if (!open) return;
     setEjecucion(null);
+    updateQueueRef.current = Promise.resolve();
   }, [open, receta?.id]);
 
   if (!receta) return null;
@@ -76,6 +104,7 @@ export default function RecetaDetailModal({
     setBusy(true);
     try {
       const nueva = await onEmpezarProduccion(receta);
+      ejecucionRef.current = nueva;
       setEjecucion(nueva);
     } catch (err) {
       alert('Error: ' + err.message);
@@ -84,24 +113,16 @@ export default function RecetaDetailModal({
     }
   }
 
-  async function handleAddObservacion(ej, text) {
-    setEjecucion(await onAddObservacion(ej, text));
-  }
-  async function handleAddInsumo(ej, insumo) {
-    setEjecucion(await onAddInsumo(ej, insumo));
-  }
-  async function handleRemoveInsumo(ej, idx) {
-    setEjecucion(await onRemoveInsumo(ej, idx));
-  }
-  async function handleChangePH(ej, ph) {
-    setEjecucion(await onChangePH(ej, ph));
-  }
-  async function handleChangeFrascos(ej, frascos) {
-    setEjecucion(await onChangeFrascos(ej, frascos));
-  }
-  async function handleGuardarEjecucion(ej) {
-    setEjecucion(await onGuardarEjecucion(ej));
-  }
+  // Los `ej` que llegan desde EjecucionProduccionBox pueden estar
+  // desactualizados (capturados en un render anterior) — queueUpdate
+  // siempre opera sobre ejecucionRef.current, la versión más reciente, así
+  // que ese parámetro se ignora a propósito.
+  const handleAddObservacion = (ej, text) => queueUpdate(current => onAddObservacion(current, text));
+  const handleAddInsumo = (ej, insumo) => queueUpdate(current => onAddInsumo(current, insumo));
+  const handleRemoveInsumo = (ej, idx) => queueUpdate(current => onRemoveInsumo(current, idx));
+  const handleChangePH = (ej, ph) => queueUpdate(current => onChangePH(current, ph));
+  const handleChangeFrascos = (ej, campo, cantidad) => queueUpdate(current => onChangeFrascos(current, campo, cantidad));
+  const handleGuardarEjecucion = ej => queueUpdate(current => onGuardarEjecucion(current));
 
   const maestros = (receta.ingredientesMaestros || []).map(normalizeIngredienteMaestro);
   // Separados igual que en el editor (ver RecetaIngredientesTable.jsx): por

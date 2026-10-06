@@ -119,6 +119,6 @@ export function getStockProducido(ejecuciones, recetaId) {
     .filter(ej => ej.recetaId === recetaId)
     .reduce((sum, ej) => {
       const ev = ej.evaluacion || {};
-      return sum + (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascosProducidos || 0);
+      return sum + (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascos130 || 0) + (ev.frascosProducidos || 0);
     }, 0);
 }

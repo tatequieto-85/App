@@ -189,12 +189,13 @@ export function useProcesos() {
     return updated;
   }, []);
 
-  // Frascos producidos — campo simple (sin desglose por tamaño), a pedido
-  // del usuario. Vive en evaluacion.frascosProducidos; getStockProducido
-  // (ejecucionesApi.js) ya lo suma para que Stock/Ventas vean el producto
-  // terminado de este lote.
-  const updateFrascosEjecucion = useCallback(async (ejecucion, frascosProducidos) => {
-    const updated = { ...ejecucion, evaluacion: { ...(ejecucion.evaluacion || {}), frascosProducidos } };
+  // Frascos producidos, desglosados por tamaño (230 ml / 130 ml), a pedido
+  // explícito del usuario — viven en evaluacion.frascos230/evaluacion.
+  // frascos130; getStockProducido (ejecucionesApi.js) ya los suma para que
+  // Stock/Ventas vean el producto terminado de este lote. `campo`:
+  // 'frascos230' | 'frascos130'.
+  const updateFrascosEjecucion = useCallback(async (ejecucion, campo, cantidad) => {
+    const updated = { ...ejecucion, evaluacion: { ...(ejecucion.evaluacion || {}), [campo]: cantidad } };
     await ejecucionesApi.updateEjecucion(updated);
     return updated;
   }, []);
