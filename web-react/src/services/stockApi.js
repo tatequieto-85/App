@@ -217,6 +217,33 @@ export function getStockDisponibleLoteReal({ ejecuciones, ferias, stockMovimient
   return producido - vendido + ajustes;
 }
 
+// 1 ml ≈ 1 g (misma convención que el resto de la app, ver
+// UNIDAD_A_GRAMOS en recetasApi.js) — un frasco de 230 ml equivale a 230
+// g de producto, uno de 130 ml a 130 g. Precio por frasco, a pedido
+// explícito del usuario: el costo del lote se divide por lo
+// EFECTIVAMENTE ENVASADO (frascos230*230 + frascos130*130), no por el
+// peso total planeado de la receta — así la merma (peso total - lo
+// envasado, p. ej. evaporación o residuo que no llegó a ningún frasco)
+// queda absorbida en el precio de lo que sí se envasó, en vez de perderse
+// contable: sumar (precio de cada frasco × su cantidad) da EXACTO el
+// costo total del lote. Si el lote no tiene frascos de tamaño conocido
+// (dato viejo, solo "frascosProducidos" genérico) no hay base para
+// calcular por gramos — se reparte parejo entre todos los frascos.
+export function getPrecioFrascosLote(costoLote, pesoTotalLote, frascos230, frascos130, otrosFrascos = 0) {
+  const pesoEnvasado = (frascos230 || 0) * 230 + (frascos130 || 0) * 130;
+  if (pesoEnvasado > 0) {
+    const precioPorGramo = costoLote / pesoEnvasado;
+    return {
+      precio230: precioPorGramo * 230,
+      precio130: precioPorGramo * 130,
+      merma: pesoTotalLote != null ? pesoTotalLote - pesoEnvasado : null
+    };
+  }
+  const totalFrascos = (frascos230 || 0) + (frascos130 || 0) + (otrosFrascos || 0);
+  const precioParejo = totalFrascos > 0 ? costoLote / totalFrascos : 0;
+  return { precio230: precioParejo, precio130: precioParejo, merma: null };
+}
+
 // El ajuste manual se guarda por receta, pero el plan de stock de Ferias
 // elige cuánto llevar lote por lote — sin un lote asignado, un ajuste nunca
 // se vería reflejado ahí. Se atribuye solo, sin preguntarle al usuario, al

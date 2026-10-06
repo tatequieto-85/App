@@ -124,7 +124,7 @@ export default function RecetaDetailModal({
   const handleRemoveInsumo = (ej, idx) => queueUpdate(current => onRemoveInsumo(current, idx));
   const handleChangePH = (ej, ph) => queueUpdate(current => onChangePH(current, ph));
   const handleChangeFrascos = (ej, campo, cantidad) => queueUpdate(current => onChangeFrascos(current, campo, cantidad));
-  const handleGuardarEjecucion = (ej, costoTotal) => queueUpdate(current => onGuardarEjecucion(current, costoTotal));
+  const handleGuardarEjecucion = (ej, costoTotal, pesoTotalReceta) => queueUpdate(current => onGuardarEjecucion(current, costoTotal, pesoTotalReceta));
 
   const maestros = (receta.ingredientesMaestros || []).map(normalizeIngredienteMaestro);
   // Separados igual que en el editor (ver RecetaIngredientesTable.jsx): por

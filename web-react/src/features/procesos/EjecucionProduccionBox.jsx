@@ -6,7 +6,7 @@ import { useFeedback } from '../../hooks/useFeedback';
 import EjecucionInsumosSection from './EjecucionInsumosSection';
 import EjecucionObsSection from './EjecucionObsSection';
 import { fmtDayMonthYearShort, fmtCOP } from '../../utils/format';
-import { computeCostoReceta } from '../../services/recetasApi';
+import { computeCostoReceta, computePesoTotal } from '../../services/recetasApi';
 import './EjecucionProduccionBox.css';
 
 // Un solo cuadro, debajo de Etapas, apenas se toca "Empezar producción" (ver
@@ -49,9 +49,12 @@ export default function EjecucionProduccionBox({
   // Precio total del lote, en vivo — a pedido explícito del usuario: si se
   // agregan ingredientes acá (no planeados en la receta), el precio del
   // lote tiene que sumarlos también, no solo los de la receta original.
-  const { total: costoLote, incompleto: costoIncompleto } = computeCostoReceta(
-    compras, [...(recetaIngredientes || []), ...(ejecucion.insumos || [])]
-  );
+  const todosLosInsumos = [...(recetaIngredientes || []), ...(ejecucion.insumos || [])];
+  const { total: costoLote, incompleto: costoIncompleto } = computeCostoReceta(compras, todosLosInsumos);
+  // Peso total del lote (g) — se congela junto con el costo al guardar la
+  // ejecución, base para calcular la merma y el precio por frasco según
+  // su tamaño en Stock (ver getPrecioFrascosLote en stockApi.js).
+  const pesoTotalLote = computePesoTotal(todosLosInsumos);
 
   // Al guardar con éxito, se muestra el mensaje un instante y se cierra
   // solo — antes se quedaba en la misma ventana sin indicar que había
@@ -61,7 +64,7 @@ export default function EjecucionProduccionBox({
     if (!phDraft.trim()) return showFeedback('El pH es obligatorio para guardar la ejecución.', 'err');
     setGuardando(true);
     try {
-      await onGuardarEjecucion(ejecucion, costoLote);
+      await onGuardarEjecucion(ejecucion, costoLote, pesoTotalLote);
       showFeedback('Ejecución guardada.', 'ok');
       setTimeout(onClose, 900);
     } catch (err) {

@@ -215,18 +215,25 @@ export function useProcesos() {
   // "Completada" (mismo string que ya esperaba la app vanilla para
   // pintarlo en verde, ver estado-ok en procesos.js). El pH ya es
   // obligatorio para poder guardar (se valida en el botón, ver
-  // EjecucionProduccionBox.jsx) — acá solo persiste. `costoTotal`: el
-  // precio del lote YA calculado en EjecucionProduccionBox (receta +
-  // insumos agregados) se guarda congelado en evaluacion.costoTotal —
-  // bug real reportado por el usuario: el widget de Stock mostraba $0
-  // porque recalculaba el costo leyendo la receta en vivo, y si esa
-  // receta se borraba después (pasa seguido, ver resumenRows huérfanas en
-  // useStock.js) el costo se volvía imposible de reconstruir. Con el
-  // valor congelado al cerrar, sobrevive aunque la receta desaparezca.
-  const finalizarEjecucion = useCallback(async (ejecucion, costoTotal) => {
+  // EjecucionProduccionBox.jsx) — acá solo persiste. `costoTotal` y
+  // `pesoTotalReceta`: ya calculados en EjecucionProduccionBox (receta +
+  // insumos agregados), se guardan congelados en evaluacion — bug real
+  // reportado por el usuario: el precio/peso se recalculaba leyendo la
+  // receta en vivo, y si esa receta cambiaba o se borraba después (pasa
+  // seguido, ver resumenRows huérfanas en useStock.js) el costo/peso
+  // original se volvía imposible de reconstruir. Con los valores
+  // congelados al cerrar, sobreviven aunque la receta cambie o desaparezca
+  // — pesoTotalReceta es la base para calcular la merma y el precio por
+  // frasco según su tamaño en Stock (ver getPrecioFrascosLote en
+  // stockApi.js).
+  const finalizarEjecucion = useCallback(async (ejecucion, costoTotal, pesoTotalReceta) => {
     const updated = {
       ...ejecucion, estado: 'Completada', fechaFin: todayISOBogota(),
-      evaluacion: { ...(ejecucion.evaluacion || {}), ...(costoTotal != null ? { costoTotal } : {}) }
+      evaluacion: {
+        ...(ejecucion.evaluacion || {}),
+        ...(costoTotal != null ? { costoTotal } : {}),
+        ...(pesoTotalReceta != null ? { pesoTotalReceta } : {})
+      }
     };
     await ejecucionesApi.updateEjecucion(updated);
     return updated;

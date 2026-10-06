@@ -277,6 +277,20 @@ export function normalizeIngredienteMaestro(im) {
   };
 }
 
+// Peso total (g) de una lista de ingredientes — mismo criterio que
+// calcularPorcentajes: solo ingredientes de peso/volumen, sobre
+// cantidadReceta (lo que efectivamente entra, después de procesar). Se
+// usa para "congelar" el peso del lote al cerrarlo (ver
+// finalizarEjecucion en useProcesos.js) — base para calcular la merma
+// (peso total - lo envasado en frascos) y el precio por frasco según su
+// tamaño, a pedido explícito del usuario.
+export function computePesoTotal(ingredientesMaestros) {
+  return (ingredientesMaestros || [])
+    .map(normalizeIngredienteMaestro)
+    .filter(im => esUnidadDePeso(im.unidad))
+    .reduce((sum, im) => sum + (pesoEnGramos(im.cantidadReceta, im.unidad) || 0), 0);
+}
+
 // Precio TOTAL ESTIMADO del lote a partir de la receta — junto al peso
 // total, a pedido del usuario. Usa `cantidadComprada` de CADA ingrediente
 // (de peso/volumen Y por unidad, aclarado explícitamente por el usuario:
