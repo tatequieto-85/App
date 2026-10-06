@@ -19,8 +19,13 @@ function redondear(n) {
 // gramos que escalar y quedan sin tocar.
 export default function RecetaEscalarSection({ maestros, pesoTotalActual, onEscalar }) {
   const porPeso = maestros.filter(m => esUnidadDePeso(m.unidad));
+  const porUnidad = maestros.filter(m => !esUnidadDePeso(m.unidad));
   const [nombreSel, setNombreSel] = useState('');
   const [cantidadDraft, setCantidadDraft] = useState('');
+  // Los ingredientes "por unidad" no tienen % (no hay gramos que escalar),
+  // así que no se tocan solos — a pedido explícito del usuario, se pueden
+  // cambiar a mano acá mismo, junto con el resto del escalado.
+  const [unidadDrafts, setUnidadDrafts] = useState({});
   const [busy, setBusy] = useState(false);
 
   if (!porPeso.length) return null;
@@ -41,12 +46,19 @@ export default function RecetaEscalarSection({ maestros, pesoTotalActual, onEsca
     if (!factor) return;
     setBusy(true);
     try {
-      const nuevosMaestros = maestros.map(m => esUnidadDePeso(m.unidad)
-        ? { ...m, cantidadComprada: redondear(m.cantidadComprada * factor), cantidadReceta: redondear(m.cantidadReceta * factor) }
-        : m);
+      const nuevosMaestros = maestros.map(m => {
+        if (esUnidadDePeso(m.unidad)) {
+          return { ...m, cantidadComprada: redondear(m.cantidadComprada * factor), cantidadReceta: redondear(m.cantidadReceta * factor) };
+        }
+        const draft = unidadDrafts[m.nombre];
+        if (draft == null) return m;
+        const cantidad = parseThousandsInput(draft) || 0;
+        return { ...m, cantidadComprada: cantidad, cantidadReceta: cantidad };
+      });
       await onEscalar(nuevosMaestros);
       setNombreSel('');
       setCantidadDraft('');
+      setUnidadDrafts({});
     } finally {
       setBusy(false);
     }
@@ -76,6 +88,21 @@ export default function RecetaEscalarSection({ maestros, pesoTotalActual, onEsca
             Peso total de la receta con ese cálculo: <strong>{fmtPesoGramos(nuevoPesoTotal)}</strong>
             <span className="receta-escalar-frascos"> · ≈{frascos230} frascos de 230 ml o {frascos130} de 130 ml</span>
           </p>
+          {!!porUnidad.length && (
+            <div className="receta-escalar-unidades">
+              <p className="receta-escalar-unidades-label">Ingredientes por unidad (no se escalan solos, cambiar a mano si hace falta):</p>
+              {porUnidad.map(m => (
+                <ThousandsField
+                  key={m.nombre}
+                  label={`${m.nombre}${m.unidad ? ` (${m.unidad})` : ''}`}
+                  placeholder="0"
+                  value={unidadDrafts[m.nombre] ?? String(m.cantidadReceta)}
+                  onChange={v => setUnidadDrafts(prev => ({ ...prev, [m.nombre]: v }))}
+                  disabled={busy}
+                />
+              ))}
+            </div>
+          )}
           <Button type="button" variant="primary" disabled={busy} onClick={handleActualizar}>
             {busy ? 'Actualizando…' : 'Actualizar receta y cambiar todos los gramos de cada producto manteniendo los porcentajes'}
           </Button>
