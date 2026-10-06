@@ -84,7 +84,25 @@ async function verifySessionToken(token, secret) {
 
 // ── Google OAuth ──────────────────────────────────────────────────────────────
 
-async function exchangeCodeWithGoogle(code, env) {
+// Mismo Client ID, dos apps (vanilla en /App/, piloto React en /App/home/),
+// cada una con su propia URI de redirección registrada en Google Cloud
+// Console. env.REDIRECT_URI sigue siendo el valor por defecto (vanilla, que
+// no manda redirect_uri al pedir el exchange — retrocompatible); el
+// frontend puede mandar el suyo propio en la query, pero solo se acepta si
+// está en esta lista — nunca uno arbitrario (evita que /oauth/callback se
+// use como open redirect del código recién canjeado).
+const ALLOWED_REDIRECT_URIS = [
+  'https://tatequieto-85.github.io/App/',
+  'https://tatequieto-85.github.io/App/home/'
+];
+
+function resolveRedirectUri(url, env) {
+  const requested = url.searchParams.get('redirect_uri');
+  if (requested && ALLOWED_REDIRECT_URIS.includes(requested)) return requested;
+  return env.REDIRECT_URI;
+}
+
+async function exchangeCodeWithGoogle(code, env, redirectUri) {
   const resp = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -93,8 +111,8 @@ async function exchangeCodeWithGoogle(code, env) {
       client_id: env.GOOGLE_CLIENT_ID,
       client_secret: env.GOOGLE_CLIENT_SECRET,
       // Debe ser byte a byte el mismo redirect_uri que mandó el frontend al
-      // pedir el code (ux_mode:'redirect' en auth.js) — Google lo exige.
-      redirect_uri: env.REDIRECT_URI,
+      // pedir el code (ux_mode:'redirect') — Google lo exige.
+      redirect_uri: redirectUri,
       grant_type: 'authorization_code'
     })
   });
@@ -136,7 +154,8 @@ async function handleOAuthCallback(url, env) {
   const code = url.searchParams.get('code');
   if (!code) return jsonResponse({ error: 'missing_code' }, 400);
 
-  const tokens = await exchangeCodeWithGoogle(code, env);
+  const redirectUri = resolveRedirectUri(url, env);
+  const tokens = await exchangeCodeWithGoogle(code, env, redirectUri);
   if (tokens.error || !tokens.access_token) {
     return jsonResponse({ error: tokens.error || 'exchange_failed' }, 400);
   }

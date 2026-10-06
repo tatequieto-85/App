@@ -1,13 +1,23 @@
 // Portado de ../../auth.js — mismo backend (Google Sheets vía OAuth), mismo
-// contrato de sheetsReq(). Simplificado al flujo implícito (popup) en vez del
-// redirect+Cloudflare Worker de la app vanilla, para no requerir una redirect
-// URI de localhost en Google Cloud Console durante el piloto — ver ../../.env.
-const CLIENT_ID = import.meta.env.VITE_CLIENT_ID;
-const SHEET_ID  = import.meta.env.VITE_SHEET_ID;
-const SCOPES    = import.meta.env.VITE_SCOPES;
+// contrato de sheetsReq(). En producción usa el mismo flujo de sesión larga
+// que la app vanilla (authorization-code + Cloudflare Worker propio que
+// guarda el refresh_token y lo renueva sin depender de la cookie de sesión
+// de Google — eso es lo que fallaba en Safari/PWA instalada en iPhone y
+// obligaba a reingresar cada ~1h, bug real reportado por el usuario). En
+// local (npm run dev) sigue el flujo implícito (popup) de antes, para no
+// requerir una redirect URI de localhost en Google Cloud Console — ver
+// ../../.env vs ../../.env.production, y worker/src/index.js
+// (ALLOWED_REDIRECT_URIS: este piloto tiene su PROPIA redirect URI,
+// registrada aparte de la de vanilla, mismo Client ID).
+const CLIENT_ID    = import.meta.env.VITE_CLIENT_ID;
+const SHEET_ID     = import.meta.env.VITE_SHEET_ID;
+const SCOPES       = import.meta.env.VITE_SCOPES;
+const WORKER_URL   = import.meta.env.VITE_WORKER_URL || '';
+const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URI || '';
 
 const TOKEN_KEY          = 'ss_react_token';
 const EXPIRY_KEY         = 'ss_react_tokenExpiry';
+const SESSION_KEY        = 'ss_react_sessionToken';
 // A diferencia de TOKEN_KEY/EXPIRY_KEY (que quedan viejos apenas el token
 // vence), esta marca queda para siempre una vez que el usuario dio permiso
 // la primera vez — sirve para distinguir "nunca inició sesión" (hace falta
@@ -20,7 +30,10 @@ const EVER_SIGNED_IN_KEY = 'ss_react_everSignedIn';
 
 let accessToken = null;
 let tokenExpiry  = null;
-let tokenClient  = null;
+let tokenClient  = null; // flujo implícito (fallback en local, sin Worker)
+let codeClient   = null; // flujo authorization-code + refresh_token (producción)
+
+const useRefreshFlow = () => !!(WORKER_URL && REDIRECT_URI);
 
 function saveToken(token, expiresIn) {
   accessToken = token;
@@ -28,6 +41,14 @@ function saveToken(token, expiresIn) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(EXPIRY_KEY, String(tokenExpiry));
   localStorage.setItem(EVER_SIGNED_IN_KEY, '1');
+}
+
+function saveSessionToken(st) {
+  if (st) localStorage.setItem(SESSION_KEY, st);
+}
+
+function getSessionToken() {
+  return localStorage.getItem(SESSION_KEY);
 }
 
 export function hasSignedInBefore() {
@@ -45,6 +66,51 @@ function loadSavedToken() {
   return false;
 }
 
+// Pide un access_token nuevo al Worker usando el sessionToken guardado (el
+// refresh_token real de Google vive únicamente en el Worker) — una llamada
+// HTTPS directa, sin iframe ni cookies de Google, así que funciona igual en
+// una PWA instalada en iPhone que en el navegador.
+async function tryRefreshViaWorker() {
+  const st = getSessionToken();
+  if (!st) return false;
+  try {
+    const resp = await fetch(`${WORKER_URL}/token?session=${encodeURIComponent(st)}`).then(r => r.json());
+    if (resp.error || !resp.access_token) return false;
+    saveToken(resp.access_token, resp.expires_in || 3600);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Con ux_mode:'redirect', Google vuelve a REDIRECT_URI con ?code=... (o
+// ?error=...) en vez de invocar un callback en memoria — hay que levantarlo
+// de la URL al cargar la página y limpiarlo para no reprocesarlo en un
+// refresh posterior.
+function consumeCodeFromUrl() {
+  const params = new URLSearchParams(location.search);
+  if (!params.has('code') && !params.has('error')) return null;
+  const code = params.get('code');
+  ['code', 'scope', 'authuser', 'prompt', 'error'].forEach(k => params.delete(k));
+  const clean = location.pathname + (params.toString() ? `?${params}` : '') + location.hash;
+  history.replaceState({}, '', clean);
+  return code;
+}
+
+async function exchangeCodeForTokens(code) {
+  try {
+    const resp = await fetch(
+      `${WORKER_URL}/oauth/callback?code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
+    ).then(r => r.json());
+    if (resp.error || !resp.access_token) return false;
+    saveToken(resp.access_token, resp.expires_in || 3600);
+    saveSessionToken(resp.sessionToken);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function initTokenClient() {
   if (tokenClient) return tokenClient;
   tokenClient = window.google.accounts.oauth2.initTokenClient({
@@ -55,14 +121,47 @@ function initTokenClient() {
   return tokenClient;
 }
 
+function initCodeClient() {
+  if (codeClient) return codeClient;
+  codeClient = window.google.accounts.oauth2.initCodeClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    ux_mode: 'redirect',
+    redirect_uri: REDIRECT_URI,
+    access_type: 'offline',
+    prompt: 'consent' // fuerza que Google entregue refresh_token también en re-logins
+  });
+  return codeClient;
+}
+
 export function isSignedIn() {
   return loadSavedToken();
+}
+
+// Se llama UNA vez al arrancar (ver useAuth.js), antes de cualquier otra
+// cosa — procesa un ?code=/?error= que vuelve de Google. No hace nada si
+// esta build no usa el flujo de Worker (local) o si no hay nada que
+// procesar en la URL.
+export async function consumeRedirectIfAny() {
+  if (!useRefreshFlow()) return false;
+  const code = consumeCodeFromUrl();
+  if (!code) return false;
+  return exchangeCodeForTokens(code);
 }
 
 // `silent`: fuerza prompt:'' aunque nunca se haya guardado la marca de
 // "ya dio permiso" (la usa refreshIfNeeded() para reintentar en segundo
 // plano sin arriesgarse a disparar el diálogo completo de consentimiento).
 export function signIn({ silent } = {}) {
+  if (useRefreshFlow()) {
+    if (silent) {
+      return tryRefreshViaWorker().then(ok => { if (!ok) throw new Error('No se pudo renovar la sesión en segundo plano.'); });
+    }
+    // ux_mode:'redirect' navega la página entera a Google — nunca vuelve
+    // a este punto del código (la app se recarga en REDIRECT_URI).
+    initCodeClient().requestCode();
+    return new Promise(() => {});
+  }
   return new Promise((resolve, reject) => {
     const client = initTokenClient();
     client.callback = resp => {
@@ -75,29 +174,38 @@ export function signIn({ silent } = {}) {
   });
 }
 
+// Nota: esto NO revoca el refresh_token guardado en el Worker (Cloudflare
+// KV) — solo limpia el estado local de este dispositivo/navegador, mismo
+// criterio que signOut() en ../../auth.js.
 export function signOut() {
-  if (accessToken) window.google.accounts.oauth2.revoke(accessToken, () => {});
+  if (accessToken && window.google?.accounts?.oauth2) window.google.accounts.oauth2.revoke(accessToken, () => {});
   accessToken = null;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(EXPIRY_KEY);
   localStorage.removeItem(EVER_SIGNED_IN_KEY);
+  localStorage.removeItem(SESSION_KEY);
 }
 
 async function ensureToken() {
   if (accessToken && Date.now() < tokenExpiry - 60000) return;
   if (loadSavedToken()) return;
+  if (useRefreshFlow()) {
+    const ok = await tryRefreshViaWorker();
+    if (ok) return;
+    throw new Error('No se pudo renovar la sesión.');
+  }
   await signIn();
 }
 
 // Renueva el token ANTES de que venza, mientras la pestaña sigue abierta —
-// ver useAuth.js, que llama a esto cada pocos minutos. Como ya dio permiso
-// antes, esto se resuelve solo (prompt:'' ) sin mostrarle nada al usuario
-// en la gran mayoría de los casos; si el navegador bloquea el renovado
-// silencioso (cookies de terceros restringidas, etc.) esto simplemente
-// falla en silencio y el próximo pedido real lo va a pedir de nuevo por el
-// camino normal de ensureToken().
+// ver useAuth.js, que llama a esto cada pocos minutos. Con el Worker esto
+// es una llamada HTTPS directa (no depende de cookies de Google, a
+// diferencia del `prompt:''` del flujo implícito) — si llega a fallar
+// (Worker caído, KV sin el refresh_token) simplemente no hace nada y el
+// próximo pedido real lo reintenta por el camino normal de ensureToken().
 export async function refreshIfNeeded() {
   if (accessToken && Date.now() < tokenExpiry - 5 * 60 * 1000) return;
+  if (useRefreshFlow()) { await tryRefreshViaWorker(); return; }
   if (!hasSignedInBefore()) return;
   await signIn({ silent: true }).catch(() => {});
 }

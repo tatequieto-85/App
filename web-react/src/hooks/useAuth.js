@@ -11,6 +11,15 @@ export function useAuth() {
 
   useEffect(() => {
     (async () => {
+      // Si la URL trae ?code=... (volviendo del redirect a Google, solo en
+      // producción — ver googleAuth.js), hay que canjearlo ANTES que
+      // cualquier otra cosa: ni isSignedIn() ni hasSignedInBefore() saben
+      // nada todavía de esta sesión recién creada.
+      if (await googleAuth.consumeRedirectIfAny()) {
+        setSignedIn(true);
+        setChecked(true);
+        return;
+      }
       if (googleAuth.isSignedIn()) {
         setSignedIn(true);
       } else if (googleAuth.hasSignedInBefore()) {
