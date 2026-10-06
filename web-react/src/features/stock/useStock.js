@@ -52,11 +52,34 @@ export function useStock() {
 
   const ctx = { ejecuciones, ferias, stockMovimientos, stockTestigos };
 
-  // Resumen: una fila por receta con su disponible actual.
+  // Resumen: una fila por receta con su disponible actual. Bug real
+  // reportado por el usuario: si una receta se borra en Procesos (no solo
+  // se renombra), sus lotes/stock seguían existiendo y Ventas los seguía
+  // ofreciendo para planificar — pero acá desaparecían del todo, porque
+  // antes solo se recorrían las recetas ACTUALES. Se agregan filas
+  // "huérfanas" por cada recetaId que aparece en ejecuciones/ajustes pero
+  // ya no tiene receta viva, para que el disponible nunca quede invisible.
   const resumenRows = useMemo(() => {
-    return [...recetas]
-      .sort((a, b) => a.nombre.localeCompare(b.nombre))
-      .map(r => ({ receta: r, disponible: stockApi.getStockDisponibleGeneral(ctx, r.id) }));
+    const idsConocidos = new Set(recetas.map(r => r.id));
+    const nombresOrfanos = new Map();
+    ejecuciones.forEach(ej => {
+      if (ej.recetaId && !idsConocidos.has(ej.recetaId) && !nombresOrfanos.has(ej.recetaId)) {
+        nombresOrfanos.set(ej.recetaId, ej.nombreReceta || '(receta eliminada)');
+      }
+    });
+    stockMovimientos.forEach(m => {
+      if (m.recetaId && !idsConocidos.has(m.recetaId) && !nombresOrfanos.has(m.recetaId)) {
+        nombresOrfanos.set(m.recetaId, m.recetaNombre || '(receta eliminada)');
+      }
+    });
+
+    const filasActuales = recetas.map(r => ({ receta: r, disponible: stockApi.getStockDisponibleGeneral(ctx, r.id) }));
+    const filasOrfanas = [...nombresOrfanos].map(([id, nombre]) => ({
+      receta: { id, nombre: `${nombre} (receta eliminada)` },
+      disponible: stockApi.getStockDisponibleGeneral(ctx, id)
+    })).filter(f => f.disponible !== 0);
+
+    return [...filasActuales, ...filasOrfanas].sort((a, b) => a.receta.nombre.localeCompare(b.receta.nombre));
   }, [recetas, ejecuciones, ferias, stockMovimientos]);
 
   // Trazabilidad: un lote (ejecución con producción envasada) por fila.
