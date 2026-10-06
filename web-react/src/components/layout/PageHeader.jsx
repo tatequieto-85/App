@@ -1,4 +1,5 @@
 import Icon from '../icons/Icon';
+import { useSwipeBack } from '../../hooks/useSwipeBack';
 
 // Encabezado estándar de cualquier pantalla de módulo: flecha de volver un
 // paso + título, arriba a la izquierda. Hoy (con un solo módulo migrado)
@@ -6,6 +7,10 @@ import Icon from '../icons/Icon';
 // el piloto. Cuando haya más módulos, onBack pasará a volver a la pantalla
 // (o base de datos) de la que vino el usuario.
 export default function PageHeader({ title, onBack }) {
+  // Gesto de iPhone (deslizar desde el borde izquierdo) además del toque
+  // en la flecha — mismo criterio de cuándo mostrarla: onBack presente.
+  useSwipeBack(!!onBack, onBack);
+
   return (
     <div className="page-header">
       {onBack && (

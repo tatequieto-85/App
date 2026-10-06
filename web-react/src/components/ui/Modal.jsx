@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import Icon from '../icons/Icon';
+import { useSwipeBack } from '../../hooks/useSwipeBack';
 import './Modal.css';
 
 const overlayVariants = {
@@ -20,6 +21,10 @@ const modalVariants = {
 // para cerrar cualquier modal — un modal simple como InsumoModal no la lleva
 // y se cierra tocando afuera.
 export default function Modal({ open, onClose, title, headerRight, showBack = false, children, maxWidth = 460 }) {
+  // Gesto de iPhone (deslizar desde el borde izquierdo) además del toque
+  // en la flecha — mismo criterio de cuándo mostrarla: showBack.
+  useSwipeBack(open && showBack, onClose);
+
   return (
     <AnimatePresence>
       {open && (
