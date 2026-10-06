@@ -12,6 +12,7 @@ import StockTrazabilidadTable from './StockTrazabilidadTable';
 import StockTestigoCard from './StockTestigoCard';
 import AjusteModal from './AjusteModal';
 import TestigoModal from './TestigoModal';
+import LoteResumenModal from './LoteResumenModal';
 import './StockPage.css';
 
 // Una sola vista (ya no hay pestañas): Resumen, después Producto testigo,
@@ -26,6 +27,7 @@ export default function StockPage({ onBack }) {
   const [search, setSearch] = useState('');
   const [ajusteReceta, setAjusteReceta] = useState(null);
   const [testigoOpen, setTestigoOpen] = useState(false);
+  const [loteDetalle, setLoteDetalle] = useState(null);
   const [openTestigoActionsFor, setOpenTestigoActionsFor] = useState(null);
 
   useEffect(() => {
@@ -101,7 +103,7 @@ export default function StockPage({ onBack }) {
             <Card>
               {trazabilidadRows.length
                 ? (filteredTrazabilidad.length
-                    ? <StockTrazabilidadTable rows={filteredTrazabilidad} />
+                    ? <StockTrazabilidadTable rows={filteredTrazabilidad} onOpenLote={setLoteDetalle} />
                     : <EmptyState>Ningún lote coincide con "{search.trim()}".</EmptyState>)
                 : <EmptyState>No hay lotes con producción envasada registrada.</EmptyState>}
             </Card>
@@ -111,6 +113,7 @@ export default function StockPage({ onBack }) {
 
       <AjusteModal open={!!ajusteReceta} onClose={() => setAjusteReceta(null)} receta={ajusteReceta} onSave={saveAjuste} />
       <TestigoModal open={testigoOpen} onClose={() => setTestigoOpen(false)} lotesConStock={lotesConStock} onSave={apartarTestigo} />
+      <LoteResumenModal open={!!loteDetalle} onClose={() => setLoteDetalle(null)} row={loteDetalle} />
 
       <FabButton onClick={() => setTestigoOpen(true)}>
         <Icon name="plus" size={16} /> Apartar testigo

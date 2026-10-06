@@ -1,0 +1,8 @@
+.lote-resumen-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px;
+  margin-top: 12px;
+}
+.lote-resumen-item { display: flex; flex-direction: column; gap: 2px; }
+.lote-resumen-label { font-size: 11px; color: var(--text-sub); text-transform: uppercase; letter-spacing: .04em; }
+.lote-resumen-valor { font-size: 15px; font-weight: 700; color: var(--text); }
+.lote-resumen-valor--total { color: var(--brand); }

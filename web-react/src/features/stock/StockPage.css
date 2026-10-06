@@ -1,4 +1,5 @@
 .stock-disponible-cell { font-weight: 700; color: var(--brand); }
 .stock-disponible-neg  { color: var(--danger); }
 .stock-resumen-row     { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.stock-trazabilidad-row { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .ejecucion-hint { font-size: 11px; color: var(--text-sub); margin-top: 8px; padding-bottom: 4px; opacity: .7; }

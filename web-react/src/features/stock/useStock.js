@@ -5,6 +5,18 @@ import { fetchFerias } from '../../services/feriasApi';
 import { fetchCompras } from '../../services/comprasApi';
 import * as stockApi from '../../services/stockApi';
 
+// Costo de un lote: preferir el congelado al cerrarlo (evaluacion.
+// costoTotal, ver finalizarEjecucion en useProcesos.js) — sobrevive
+// aunque la receta se borre después. Si el lote es viejo (cerrado antes
+// de que esto existiera) o todavía no se cerró, se recalcula en vivo.
+function getCostoLote(ej, recetas, compras) {
+  const ev = ej.evaluacion || {};
+  if (ev.costoTotal != null) return ev.costoTotal;
+  const receta = recetas.find(r => r.id === ej.recetaId);
+  const maestros = [...(receta?.ingredientesMaestros || []), ...(ej.insumos || [])];
+  return computeCostoReceta(compras, maestros).total;
+}
+
 // Toda la lógica de negocio de Stock vive acá. Lee, además de sus propias
 // hojas (StockTestigo/StockMovimientos), las de Procesos (RecetasPlantillas/
 // RecetasEjecuciones) y Ferias (Ferias) — esos módulos todavía no están
@@ -85,14 +97,20 @@ export function useStock() {
     return [...filasActuales, ...filasOrfanas].sort((a, b) => a.receta.nombre.localeCompare(b.receta.nombre));
   }, [recetas, ejecuciones, ferias, stockMovimientos]);
 
-  // Trazabilidad: un lote (ejecución con producción envasada) por fila.
+  // Trazabilidad: un lote (ejecución con producción envasada) por fila —
+  // con el costo del lote ya resuelto (ver getCostoLote), para el resumen
+  // que se abre al tocar una fila (ver LoteResumenModal.jsx).
   const trazabilidadRows = useMemo(() => {
     const lotes = ejecuciones
       .filter(ej => ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180 || ej.evaluacion?.frascos130 || ej.evaluacion?.frascosProducidos)
       .slice()
       .sort((a, b) => (b.fechaFin || '') < (a.fechaFin || '') ? -1 : 1);
-    return lotes.map(ej => ({ ejecucion: ej, resumen: stockApi.getLoteResumen(ctx, ej.id) }));
-  }, [ejecuciones, ferias, stockMovimientos, stockTestigos]);
+    return lotes.map(ej => ({
+      ejecucion: ej,
+      resumen: stockApi.getLoteResumen(ctx, ej.id),
+      costoLote: getCostoLote(ej, recetas, compras)
+    }));
+  }, [ejecuciones, ferias, stockMovimientos, stockTestigos, recetas, compras]);
 
   // Valor total del stock + desglose 230/130 ml — a pedido explícito del
   // usuario, para el widget de Home. Ojo: el "disponible" POR LOTE
@@ -134,16 +152,7 @@ export function useStock() {
         disponible230 += (ev.frascos230 || 0) * ratio;
         disponible130 += (ev.frascos130 || 0) * ratio;
 
-        // Preferir el costo congelado al cerrar el lote (evaluacion.
-        // costoTotal) — sobrevive aunque la receta se borre después. Si
-        // el lote es viejo (cerrado antes de que esto existiera) o
-        // todavía no se cerró, se recalcula en vivo como antes.
-        let costoLote = ev.costoTotal;
-        if (costoLote == null) {
-          const receta = recetas.find(r => r.id === ej.recetaId);
-          const maestros = [...(receta?.ingredientesMaestros || []), ...(ej.insumos || [])];
-          costoLote = computeCostoReceta(compras, maestros).total;
-        }
+        const costoLote = getCostoLote(ej, recetas, compras);
         valor += (costoLote / producidoLote) * disponibleLote;
       });
     });
