@@ -99,6 +99,14 @@ export function formatThousandsValue(n) {
   return Number(n).toLocaleString('es-CO', { maximumFractionDigits: 6 });
 }
 
+// Portado de fmtSeconds() en ../../../utils.js — duración de una nota de voz
+// grabada (Ideas de marketing), mm:ss.
+export function fmtSeconds(sec) {
+  const m = Math.floor(sec / 60).toString().padStart(2, '0');
+  const s = (sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
 // Reformatea en vivo lo que el usuario escribe mientras tipea (separador de
 // miles con punto, decimales con coma) — misma lógica que attachThousandsInput.
 export function reformatThousandsDraft(raw) {

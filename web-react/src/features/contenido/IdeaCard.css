@@ -1,0 +1,41 @@
+.ideas-mkt-list { display: flex; flex-direction: column; gap: 12px; }
+
+.idea-mkt-card-wrap {
+  position: relative; overflow: hidden;
+  border: 1.5px solid var(--border); border-radius: var(--radius);
+  background: var(--surface);
+  transition: box-shadow .2s;
+}
+.idea-mkt-card-wrap:hover { box-shadow: var(--shadow); }
+
+.idea-mkt-card { padding: 14px; user-select: none; -webkit-user-select: none; }
+
+.idea-mkt-categoria {
+  display: inline-block; margin-bottom: 6px;
+  border-radius: 999px; padding: 3px 10px;
+  font-size: 11px; font-weight: 700; color: var(--brand);
+  background: rgba(113, 75, 103, .12);
+}
+.idea-mkt-desc {
+  font-size: 13px; color: var(--text); white-space: pre-wrap;
+  display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.idea-mkt-photos { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; position: relative; }
+.idea-mkt-photos img { width: 56px; height: 56px; object-fit: cover; border-radius: var(--radius-sm); }
+.idea-mkt-photos .thumb-count {
+  position: static; background: var(--gray-200); color: var(--text-sub);
+  display: flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: var(--radius-sm);
+}
+.idea-mkt-audios { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.audio-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1.5px solid var(--border); border-radius: 999px;
+  padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--text-sub);
+  background: none; cursor: pointer; transition: border-color .2s, color .2s;
+}
+.audio-chip:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.audio-chip:disabled { opacity: .6; cursor: default; }
+
+.idea-mkt-card .story-date { margin-top: 10px; margin-bottom: 0; }

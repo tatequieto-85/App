@@ -1,0 +1,52 @@
+.dropzone {
+  border: 2px dashed var(--border); border-radius: var(--radius);
+  overflow: hidden; margin-bottom: 4px;
+  transition: border-color .2s, background .2s; cursor: pointer;
+}
+.dropzone:hover, .dropzone.drag-over { border-color: var(--brand); background: rgba(113, 75, 103, .03); }
+.dropzone-inner { padding: 28px 16px; text-align: center; }
+.dropzone-icon  { color: var(--text-sub); margin-bottom: 8px; display: flex; justify-content: center; }
+.dropzone-label { font-size: 14px; color: var(--text-sub); }
+.dropzone-label span { color: var(--brand); font-weight: 600; }
+
+.dropzone-button-wrap .btn { width: auto; }
+
+.dropzone-preview {
+  display: flex; flex-wrap: wrap;
+  gap: 8px; padding: 8px 2px 4px;
+}
+
+.preview-item {
+  position: relative; width: 84px;
+  background: var(--bg);
+  border-radius: var(--radius-sm); overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column; align-items: center;
+}
+.preview-item img, .preview-item video {
+  width: 84px; height: 70px; object-fit: cover; display: block;
+}
+.preview-icon {
+  width: 84px; height: 70px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-sub);
+}
+.preview-name {
+  font-size: 10px; color: var(--text-sub);
+  padding: 3px 5px; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%;
+}
+.preview-remove {
+  position: absolute; top: 3px; right: 3px;
+  width: 18px; height: 18px;
+  background: rgba(0, 0, 0, .5); color: #fff;
+  border: none; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; transition: background .15s;
+}
+.preview-remove:hover { background: #C0392B; }
+
+.upload-progress { padding: 10px 2px; }
+.progress-bar  { height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; margin-bottom: 6px; }
+.progress-fill { height: 100%; background: var(--brand); border-radius: 99px; transition: width .3s; }
+.progress-text { font-size: 12px; color: var(--brand); font-weight: 600; text-align: center; }

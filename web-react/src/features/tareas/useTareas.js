@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as tareasApi from '../../services/tareasApi';
+import { updateAppIconBadge } from '../../utils/appBadge';
+
+// Badge del ícono de la PWA: solo tareas (hoy + atrasadas, sin terminar) —
+// Contenido lo vuelve a poner con el total combinado (tareas + historias)
+// cada vez que esa pantalla carga, mismo criterio pragmático que ya usaba
+// la app vanilla (ver comentario en useStories.js).
+function tasksDueBadgeCount(tasks) {
+  return tasks.filter(t =>
+    !tareasApi.TERMINAL_STATES.includes(t.status) &&
+    ['hoy', 'atrasado'].includes(tareasApi.getDueCategory(t.dueDate))
+  ).length;
+}
 
 export function useTareas() {
   const [columns, setColumns] = useState([]);
@@ -11,6 +23,7 @@ export function useTareas() {
   const reloadTasks = useCallback(async () => {
     const list = await tareasApi.fetchKanbanTasks();
     setTasks(list);
+    updateAppIconBadge(tasksDueBadgeCount(list));
     return list;
   }, []);
 
@@ -25,6 +38,7 @@ export function useTareas() {
         setColumns(cfg.columns);
         setAreas(cfg.areas);
         setTasks(list);
+        updateAppIconBadge(tasksDueBadgeCount(list));
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {

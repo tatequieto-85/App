@@ -11,8 +11,9 @@ import VentasPage from './features/ventas/VentasPage';
 import ProcesosPage from './features/procesos/ProcesosPage';
 import QRPage from './features/qr/QRPage';
 import TareasPage from './features/tareas/TareasPage';
+import ContenidoPage from './features/contenido/ContenidoPage';
 
-const PAGES = { compras: ComprasPage, stock: StockPage, contactos: ContactosPage, ventas: VentasPage, procesos: ProcesosPage, qr: QRPage, tareas: TareasPage };
+const PAGES = { compras: ComprasPage, stock: StockPage, contactos: ContactosPage, ventas: VentasPage, procesos: ProcesosPage, qr: QRPage, tareas: TareasPage, contenido: ContenidoPage };
 
 export default function App() {
   const { checked, signedIn, signIn } = useAuth();

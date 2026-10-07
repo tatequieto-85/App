@@ -1,0 +1,23 @@
+.audio-record-row { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; }
+.btn-record {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  padding: 7px 14px; font-size: 13px; font-weight: 600;
+  color: var(--text-sub); background: none; cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+.btn-record:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.btn-record.recording { border-color: var(--danger); color: var(--danger); }
+.btn-record:disabled { opacity: .5; cursor: not-allowed; }
+.audio-record-timer { font-size: 13px; font-weight: 700; color: var(--danger); font-variant-numeric: tabular-nums; }
+
+.audio-clip-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.audio-clip-item {
+  position: relative;
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 30px 6px 8px; background: var(--bg);
+}
+.audio-clip-duration { font-size: 12px; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.audio-clip-item audio { flex: 1; height: 32px; min-width: 0; }
+.audio-clip-item .preview-remove { top: 50%; transform: translateY(-50%); right: 6px; }

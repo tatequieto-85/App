@@ -281,6 +281,13 @@ const PATHS = {
       <line x1="12" y1="15" x2="12" y2="3" />
     </>
   ),
+  upload: (
+    <>
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </>
+  ),
   // Mismo trazo que usa Tareas en la tarjeta de Módulos de la app vanilla
   // (index.html, data-nav="tareas") — un check dentro de una carpeta/caja.
   checkSquare: (
@@ -300,6 +307,27 @@ const PATHS = {
       <line x1="21" y1="14" x2="21" y2="21" />
       <line x1="17.5" y1="14" x2="17.5" y2="17.5" />
       <line x1="14" y1="17.5" x2="21" y2="17.5" />
+    </>
+  ),
+  film: (
+    <>
+      <rect x="2" y="2" width="20" height="20" rx="2.18" />
+      <line x1="7" y1="2" x2="7" y2="22" />
+      <line x1="17" y1="2" x2="17" y2="22" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <line x1="2" y1="7" x2="7" y2="7" />
+      <line x1="2" y1="17" x2="7" y2="17" />
+      <line x1="17" y1="17" x2="22" y2="17" />
+      <line x1="17" y1="7" x2="22" y2="7" />
+    </>
+  ),
+  folder: <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />,
+  mic: (
+    <>
+      <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+      <path d="M19 10v2a7 7 0 01-14 0v-2" />
+      <line x1="12" y1="19" x2="12" y2="23" />
+      <line x1="8" y1="23" x2="16" y2="23" />
     </>
   )
 };

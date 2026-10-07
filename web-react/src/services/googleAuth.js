@@ -295,3 +295,98 @@ async function performRequest(url, opts, retried, isGet) {
   else cache.clear();
   return data;
 }
+
+// ── Google Drive (subida de archivos de Contenido / Ideas de marketing) ────
+// Portado de ../../../auth.js — mismo backend (scope drive.file del Client
+// ID). A diferencia de sheetsReq(), no pasa por la caché (son pedidos de
+// archivo, no de datos tabulares).
+
+export async function uploadToDrive(file, onProgress) {
+  await ensureToken();
+
+  const initResp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
+    method: 'POST',
+    headers: {
+      Authorization:             `Bearer ${accessToken}`,
+      'Content-Type':            'application/json',
+      'X-Upload-Content-Type':   file.type,
+      'X-Upload-Content-Length': String(file.size)
+    },
+    body: JSON.stringify({ name: file.name, mimeType: file.type })
+  });
+  if (!initResp.ok) throw new Error('No se pudo iniciar la subida a Drive');
+  const uploadUrl = initResp.headers.get('Location');
+
+  const fileData = await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round(e.loaded / e.total * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
+      else reject(new Error(`Drive upload failed: ${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new Error('Error de conexión al subir'));
+    xhr.send(file);
+  });
+
+  await fetch(`https://www.googleapis.com/drive/v3/files/${fileData.id}/permissions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' })
+  });
+
+  return fileData;
+}
+
+export function thumbUrl(fileId) {
+  if (!fileId) return '';
+  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w200`;
+}
+
+export async function deleteDriveFile(fileId) {
+  if (!fileId) return;
+  try {
+    await ensureToken();
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+  } catch (e) {
+    console.warn('Drive delete failed:', fileId, e.message);
+  }
+}
+
+export async function downloadDriveFile(fileId, origName) {
+  await ensureToken();
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!resp.ok) throw new Error(`Error ${resp.status} al descargar`);
+  const blob = await resp.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = origName || fileId;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Usado por Ideas de marketing para reproducir audios ya subidos a Drive —
+// igual que downloadDriveFile pero sin el paso de descarga forzada. Drive no
+// genera thumbnails para audio (thumbUrl es solo para imágenes), así que la
+// única forma de reproducir un clip guardado es traer el blob autenticado.
+export async function streamDriveFile(fileId) {
+  await ensureToken();
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!resp.ok) throw new Error(`Error ${resp.status} al cargar el audio`);
+  return URL.createObjectURL(await resp.blob());
+}

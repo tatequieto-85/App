@@ -1,0 +1,22 @@
+.field-label-emoji-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 6px;
+}
+.btn-emoji-toggle {
+  background: var(--gray-100); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 4px 10px; font-size: 13px; cursor: pointer;
+  color: var(--text); transition: background .15s;
+}
+.btn-emoji-toggle:hover { background: var(--brand); color: #fff; }
+.emoji-panel {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 8px; background: var(--gray-100);
+  border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px;
+  max-height: 160px; overflow-y: auto;
+}
+.emoji-btn {
+  background: none; border: none; font-size: 20px;
+  cursor: pointer; padding: 2px 3px; border-radius: 4px;
+  transition: transform .1s, background .1s; line-height: 1;
+}
+.emoji-btn:hover { background: var(--border); transform: scale(1.25); }
