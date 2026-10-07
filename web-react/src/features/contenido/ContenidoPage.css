@@ -1,7 +1,7 @@
-.contenido-tab-head {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+.contenido-section-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
 }
-.contenido-tab-head .search-bar { flex: 1; margin-bottom: 0; }
+.contenido-section-head .btn--outline { width: auto; padding: 6px 12px; display: flex; align-items: center; gap: 5px; }
 
 .contenido-badge-opt {
   display: flex; flex-direction: column; align-items: center; gap: 4px;

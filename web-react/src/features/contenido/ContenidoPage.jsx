@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import PageHeader from '../../components/layout/PageHeader';
-import Tabs from '../../components/ui/Tabs';
 import SearchBar from '../../components/ui/SearchBar';
 import FabButton from '../../components/ui/FabButton';
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
 import Icon from '../../components/icons/Icon';
 import EmptyState from '../../components/ui/EmptyState';
 import { useStories } from './useStories';
@@ -19,19 +20,19 @@ import IdeaModal from './IdeaModal';
 import IdeaEditModal from './IdeaEditModal';
 import './ContenidoPage.css';
 
-const TABS = [{ id: 'historias', label: 'Historias' }, { id: 'ideas', label: 'Ideas de marketing' }];
-
 // Contenido — historias de Instagram programadas + banco de ideas de
-// marketing (vive dentro de esta misma vista, como submenú vía Tabs — ver
-// CLAUDE.md). Portado de ../../../contenido.js e ../../../ideas-marketing.js,
-// sin el modal de Configuración/WhatsApp (alcance acordado con el usuario:
-// ese recordatorio lo sigue mandando Google Apps Script server-side sin
+// marketing, en UNA SOLA ventana (a pedido explícito del usuario — se
+// probó primero con pestañas separadas y se pidió unificar, ver
+// react-migration-pilot.md): dos secciones apiladas, mismo patrón que
+// Stock (Resumen/Trazabilidad/Testigo, un único buscador arriba que
+// filtra todas las secciones a la vez). Portado de ../../../contenido.js
+// e ../../../ideas-marketing.js, sin el modal de Configuración/WhatsApp
+// (ese recordatorio lo sigue mandando Google Apps Script server-side sin
 // importar esta UI).
 export default function ContenidoPage({ onBack }) {
   const { stories, loading: loadingStories, error: errorStories, createStory, editStory, removeStory } = useStories();
   const { ideas, loading: loadingIdeas, error: errorIdeas, createIdea, editIdea, removeIdea } = useIdeasMarketing();
 
-  const [tab, setTab] = useState('historias');
   const [search, setSearch] = useState('');
 
   const [storyModalOpen, setStoryModalOpen] = useState(false);
@@ -93,96 +94,94 @@ export default function ContenidoPage({ onBack }) {
       className="app-shell"
     >
       <PageHeader title="Contenido" onBack={onBack} />
-      <Tabs tabs={TABS} active={tab} onChange={setTab} />
-
-      {tab === 'historias' ? (
-        <>
-          {!!stories.length && (
-            <div className="contenido-tab-head">
-              <SearchBar value={search} onChange={setSearch} placeholder="Buscar por título o acciones…" />
-              <span className="badge">{stories.length} pendiente{stories.length !== 1 ? 's' : ''}</span>
-            </div>
-          )}
-
-          {!!todayStories.length && (
-            <div className="today-alert">
-              {todayStories.length === 1 ? 'Tienes 1 historia para publicar HOY' : `Tienes ${todayStories.length} historias para publicar HOY`}
-            </div>
-          )}
-
-          {loadingStories && <div className="loading-state">Cargando…</div>}
-          {errorStories && <EmptyState>No se pudo cargar: {errorStories}</EmptyState>}
-
-          {!loadingStories && !errorStories && (
-            !stories.length ? (
-              <EmptyState>Aún no hay historias programadas</EmptyState>
-            ) : !filteredStories.length ? (
-              <EmptyState>Ninguna historia coincide con "{search.trim()}".</EmptyState>
-            ) : (
-              <div className="stories-list">
-                {filteredStories.map(s => (
-                  <StoryCard
-                    key={s.id} story={s}
-                    actionsOpen={storyActionsFor === s.id}
-                    onLongPress={() => setStoryActionsFor(s.id)}
-                    onEdit={st => { setStoryActionsFor(null); setEditingStory(st); }}
-                    onPublish={removeStory}
-                    onDelete={removeStory}
-                  />
-                ))}
-              </div>
-            )
-          )}
-
-          {supportsBadge && (
-            <div className="contenido-badge-opt">
-              <button type="button" className="btn-link-subtle" onClick={handleActivarBadge}>
-                Activar contador en el ícono
-              </button>
-              {badgeMsg && <span className="contenido-badge-msg">{badgeMsg}</span>}
-            </div>
-          )}
-
-          <FabButton onClick={() => setStoryModalOpen(true)}>
-            <Icon name="plus" size={16} /> Nueva historia
-          </FabButton>
-        </>
-      ) : (
-        <>
-          {!!ideas.length && <SearchBar value={search} onChange={setSearch} placeholder="Buscar por descripción o categoría…" />}
-
-          {loadingIdeas && <div className="loading-state">Cargando…</div>}
-          {errorIdeas && <EmptyState>No se pudo cargar: {errorIdeas}</EmptyState>}
-
-          {!loadingIdeas && !errorIdeas && (
-            !ideas.length ? (
-              <EmptyState>Aún no hay ideas guardadas</EmptyState>
-            ) : !filteredIdeas.length ? (
-              <EmptyState>Ninguna idea coincide con "{search.trim()}".</EmptyState>
-            ) : (
-              <div className="ideas-mkt-list">
-                {filteredIdeas.map(i => (
-                  <IdeaCard
-                    key={i.id} idea={i}
-                    actionsOpen={ideaActionsFor === i.id}
-                    onLongPress={() => setIdeaActionsFor(i.id)}
-                    onEdit={it => { setIdeaActionsFor(null); setEditingIdea(it); }}
-                    onDelete={removeIdea}
-                    onPlayAudio={handlePlayAudio}
-                    playingFileId={playingFileId}
-                  />
-                ))}
-              </div>
-            )
-          )}
-
-          <audio id="ideaMktPlayer" hidden />
-
-          <FabButton onClick={() => setIdeaModalOpen(true)}>
-            <Icon name="plus" size={16} /> Nueva idea
-          </FabButton>
-        </>
+      {!!(stories.length || ideas.length) && (
+        <SearchBar value={search} onChange={setSearch} placeholder="Buscar historias o ideas…" />
       )}
+
+      <section>
+        <div className="contenido-section-head">
+          <h2 className="subsection-title">Historias programadas</h2>
+          {!!stories.length && <span className="badge">{stories.length} pendiente{stories.length !== 1 ? 's' : ''}</span>}
+        </div>
+
+        {!!todayStories.length && (
+          <div className="today-alert">
+            {todayStories.length === 1 ? 'Tienes 1 historia para publicar HOY' : `Tienes ${todayStories.length} historias para publicar HOY`}
+          </div>
+        )}
+
+        {loadingStories && <Card><div className="loading-state">Cargando…</div></Card>}
+        {errorStories && <Card><EmptyState>No se pudo cargar: {errorStories}</EmptyState></Card>}
+
+        {!loadingStories && !errorStories && (
+          !stories.length ? (
+            <Card><EmptyState>Aún no hay historias programadas</EmptyState></Card>
+          ) : !filteredStories.length ? (
+            <Card><EmptyState>Ninguna historia coincide con "{search.trim()}".</EmptyState></Card>
+          ) : (
+            <div className="stories-list">
+              {filteredStories.map(s => (
+                <StoryCard
+                  key={s.id} story={s}
+                  actionsOpen={storyActionsFor === s.id}
+                  onLongPress={() => setStoryActionsFor(s.id)}
+                  onEdit={st => { setStoryActionsFor(null); setEditingStory(st); }}
+                  onPublish={removeStory}
+                  onDelete={removeStory}
+                />
+              ))}
+            </div>
+          )
+        )}
+      </section>
+
+      <section>
+        <div className="contenido-section-head">
+          <h2 className="subsection-title">Ideas de marketing</h2>
+          <Button type="button" variant="outline" onClick={() => setIdeaModalOpen(true)}>
+            <Icon name="plus" size={13} /> Idea
+          </Button>
+        </div>
+
+        {loadingIdeas && <Card><div className="loading-state">Cargando…</div></Card>}
+        {errorIdeas && <Card><EmptyState>No se pudo cargar: {errorIdeas}</EmptyState></Card>}
+
+        {!loadingIdeas && !errorIdeas && (
+          !ideas.length ? (
+            <Card><EmptyState>Aún no hay ideas guardadas</EmptyState></Card>
+          ) : !filteredIdeas.length ? (
+            <Card><EmptyState>Ninguna idea coincide con "{search.trim()}".</EmptyState></Card>
+          ) : (
+            <div className="ideas-mkt-list">
+              {filteredIdeas.map(i => (
+                <IdeaCard
+                  key={i.id} idea={i}
+                  actionsOpen={ideaActionsFor === i.id}
+                  onLongPress={() => setIdeaActionsFor(i.id)}
+                  onEdit={it => { setIdeaActionsFor(null); setEditingIdea(it); }}
+                  onDelete={removeIdea}
+                  onPlayAudio={handlePlayAudio}
+                  playingFileId={playingFileId}
+                />
+              ))}
+            </div>
+          )
+        )}
+        <audio id="ideaMktPlayer" hidden />
+      </section>
+
+      {supportsBadge && (
+        <div className="contenido-badge-opt">
+          <button type="button" className="btn-link-subtle" onClick={handleActivarBadge}>
+            Activar contador en el ícono
+          </button>
+          {badgeMsg && <span className="contenido-badge-msg">{badgeMsg}</span>}
+        </div>
+      )}
+
+      <FabButton onClick={() => setStoryModalOpen(true)}>
+        <Icon name="plus" size={16} /> Nueva historia
+      </FabButton>
 
       <StoryModal open={storyModalOpen} onClose={() => setStoryModalOpen(false)} onSave={createStory} />
       <StoryEditModal open={!!editingStory} onClose={() => setEditingStory(null)} story={editingStory} onSave={editStory} />

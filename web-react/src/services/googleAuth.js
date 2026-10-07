@@ -270,7 +270,12 @@ export async function sheetsReq(path, opts = {}, retried) {
   const promise = performRequest(url, opts, retried, isGet);
   if (isGet) {
     inFlight.set(url, promise);
-    promise.finally(() => inFlight.delete(url));
+    // La cadena derivada de .finally() también rechaza si `promise` rechaza
+    // — sin este .catch(), un GET fallido (p. ej. 404) genera un "unhandled
+    // promise rejection" extra en consola además del error que ya recibe
+    // quien llamó a sheetsReq() (ese sigue propagándose normal via `promise`,
+    // esto solo evita el ruido de la cadena de limpieza del caché).
+    promise.finally(() => inFlight.delete(url)).catch(() => {});
   }
   return promise;
 }

@@ -68,32 +68,22 @@ export async function ensureKanbanSheets() {
     });
   }
 
+  // OJO: KanbanConfig es una hoja COMPARTIDA con la app vanilla (su propio
+  // Kanban, con gestión de tablero — ver loadKanbanConfig()/saveKanbanConfig()
+  // en ../../tareas.js) — nunca escribir acá la columna "columns" desde
+  // React. Se probó una vez (sincronizar "columns" con DEFAULT_COLUMNS en
+  // cada carga) y causó una pelea de escrituras: cada vez que el usuario
+  // abría la app vanilla, esta volvía a guardar su configuración de 6 estados encima,
+  // así que el cambio a 3 estados de React nunca se veía estable del lado
+  // del usuario. fetchKanbanConfig() ahora ignora "columns" del Sheet por
+  // completo y siempre usa DEFAULT_COLUMNS en el cliente — ver ahí.
   const kd = await sheetsReq('/values/KanbanConfig!A:B').catch(() => ({}));
   const kdRows = kd.values || [];
-  const colRowIdx = kdRows.findIndex(r => r[0] === 'columns');
-  // Las columnas no son editables por el usuario todavía (gestión de
-  // tablero queda para una vuelta siguiente) — se sincronizan siempre con
-  // DEFAULT_COLUMNS para que un cambio acá (como la simplificación a 3
-  // estados) se vea reflejado aunque el Sheet ya tuviera una config vieja.
-  if (colRowIdx === -1) {
-    await sheetsReq('/values/KanbanConfig!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  if (!kdRows.find(r => r[0] === 'areas')) {
+    await sheetsReq('/values/KanbanConfig!A:B:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
       method: 'POST',
-      body: JSON.stringify({ values: [
-        ['columns', JSON.stringify(DEFAULT_COLUMNS)],
-        ['areas', JSON.stringify(DEFAULT_AREAS)]
-      ] })
+      body: JSON.stringify({ values: [['areas', JSON.stringify(DEFAULT_AREAS)]] })
     });
-  } else {
-    await sheetsReq(`/values/KanbanConfig!B${colRowIdx + 1}?valueInputOption=RAW`, {
-      method: 'PUT',
-      body: JSON.stringify({ values: [[JSON.stringify(DEFAULT_COLUMNS)]] })
-    });
-    if (!kdRows.find(r => r[0] === 'areas')) {
-      await sheetsReq('/values/KanbanConfig!A:B:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-        method: 'POST',
-        body: JSON.stringify({ values: [['areas', JSON.stringify(DEFAULT_AREAS)]] })
-      });
-    }
   }
 
   const hd = await sheetsReq('/values/TareasHistorial!A1').catch(() => ({}));
@@ -125,14 +115,17 @@ export async function appendTareaHistorial(t) {
   });
 }
 
+// "columns" NUNCA se lee del Sheet acá a propósito (ver el comentario en
+// ensureKanbanSheets()) — React siempre usa sus 3 estados fijos, sin
+// depender de (ni pisar) la config de tablero que administra la app
+// vanilla en la misma hoja compartida.
 export async function fetchKanbanConfig() {
   const data = await sheetsReq('/values/KanbanConfig!A:B');
   const cfg = {};
   (data.values || []).forEach(r => { if (r[0]) cfg[r[0]] = r[1] || ''; });
-  let columns, areas;
-  try { columns = JSON.parse(cfg.columns) || DEFAULT_COLUMNS; } catch { columns = DEFAULT_COLUMNS; }
+  let areas;
   try { areas = JSON.parse(cfg.areas) || DEFAULT_AREAS; } catch { areas = DEFAULT_AREAS; }
-  return { columns, areas };
+  return { columns: DEFAULT_COLUMNS, areas };
 }
 
 export async function fetchKanbanTasks() {
