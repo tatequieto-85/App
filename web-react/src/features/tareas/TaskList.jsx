@@ -2,10 +2,23 @@ import { useEffect, useState } from 'react';
 import Icon from '../../components/icons/Icon';
 import { useRowGestures } from '../../hooks/useRowGestures';
 import { fmtDayMonthSlash } from '../../utils/format';
-import { getDueStatus } from '../../services/tareasApi';
+import { getDueStatus, getDueCategory } from '../../services/tareasApi';
 import './TaskList.css';
 
 const PRIORITY_LABELS = { alta: 'Alta', media: 'Media', baja: 'Baja' };
+const GROUP_LABELS = { hoy: 'Hoy', atrasado: 'Atrasadas', futuro: 'Siguientes' };
+const GROUP_ORDER = ['hoy', 'atrasado', 'futuro'];
+
+// Agrupa en ese orden — a pedido explícito del usuario. Una tarea sin
+// fecha límite (no debería darse, el campo es obligatorio en TaskModal,
+// pero por las dudas con datos viejos) cae en "Siguientes" en vez de
+// desaparecer de la lista.
+function groupTasks(tasks) {
+  const groups = { hoy: [], atrasado: [], futuro: [] };
+  tasks.forEach(t => groups[getDueCategory(t.dueDate) || 'futuro'].push(t));
+  Object.values(groups).forEach(list => list.sort((a, b) => (a.dueDate || '9999') < (b.dueDate || '9999') ? -1 : 1));
+  return groups;
+}
 
 // Un toque abre el detalle, mantener presionada revela Editar/Borrar en
 // una fila propia debajo (mismo patrón — y la misma idea de "fila de
@@ -77,25 +90,31 @@ export default function TaskList({ columns, tasks, onOpenDetail, onEdit, onDelet
     return () => document.removeEventListener('click', onDocClick);
   }, []);
 
-  const visible = [...tasks].sort((a, b) => (a.dueDate || '9999') < (b.dueDate || '9999') ? -1 : 1);
-
-  if (!visible.length) return null;
+  if (!tasks.length) return null;
+  const groups = groupTasks(tasks);
 
   return (
-    <div className="table-scroll">
-      <table className="tasks-table">
-        <thead><tr><th>Área / Tarea</th><th>Estado</th><th>Fecha límite</th><th>Prioridad</th></tr></thead>
-        <tbody>
-          {visible.map(task => (
-            <TaskRow
-              key={task.id} task={task} columns={columns}
-              actionsOpen={actionsOpenId === task.id}
-              onOpenActions={setActionsOpenId}
-              onOpen={onOpenDetail} onEdit={onEdit} onDelete={onDelete}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      {GROUP_ORDER.filter(cat => groups[cat].length).map(cat => (
+        <section key={cat} className="task-list-group">
+          <h2 className="subsection-title">{GROUP_LABELS[cat]}</h2>
+          <div className="table-scroll">
+            <table className="tasks-table">
+              <thead><tr><th>Área / Tarea</th><th>Estado</th><th>Fecha límite</th><th>Prioridad</th></tr></thead>
+              <tbody>
+                {groups[cat].map(task => (
+                  <TaskRow
+                    key={task.id} task={task} columns={columns}
+                    actionsOpen={actionsOpenId === task.id}
+                    onOpenActions={setActionsOpenId}
+                    onOpen={onOpenDetail} onEdit={onEdit} onDelete={onDelete}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+    </>
   );
 }

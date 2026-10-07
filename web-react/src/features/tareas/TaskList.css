@@ -1,3 +1,5 @@
+.task-list-group + .task-list-group { margin-top: 18px; }
+
 .task-list-row { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .task-list-area { display: block; font-size: 11px; color: var(--text-sub); }
 .task-list-title { display: block; font-size: 13px; color: var(--brand); }
