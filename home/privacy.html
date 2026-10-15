@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Política de Privacidad — TATEAPP</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 640px; margin: 0 auto; padding: 32px 20px 60px; line-height: 1.6; color: #1F2937; }
+  h1 { font-size: 22px; } h2 { font-size: 17px; margin-top: 28px; }
+  p, li { font-size: 14.5px; color: #374151; }
+  .updated { color: #6B7280; font-size: 13px; }
+</style>
+</head>
+<body>
+  <h1>Política de Privacidad</h1>
+  <p class="updated">Última actualización: octubre de 2026</p>
+
+  <p>TATEAPP es una herramienta interna de uso privado para la gestión operativa de TateQuieto (producción de salsas): inventario, tareas, ventas, contenido y procesos de producción. No es una aplicación pública ni comercial.</p>
+
+  <h2>Qué datos usa la app</h2>
+  <p>La app se conecta a tu cuenta de Google mediante OAuth para leer y escribir datos únicamente en:</p>
+  <ul>
+    <li>Una hoja de cálculo de Google Sheets específica, de tu propiedad, que vos mismo elegís al conectar la app.</li>
+    <li>Archivos de Google Drive que la propia app crea (fotos, videos, notas de voz, códigos QR) — alcance <code>drive.file</code>, que solo da acceso a los archivos que la app misma sube, no a tu Drive completo.</li>
+    <li>Tu nombre y correo de Google, únicamente para identificar la sesión.</li>
+  </ul>
+
+  <h2>Qué NO hace la app</h2>
+  <ul>
+    <li>No comparte, vende ni envía tus datos a ningún tercero.</li>
+    <li>No usa los datos con fines publicitarios ni de seguimiento.</li>
+    <li>No accede a archivos de Drive que no haya subido ella misma.</li>
+  </ul>
+
+  <h2>Dónde vive la sesión</h2>
+  <p>La app usa un servicio propio (Cloudflare Worker) para mantener la sesión activa sin pedirte iniciar sesión constantemente. Ese servicio guarda únicamente el token de renovación de tu sesión de Google — nunca tus datos de Sheets o Drive.</p>
+
+  <h2>Contacto</h2>
+  <p>Esta es una herramienta de uso interno. Cualquier consulta sobre estos datos puede hacerse directamente al responsable de TateQuieto.</p>
+</body>
+</html>
