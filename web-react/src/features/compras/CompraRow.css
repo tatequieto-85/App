@@ -16,3 +16,4 @@
 .compra-row-actions td { padding: 0; border-bottom: 1px solid var(--border); }
 
 .compra-row-stock--negativo { color: var(--danger); font-weight: 700; }
+.compra-row-categoria { display: block; font-size: 11px; color: var(--text-sub); font-weight: 400; }

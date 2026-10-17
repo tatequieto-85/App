@@ -35,11 +35,11 @@ export function useIngredientes() {
     [ingredientes]
   );
 
-  const addIngrediente = useCallback(async (nombre, unidad) => {
+  const addIngrediente = useCallback(async (nombre, unidad, categoria = '', minimo = null) => {
     const trimmed = nombre.trim();
     const dup = findDuplicate(trimmed);
     if (dup) throw new Error(`Ya existe "${dup.nombre}" (similar a "${trimmed}").`);
-    await api.appendIngrediente(trimmed, unidad.trim());
+    await api.appendIngrediente(trimmed, unidad.trim(), categoria, minimo);
     await reload();
   }, [findDuplicate, reload]);
 

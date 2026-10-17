@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as inventarioApi from '../../services/inventarioApi';
 
-// Inventario de materia prima + inventario de activos — las dos secciones
-// nuevas de la pantalla de Inventario (antes "Insumos"), ver ComprasPage.jsx.
+// Inventario de activos — la sección "Inventario de materia prima" que
+// vivía acá se fusionó con Insumos (ver migrateMateriaPrima() en
+// ingredientesApi.js), así que este hook quedó solo para activos.
 export function useInventarioExtra() {
-  const [materiaPrima, setMateriaPrima] = useState([]);
   const [activos, setActivos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const reload = useCallback(async () => {
-    const [mp, act] = await Promise.all([inventarioApi.fetchMateriaPrima(), inventarioApi.fetchActivos()]);
-    setMateriaPrima(mp);
-    setActivos(act);
+    setActivos(await inventarioApi.fetchActivos());
   }, []);
 
   useEffect(() => {
@@ -21,9 +19,8 @@ export function useInventarioExtra() {
       try {
         setLoading(true);
         await inventarioApi.ensureInventarioSheets();
-        const [mp, act] = await Promise.all([inventarioApi.fetchMateriaPrima(), inventarioApi.fetchActivos()]);
+        const act = await inventarioApi.fetchActivos();
         if (cancelled) return;
-        setMateriaPrima(mp);
         setActivos(act);
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -33,17 +30,6 @@ export function useInventarioExtra() {
     })();
     return () => { cancelled = true; };
   }, []);
-
-  const saveMateriaPrima = useCallback(async datos => {
-    if (datos.rowIndex) await inventarioApi.updateMateriaPrima(datos);
-    else await inventarioApi.appendMateriaPrima({ ...datos, id: crypto.randomUUID() });
-    await reload();
-  }, [reload]);
-
-  const deleteMateriaPrima = useCallback(async rowIndex => {
-    await inventarioApi.deleteMateriaPrimaRow(rowIndex);
-    await reload();
-  }, [reload]);
 
   const saveActivo = useCallback(async datos => {
     if (datos.rowIndex) await inventarioApi.updateActivo(datos);
@@ -56,8 +42,5 @@ export function useInventarioExtra() {
     await reload();
   }, [reload]);
 
-  return {
-    materiaPrima, activos, loading, error,
-    saveMateriaPrima, deleteMateriaPrima, saveActivo, deleteActivo
-  };
+  return { activos, loading, error, saveActivo, deleteActivo };
 }

@@ -240,11 +240,29 @@ export function getFeriaDefaultDay(f) {
 // excludeFeriaId: al editar el plan de una feria puntual, no hay que
 // descontar lo que esa misma feria ya tenía planeado/vendido (si no, el
 // disponible mostrado sería menor al real apenas se reabre su propio plan).
-
+//
+// Bug real reportado por el usuario ("me dice que no hay stock suficiente,
+// pero sí hay"): una feria ya TERMINADA seguía "comprometiendo" su
+// planStock completo para siempre, aunque el evento haya vendido menos de
+// lo planeado — el sobrante nunca volvía a contar como disponible para una
+// feria nueva, aunque siguiera físicamente en el estante. Ahora una feria
+// terminada aporta lo que REALMENTE salió (vendido + muestras), no lo que
+// había planeado — mismo criterio que ya usa Stock para "disponible
+// general" (producido − vendido, no producido − comprometido). Una feria
+// todavía activa/futura sigue usando su plan (no hay ventas reales
+// todavía, es la mejor estimación disponible).
 export function getStockComprometidoLote(ferias, ejecucionId, excludeFeriaId = null) {
   return ferias
     .filter(f => f.id !== excludeFeriaId)
-    .reduce((sum, f) => sum + ((f.planStock || {})[ejecucionId] || 0), 0);
+    .reduce((sum, f) => {
+      if (estadoEfectivo(f) === 'terminado') {
+        const salido = [...(f.ventas || []), ...(f.muestras || [])]
+          .filter(v => v.ejecucionId === ejecucionId)
+          .reduce((s, v) => s + (v.cantidad || 0), 0);
+        return sum + salido;
+      }
+      return sum + ((f.planStock || {})[ejecucionId] || 0);
+    }, 0);
 }
 
 export function getStockVendidoLote(ferias, ejecucionId, excludeFeriaId = null) {

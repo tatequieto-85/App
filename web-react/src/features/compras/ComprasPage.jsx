@@ -13,34 +13,32 @@ import { useInventarioExtra } from './useInventarioExtra';
 import CompraRow from './CompraRow';
 import CompraModal from './CompraModal';
 import InsumoModal from './InsumoModal';
-import MateriaPrimaRow from './MateriaPrimaRow';
-import MateriaPrimaModal from './MateriaPrimaModal';
 import ActivoCard from './ActivoCard';
 import ActivoModal from './ActivoModal';
 import './CompraRow.css';
 import './ComprasPage.css';
 
-// "Inventario" (antes "Insumos") — a pedido explícito del usuario, tres
+// "Inventario" (antes "Insumos") — a pedido explícito del usuario, dos
 // secciones separadas por una línea muy sutil (mismo patrón que los grupos
-// de Procesos): Insumos (ingredientes+compras, sin cambios), Inventario de
-// materia prima (envases/etiquetas/tapas/tarros — NO ingredientes de
-// receta) e Inventario de activos (herramientas/maquinaria/equipos). Un
-// único buscador arriba filtra las tres a la vez, mismo criterio que Stock.
+// de Procesos): Insumos (ingredientes+compras — incluye materia prima como
+// envases/etiquetas/tapas, con Categoría/Mínimo opcionales, ver
+// InsumoModal.jsx) e Inventario de activos (herramientas/maquinaria/
+// equipos). Un único buscador arriba filtra ambas a la vez, mismo criterio
+// que Stock. "Inventario de materia prima" existió como una sección propia
+// aparte, pero resultó duplicar lo que ya hacía Insumos una vez que tuvo
+// "Disponible" — el usuario lo notó y pidió fusionarla (ver
+// migrateMateriaPrima() en ingredientesApi.js para los datos que ya
+// hubiera en la hoja vieja).
 export default function ComprasPage({ onBack }) {
   const { ingredientes, loading: loadingIng, addIngrediente, reload: reloadIngredientes } = useIngredientes();
   const { rows, loading: loadingCompras, error, saveCompra, removeCompra } = useCompras(ingredientes, reloadIngredientes);
-  const {
-    materiaPrima, activos, loading: loadingInv, error: errorInv,
-    saveMateriaPrima, deleteMateriaPrima, saveActivo, deleteActivo
-  } = useInventarioExtra();
+  const { activos, loading: loadingInv, error: errorInv, saveActivo, deleteActivo } = useInventarioExtra();
 
   const [openActionsFor, setOpenActionsFor] = useState(null);
   const [compraModal, setCompraModal] = useState(null); // { ingrediente, editRecord } | null
   const [insumoOpen, setInsumoOpen] = useState(false);
   const [search, setSearch] = useState('');
 
-  const [mpActionsFor, setMpActionsFor] = useState(null);
-  const [mpModal, setMpModal] = useState(null); // { editing } | null
   const [actActionsFor, setActActionsFor] = useState(null);
   const [actModal, setActModal] = useState(null); // { editing } | null
 
@@ -49,18 +47,14 @@ export default function ComprasPage({ onBack }) {
   const q = search.trim().toLowerCase();
   const filteredRows = useMemo(() => {
     if (!q) return rows;
-    return rows.filter(r => r.ingrediente.nombre.toLowerCase().includes(q));
+    return rows.filter(r => r.ingrediente.nombre.toLowerCase().includes(q) || r.ingrediente.categoria?.toLowerCase().includes(q));
   }, [rows, q]);
-  const filteredMateriaPrima = useMemo(() => {
-    if (!q) return materiaPrima;
-    return materiaPrima.filter(m => m.nombre.toLowerCase().includes(q));
-  }, [materiaPrima, q]);
   const filteredActivos = useMemo(() => {
     if (!q) return activos;
     return activos.filter(a => a.nombre.toLowerCase().includes(q));
   }, [activos, q]);
 
-  const mpCategorias = useMemo(() => [...new Set(materiaPrima.map(m => m.categoria).filter(Boolean))], [materiaPrima]);
+  const ingCategorias = useMemo(() => [...new Set(ingredientes.map(i => i.categoria).filter(Boolean))], [ingredientes]);
   const actCategorias = useMemo(() => [...new Set(activos.map(a => a.categoria).filter(Boolean))], [activos]);
 
   // Tocar afuera de una fila/barra abierta la cierra — mismo comportamiento
@@ -68,7 +62,6 @@ export default function ComprasPage({ onBack }) {
   useEffect(() => {
     function handleDocClick(e) {
       if (!e.target.closest('.compra-row, .compra-row-actions')) setOpenActionsFor(null);
-      if (!e.target.closest('.mp-row, .mp-row-actions')) setMpActionsFor(null);
       if (!e.target.closest('.activo-card-wrap')) setActActionsFor(null);
     }
     document.addEventListener('click', handleDocClick);
@@ -83,7 +76,7 @@ export default function ComprasPage({ onBack }) {
     >
       <PageHeader title="Inventario" onBack={onBack} />
 
-      <SearchBar value={search} onChange={setSearch} placeholder="Buscar en insumos, materia prima o activos…" />
+      <SearchBar value={search} onChange={setSearch} placeholder="Buscar en insumos o activos…" />
 
       <section className="inventario-section">
         <h2 className="subsection-title">Insumos</h2>
@@ -111,43 +104,6 @@ export default function ComprasPage({ onBack }) {
                     onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
                     onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
                     onDelete={removeCompra}
-                  />
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Card>
-      </section>
-
-      <section className="inventario-section">
-        <div className="inventario-section-head">
-          <h2 className="subsection-title">Inventario de materia prima</h2>
-          <Button type="button" variant="outline" onClick={() => setMpModal({ editing: null })}>
-            <Icon name="plus" size={13} /> Insumo
-          </Button>
-        </div>
-        <Card>
-          {loadingInv && <div className="loading-state">Cargando…</div>}
-          {errorInv && <EmptyState>No se pudo cargar: {errorInv}</EmptyState>}
-          {!loadingInv && !errorInv && !materiaPrima.length && (
-            <EmptyState>Aún no hay materia prima registrada (envases, etiquetas, tapas…).</EmptyState>
-          )}
-          {!loadingInv && !errorInv && !!materiaPrima.length && !filteredMateriaPrima.length && (
-            <EmptyState>Nada coincide con "{search.trim()}".</EmptyState>
-          )}
-          {!loadingInv && !errorInv && !!filteredMateriaPrima.length && (
-            <table className="compra-table">
-              <thead>
-                <tr><th>Insumo</th><th>Disponible</th><th>Mínimo</th></tr>
-              </thead>
-              <tbody>
-                {filteredMateriaPrima.map(item => (
-                  <MateriaPrimaRow
-                    key={item.id} item={item}
-                    actionsOpen={mpActionsFor === item.id}
-                    onOpenActionsChange={setMpActionsFor}
-                    onEdit={it => { setMpActionsFor(null); setMpModal({ editing: it }); }}
-                    onDelete={deleteMateriaPrima}
                   />
                 ))}
               </tbody>
@@ -194,15 +150,8 @@ export default function ComprasPage({ onBack }) {
       <InsumoModal
         open={insumoOpen}
         onClose={() => setInsumoOpen(false)}
-        onSave={async (nombre, unidad) => { await addIngrediente(nombre, unidad); setInsumoOpen(false); }}
-      />
-
-      <MateriaPrimaModal
-        open={!!mpModal}
-        onClose={() => setMpModal(null)}
-        editing={mpModal?.editing || null}
-        categorias={mpCategorias}
-        onSave={saveMateriaPrima}
+        categorias={ingCategorias}
+        onSave={async (nombre, unidad, categoria, minimo) => { await addIngrediente(nombre, unidad, categoria, minimo); setInsumoOpen(false); }}
       />
 
       <ActivoModal

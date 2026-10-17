@@ -1,6 +1,0 @@
-.mp-row { cursor: pointer; user-select: none; -webkit-user-select: none; }
-.mp-row-categoria {
-  display: block; font-size: 11px; color: var(--text-sub); font-weight: 400;
-}
-.mp-row-minimo { color: var(--text-sub); }
-.mp-row-minimo--bajo { color: var(--danger); font-weight: 700; }

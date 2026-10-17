@@ -8,17 +8,23 @@ import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 
 // Equivalente a btnNewInsumo/btnSaveInsumo en ../../../compras.js: alta rápida
 // de un ingrediente (nombre + unidad) sin registrar todavía una compra.
-export default function InsumoModal({ open, onClose, onSave, initialNombre = '' }) {
+// Categoría y Mínimo son opcionales — a pedido explícito del usuario, para
+// que un insumo de materia prima (envases, etiquetas, tapas) use la misma
+// tabla de Insumos en vez de una sección aparte (ver migrateMateriaPrima()
+// en ingredientesApi.js para lo que ya estaba guardado ahí).
+export default function InsumoModal({ open, onClose, onSave, initialNombre = '', categorias = [] }) {
   const [nombre, setNombre] = useState('');
   const [unidad, setUnidad] = useState('');
+  const [categoria, setCategoria] = useState('');
+  const [minimo, setMinimo] = useState('');
   const [busy, setBusy] = useState(false);
   const [feedback, showFeedback] = useFeedback();
 
   useEffect(() => {
-    if (open) { setNombre(initialNombre); setUnidad(''); }
+    if (open) { setNombre(initialNombre); setUnidad(''); setCategoria(''); setMinimo(''); }
   }, [open, initialNombre]);
 
-  const close = useDirtyGuard(() => !!(nombre.trim() || unidad.trim()), onClose);
+  const close = useDirtyGuard(() => !!(nombre.trim() || unidad.trim() || categoria.trim() || minimo), onClose);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -29,7 +35,7 @@ export default function InsumoModal({ open, onClose, onSave, initialNombre = '' 
       // onSave decide qué pasa después de guardar — cerrar este modal
       // (caso simple) o encadenar a otro paso (ver ComprasWidget.jsx, que
       // sigue a CompraModal sin pasar por acá otra vez).
-      await onSave(nombre.trim(), unidad.trim());
+      await onSave(nombre.trim(), unidad.trim(), categoria.trim(), minimo === '' ? null : +minimo);
     } catch (err) {
       showFeedback('Error: ' + err.message, 'err');
     } finally {
@@ -42,6 +48,16 @@ export default function InsumoModal({ open, onClose, onSave, initialNombre = '' 
       <form onSubmit={handleSubmit}>
         <TextField label="Nombre" value={nombre} onChange={e => setNombre(e.target.value)} disabled={busy} />
         <TextField label="Unidad" placeholder="g, kg, L, unidades…" value={unidad} onChange={e => setUnidad(e.target.value)} disabled={busy} />
+
+        <TextField label="Categoría (opcional)" list="insumoCategoriaList" placeholder="Ej: Envases" value={categoria} onChange={e => setCategoria(e.target.value)} disabled={busy} />
+        {!!categorias.length && (
+          <datalist id="insumoCategoriaList">
+            {categorias.map(c => <option key={c} value={c} />)}
+          </datalist>
+        )}
+
+        <TextField label="Mínimo (opcional)" type="number" step="any" placeholder="Avisa cuando baje de acá" value={minimo} onChange={e => setMinimo(e.target.value)} disabled={busy} />
+
         <Button type="submit" variant="primary" disabled={busy}>
           {busy ? 'Guardando…' : 'Guardar insumo'}
         </Button>

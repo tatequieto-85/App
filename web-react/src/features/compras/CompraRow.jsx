@@ -12,6 +12,7 @@ import './CompraRow.css';
 export default function CompraRow({ row, actionsOpen, onOpenActionsChange, onEdit, onRegister, onDelete }) {
   const { ingrediente: ing, last, unitPrice } = row;
   const [deleting, setDeleting] = useState(false);
+  const bajoMinimo = ing.minimo != null && ing.stock < ing.minimo;
 
   const gestureProps = useRowGestures({
     onLongPress: () => onOpenActionsChange(ing.nombre),
@@ -32,8 +33,13 @@ export default function CompraRow({ row, actionsOpen, onOpenActionsChange, onEdi
   return (
     <>
       <tr className="compra-row" {...gestureProps}>
-        <td>{ing.nombre}</td>
-        <td className={ing.stock < 0 ? 'compra-row-stock--negativo' : ''}>{ing.stock ?? 0} {ing.unidad}</td>
+        <td>
+          {ing.nombre}
+          {ing.categoria && <span className="compra-row-categoria">{ing.categoria}</span>}
+        </td>
+        <td className={bajoMinimo || ing.stock < 0 ? 'compra-row-stock--negativo' : ''}>
+          {ing.stock ?? 0} {ing.unidad}{bajoMinimo ? ' · repón' : ''}
+        </td>
         <td>{last ? fmtDayMonthSlash(last.fecha) : '—'}</td>
         <td>{unitPrice != null ? `${fmtCOP(unitPrice)} / ${ing.unidad || 'u'}` : 'Sin compras'}</td>
       </tr>

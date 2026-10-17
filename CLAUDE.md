@@ -19,7 +19,7 @@ Build de producción publicado en `home/` (raíz del repo) y servido por GitHub 
 
 | Módulo (como lo nombra el usuario) | Carpeta en `web-react/src/features/` | Qué contiene |
 |---|---|---|
-| Inventario (antes "Insumos") | `compras/`, `ingredientes/` | Tres secciones separadas por línea sutil: **Insumos** (Ingredientes+Compras, registro de compras/historial de precios/costo de producción), **Inventario de materia prima** (envases/etiquetas/tapas — no ingredientes de receta, cantidad/mínimo/reposición), **Inventario de activos** (herramientas/maquinaria/equipos — estado/responsable) |
+| Inventario (antes "Insumos") | `compras/`, `ingredientes/` | Dos secciones separadas por línea sutil: **Insumos** (Ingredientes+Compras — incluye materia prima como envases/etiquetas/tapas con Categoría/Mínimo opcionales en el mismo catálogo, stock corriente que compras suma y ejecuciones descuentan), **Inventario de activos** (herramientas/maquinaria/equipos — estado/responsable) |
 | Stock | `stock/` | Resumen de inventario, trazabilidad por lote (230/130 ml), producto testigo, widget de Home |
 | Contactos | `contactos/` | Cumpleaños (día/mes, edad calculada en vivo), empresa/posición, teléfono/WhatsApp, vínculos muchos-a-muchos con categoría libre |
 | Ventas | `ventas/` | Canales de venta (galería tipo Módulos) → ferias/eventos con plan de stock por lote, conteo de personas, ventas, muestras, resumen |
