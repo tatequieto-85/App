@@ -5,10 +5,21 @@ import ThousandsField from '../../components/ui/ThousandsField';
 import IngredienteAutocomplete from '../ingredientes/IngredienteAutocomplete';
 import { parseThousandsInput, fmtCOP } from '../../utils/format';
 import { calcularPorcentajes, pesoEnGramos, esUnidadDePeso, fmtPesoGramos, computeCostoReceta } from '../../services/recetasApi';
+import { normalizeIngName } from '../../services/ingredientesApi';
 import './RecetaIngredientesTable.css';
 
+// Bug real encontrado: comparaba nombres con un simple .trim().toLowerCase()
+// que además solo recortaba el lado de la receta (no el del catálogo) — un
+// ingrediente con un espacio de más, o nombrado en plural en un lado y
+// singular en el otro (p. ej. "Frascos" en el catálogo vs "Frasco" en la
+// receta), nunca matcheaba: `unidad` quedaba '' y la fila caía siempre al
+// grupo "Por peso/volumen" por defecto, sin avisar nada. Ahora usa
+// normalizeIngName() (ya existía para detectar duplicados al crear un
+// ingrediente nuevo, ver ingredientesApi.js) — mismo criterio en los dos
+// lugares que necesitan decidir "es el mismo ingrediente".
 function getUnidad(ingredientes, nombre) {
-  const found = ingredientes.find(i => i.nombre.toLowerCase() === (nombre || '').trim().toLowerCase());
+  const norm = normalizeIngName(nombre);
+  const found = ingredientes.find(i => normalizeIngName(i.nombre) === norm);
   return found?.unidad || '';
 }
 
@@ -208,7 +219,13 @@ export default function RecetaIngredientesTable({ filas, onChange, ingredientes,
       )}
 
       <div className="receta-ing-group">
-        {!!porUnidad.length && <h5 className="receta-ing-group-title">Por peso / volumen</h5>}
+        {/* Bug real: esta condición comparaba porUnidad.length en vez de
+            porPeso.length (copy-paste del bloque de abajo) — mostraba
+            "Por peso / volumen" vacío, sin ingredientes ni mensaje, cada
+            vez que una receta tenía SOLO ingredientes "por unidad". Cada
+            título ahora refleja únicamente si SU PROPIO grupo tiene
+            contenido, igual que ya hacía el bloque "Por unidad" de abajo. */}
+        {!!porPeso.length && <h5 className="receta-ing-group-title">Por peso / volumen</h5>}
         {porPeso.length
           ? porPeso.map(f => renderFila(f, true))
           : !porUnidad.length && <p className="receta-ing-group-empty">Sin ingredientes todavía.</p>}

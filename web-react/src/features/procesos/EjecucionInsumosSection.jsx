@@ -6,10 +6,16 @@ import ThousandsField from '../../components/ui/ThousandsField';
 import IngredienteAutocomplete from '../ingredientes/IngredienteAutocomplete';
 import { parseThousandsInput } from '../../utils/format';
 import { esUnidadDePeso } from '../../services/recetasApi';
+import { normalizeIngName } from '../../services/ingredientesApi';
 import './EjecucionInsumosSection.css';
 
+// Mismo fix que en RecetaIngredientesTable.jsx: usar normalizeIngName()
+// (ignora tildes, singular/plural y espacios de más) en vez de un simple
+// toLowerCase() asimétrico, que podía dejar `unidad` vacío y mandar la
+// fila al grupo equivocado sin avisar.
 function getUnidad(ingredientes, nombre) {
-  const found = ingredientes.find(i => i.nombre.toLowerCase() === (nombre || '').trim().toLowerCase());
+  const norm = normalizeIngName(nombre);
+  const found = ingredientes.find(i => normalizeIngName(i.nombre) === norm);
   return found?.unidad || '';
 }
 

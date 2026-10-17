@@ -7,6 +7,7 @@ import { useFeedback } from '../../hooks/useFeedback';
 import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 import { parseThousandsInput, formatThousandsValue } from '../../utils/format';
 import { normalizeIngredienteMaestro } from '../../services/recetasApi';
+import { normalizeIngName } from '../../services/ingredientesApi';
 import EtapaEditor from './EtapaEditor';
 import RecetaIngredientesTable from './RecetaIngredientesTable';
 import './RecetaModal.css';
@@ -70,7 +71,7 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
         nombre: f.nombre.trim(),
         cantidadComprada: parseThousandsInput(f.compradoDraft) || 0,
         cantidadReceta: parseThousandsInput(f.recetaDraft) || 0,
-        unidad: ingredientes.find(i => i.nombre.toLowerCase() === f.nombre.trim().toLowerCase())?.unidad || ''
+        unidad: ingredientes.find(i => normalizeIngName(i.nombre) === normalizeIngName(f.nombre))?.unidad || ''
       }));
     if (ingredientesMaestros.some(im => im.cantidadComprada < 0 || im.cantidadReceta < 0)) {
       return showFeedback('Las cantidades de ingredientes no pueden ser negativas.', 'err');
