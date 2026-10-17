@@ -109,15 +109,27 @@ export default function ComboVentaModal({ open, onClose, feria, ejecuciones, com
           </div>
 
           {!!descuentosFeria.length && (
-            <Select
-              label="Descuento (opcional)" value={descuentoId}
-              onChange={e => setDescuentoId(e.target.value)}
-              disabled={busy}
-              options={[
-                { value: '', label: 'Ninguno' },
-                ...descuentosFeria.map(d => ({ value: d.id, label: `${d.nombre} (${d.tipo === 'monto' ? fmtCOP(d.valor) : `${d.valor}%`})` }))
-              ]}
-            />
+            <div className="field">
+              <label className="field-label">Descuento (opcional)</label>
+              <div className="descuento-pill-picker">
+                <button
+                  type="button" disabled={busy}
+                  className={`descuento-pill${!descuentoId ? ' is-selected' : ''}`}
+                  onClick={() => setDescuentoId('')}
+                >
+                  Ninguno
+                </button>
+                {descuentosFeria.map(d => (
+                  <button
+                    key={d.id} type="button" disabled={busy}
+                    className={`descuento-pill${descuentoId === d.id ? ' is-selected' : ''}`}
+                    onClick={() => setDescuentoId(d.id)}
+                  >
+                    {d.nombre} ({d.tipo === 'monto' ? fmtCOP(d.valor) : `${d.valor}%`})
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {combo && (

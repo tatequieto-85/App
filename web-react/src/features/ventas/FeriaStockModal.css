@@ -27,3 +27,15 @@
 }
 .feria-venta-stepper-btn:disabled { opacity: .35; cursor: not-allowed; }
 .feria-venta-stepper-value { min-width: 22px; text-align: center; font-size: 14px; font-weight: 700; }
+
+/* Selector de descuento como cápsulas (no <select>) — a pedido explícito
+   del usuario, para elegir de un vistazo entre pocas opciones sin abrir un
+   desplegable. "Ninguno" es una cápsula más, no un estado aparte. */
+.descuento-pill-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.descuento-pill {
+  padding: 7px 14px; border-radius: 999px; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 12.5px; font-weight: 600;
+  cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+}
+.descuento-pill.is-selected { background: var(--brand); border-color: var(--brand); color: #fff; }
+.descuento-pill:disabled { opacity: .5; cursor: not-allowed; }
