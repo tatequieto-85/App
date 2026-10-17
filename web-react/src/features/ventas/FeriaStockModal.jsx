@@ -27,11 +27,22 @@ export default function FeriaStockModal({ open, onClose, feria, ejecuciones, ctx
     ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180 || ej.evaluacion?.frascos130 || ej.evaluacion?.frascosProducidos
   );
 
+  // Bug real reportado por el usuario ("me dice que no hay stock
+  // suficiente, pero sí hay"): `cantidades` arranca precargado con TODO
+  // `feria.planStock` (línea de arriba), que puede traer entradas de
+  // lotes que ya no están en la lista visible (una ejecución editada o
+  // borrada desde que se guardó el plan por última vez). Antes se
+  // validaban TODAS las claves de `cantidades`, así que esas entradas
+  // obsoletas (con "disponible 0" porque esa ejecución ya no existe)
+  // bloqueaban el guardado entero aunque los lotes visibles tuvieran
+  // stock de sobra. Ahora solo se guarda/valida lo que corresponde a un
+  // lote ACTUALMENTE visible — cualquier entrada obsoleta se descarta
+  // sola al guardar, en vez de perseguir para siempre.
   async function handleSave() {
     const newPlan = {};
-    Object.entries(cantidades).forEach(([id, val]) => {
-      const qty = parseInt(val) || 0;
-      if (qty > 0) newPlan[id] = qty;
+    lotes.forEach(ej => {
+      const qty = parseInt(cantidades[ej.id]) || 0;
+      if (qty > 0) newPlan[ej.id] = qty;
     });
     setBusy(true);
     try {
