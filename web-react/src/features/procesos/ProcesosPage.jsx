@@ -24,8 +24,8 @@ import './ProcesosPage.css';
 // lote (RecetasEjecuciones) y hace aparecer, dentro del mismo detalle, el
 // cuadro de pH + ingredientes usados + observaciones.
 export default function ProcesosPage({ onBack }) {
-  const pr = useProcesos();
-  const { ingredientes, tryAddIngrediente } = useIngredientes();
+  const { ingredientes, tryAddIngrediente, reload: reloadIngredientes } = useIngredientes();
+  const pr = useProcesos(ingredientes, reloadIngredientes);
   const [groupModal, setGroupModal] = useState(null); // { editing } | null
   const [recetaModal, setRecetaModal] = useState(null); // { editing, groupId } | null
   const [detailId, setDetailId] = useState(null);

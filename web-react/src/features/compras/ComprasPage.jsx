@@ -27,8 +27,8 @@ import './ComprasPage.css';
 // receta) e Inventario de activos (herramientas/maquinaria/equipos). Un
 // único buscador arriba filtra las tres a la vez, mismo criterio que Stock.
 export default function ComprasPage({ onBack }) {
-  const { ingredientes, loading: loadingIng, addIngrediente } = useIngredientes();
-  const { rows, loading: loadingCompras, error, saveCompra, removeCompra } = useCompras(ingredientes);
+  const { ingredientes, loading: loadingIng, addIngrediente, reload: reloadIngredientes } = useIngredientes();
+  const { rows, loading: loadingCompras, error, saveCompra, removeCompra } = useCompras(ingredientes, reloadIngredientes);
   const {
     materiaPrima, activos, loading: loadingInv, error: errorInv,
     saveMateriaPrima, deleteMateriaPrima, saveActivo, deleteActivo
@@ -99,7 +99,7 @@ export default function ComprasPage({ onBack }) {
           {!loading && !error && !!filteredRows.length && (
             <table className="compra-table">
               <thead>
-                <tr><th>Ingrediente</th><th>Última compra</th><th>Precio unitario</th></tr>
+                <tr><th>Ingrediente</th><th>Disponible</th><th>Última compra</th><th>Precio unitario</th></tr>
               </thead>
               <tbody>
                 {filteredRows.map(row => (

@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as api from '../../services/comprasApi';
+import { applyStockDelta } from '../../services/ingredientesApi';
 
 // Toda la lógica de negocio de Compras vive acá — combina el catálogo de
 // ingredientes (que ya trae useIngredientes) con las compras registradas.
-export function useCompras(ingredientes) {
+// `reloadIngredientes`: registrar/editar/borrar una compra suma/resta del
+// stock corriente del ingrediente (a pedido explícito del usuario) — hace
+// falta releer el catálogo después para que la columna "Disponible" de la
+// tabla se actualice.
+export function useCompras(ingredientes, reloadIngredientes) {
   const [compras, setCompras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -51,6 +56,7 @@ export function useCompras(ingredientes) {
   );
 
   const saveCompra = useCallback(async (data, editRecord) => {
+    const oldCantidad = editRecord ? editRecord.cantidad : 0;
     if (editRecord) {
       await api.updateCompra({ ...editRecord, ...data });
     } else {
@@ -60,13 +66,18 @@ export function useCompras(ingredientes) {
       const fresh = await api.fetchCompras();
       await api.pruneOldCompras(fresh, data.ingrediente);
     }
+    await applyStockDelta(ingredientes, data.ingrediente, data.cantidad - oldCantidad);
     await reload();
-  }, [reload]);
+    await reloadIngredientes?.();
+  }, [reload, ingredientes, reloadIngredientes]);
 
   const removeCompra = useCallback(async rowIndex => {
+    const compra = compras.find(c => c.rowIndex === rowIndex);
     await api.deleteCompraRow(rowIndex);
+    if (compra) await applyStockDelta(ingredientes, compra.ingrediente, -compra.cantidad);
     await reload();
-  }, [reload]);
+    await reloadIngredientes?.();
+  }, [reload, compras, ingredientes, reloadIngredientes]);
 
   return { compras, rows, loading, error, historialFor, saveCompra, removeCompra };
 }

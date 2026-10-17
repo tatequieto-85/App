@@ -66,7 +66,7 @@ export function useIngredientes() {
   }, [findDuplicate, reload]);
 
   return {
-    ingredientes, loading, error,
+    ingredientes, loading, error, reload,
     findDuplicate, addIngrediente, updateUnidad, removeIngrediente, tryAddIngrediente
   };
 }

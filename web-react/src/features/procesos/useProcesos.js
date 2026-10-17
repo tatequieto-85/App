@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import * as recetasApi from '../../services/recetasApi';
 import { fetchCompras } from '../../services/comprasApi';
 import * as ejecucionesApi from '../../services/ejecucionesApi';
+import { applyStockDeltas } from '../../services/ingredientesApi';
 import { todayISOBogota } from '../../utils/format';
 
 // Toda la lógica de negocio de Procesos (solo Recetas por ahora — ver
@@ -10,7 +11,10 @@ import { todayISOBogota } from '../../utils/format';
 // (RecetasPlantillas), ambos CRUD completo. También lee Compras (solo
 // lectura, módulo ya migrado) para estimar el precio total de un lote a
 // partir de su receta — ver computeCostoReceta en recetasApi.js.
-export function useProcesos() {
+// `ingredientes`/`reloadIngredientes`: a pedido explícito del usuario,
+// guardar una ejecución descuenta del stock corriente de cada ingrediente
+// lo que esa ejecución consumió — ver finalizarEjecucion.
+export function useProcesos(ingredientes, reloadIngredientes) {
   const [recetaBlocks, setRecetaBlocks] = useState([]);
   const [recetas, setRecetas] = useState([]);
   const [compras, setCompras] = useState([]);
@@ -226,18 +230,33 @@ export function useProcesos() {
   // — pesoTotalReceta es la base para calcular la merma y el precio por
   // frasco según su tamaño en Stock (ver getPrecioFrascosLote en
   // stockApi.js).
-  const finalizarEjecucion = useCallback(async (ejecucion, costoTotal, pesoTotalReceta) => {
+  //
+  // `ingredientesConsumidos`: igual criterio de congelado — la lista real
+  // de ingredientes de ESTA ejecución (receta + insumos agregados) al
+  // momento de guardar, a pedido explícito del usuario ("que descuente los
+  // ingredientes que se necesitaron"). Se descuenta por DELTA contra lo
+  // que esta misma ejecución ya había descontado antes (lo que había
+  // congelado previamente en evaluacion.ingredientesConsumidos) — así
+  // "Guardar cambios" sobre una ejecución ya completada (p. ej. agregar un
+  // insumo más) ajusta solo la diferencia en vez de descontar dos veces.
+  const finalizarEjecucion = useCallback(async (ejecucion, costoTotal, pesoTotalReceta, ingredientesConsumidos) => {
+    if (ingredientesConsumidos) {
+      const prevConsumo = ejecucion.evaluacion?.ingredientesConsumidos || [];
+      await applyStockDeltas(ingredientes, prevConsumo, ingredientesConsumidos);
+      await reloadIngredientes?.();
+    }
     const updated = {
       ...ejecucion, estado: 'Completada', fechaFin: todayISOBogota(),
       evaluacion: {
         ...(ejecucion.evaluacion || {}),
         ...(costoTotal != null ? { costoTotal } : {}),
-        ...(pesoTotalReceta != null ? { pesoTotalReceta } : {})
+        ...(pesoTotalReceta != null ? { pesoTotalReceta } : {}),
+        ...(ingredientesConsumidos != null ? { ingredientesConsumidos } : {})
       }
     };
     await ejecucionesApi.updateEjecucion(updated);
     return updated;
-  }, []);
+  }, [ingredientes, reloadIngredientes]);
 
   return {
     recetaBlocks, recetas, compras, loading, error,

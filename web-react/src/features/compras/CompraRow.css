@@ -14,3 +14,5 @@
 
 .compra-row { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .compra-row-actions td { padding: 0; border-bottom: 1px solid var(--border); }
+
+.compra-row-stock--negativo { color: var(--danger); font-weight: 700; }
