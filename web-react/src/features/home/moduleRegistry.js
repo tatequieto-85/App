@@ -5,7 +5,7 @@
 // .app-card-icon--* que ya usa la app vanilla en su home (ver index.html) —
 // se reutilizan los mismos colores por módulo para que sea reconocible.
 export const MODULE_REGISTRY = [
-  { id: 'compras', label: 'Insumos', icon: 'cart', color: 'amber', screen: 'compras' },
+  { id: 'compras', label: 'Inventario', icon: 'cart', color: 'amber', screen: 'compras' },
   { id: 'stock', label: 'Stock', icon: 'box', color: 'slate', screen: 'stock' },
   { id: 'contactos', label: 'Contactos', icon: 'user', color: 'rose', screen: 'contactos' },
   { id: 'ventas', label: 'Ventas', icon: 'flag', color: 'rose', screen: 'ventas' },

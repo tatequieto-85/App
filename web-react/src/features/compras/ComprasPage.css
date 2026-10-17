@@ -1,0 +1,12 @@
+/* Línea muy sutil entre secciones de Inventario, a pedido explícito del
+   usuario — mismo criterio que separa los grupos de recetas en Procesos
+   (ver ProcesosPage.css). La primera sección no lleva línea arriba. */
+.inventario-section + .inventario-section {
+  border-top: 1px solid var(--border);
+  margin-top: 18px; padding-top: 14px;
+}
+
+.inventario-section-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.inventario-section-head .btn--outline { width: auto; padding: 6px 12px; display: flex; align-items: center; gap: 5px; }
