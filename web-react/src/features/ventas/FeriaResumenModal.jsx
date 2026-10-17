@@ -127,7 +127,10 @@ function VentaComboRow({ item, onDelete }) {
     <div ref={wrapRef} className="feria-salida-row-wrap">
       <div className="feria-salida-row" {...gestureProps}>
         <span className="feria-salida-row-fecha">{fmtDayMonthSlash(item.fecha)}</span>
-        <span className="feria-salida-row-nombre">{item.cantidadCombos}x {item.comboNombre}</span>
+        <span className="feria-salida-row-nombre">
+          {item.cantidadCombos}x {item.comboNombre}
+          {item.descuentoNombre && ` — ${item.descuentoNombre}`}
+        </span>
         <span className="feria-salida-row-cantidad">{fmtCOP(item.montoTotal)}</span>
       </div>
       {actionsOpen && (

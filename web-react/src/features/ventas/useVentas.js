@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as canalesApi from '../../services/canalesVentaApi';
 import * as feriasApi from '../../services/feriasApi';
 import * as combosApi from '../../services/combosApi';
+import * as descuentosApi from '../../services/descuentosApi';
 import { fetchEjecuciones } from '../../services/ejecucionesApi';
 import * as stockApi from '../../services/stockApi';
 
@@ -34,6 +35,7 @@ export function useVentas() {
   const [stockTestigos, setStockTestigos] = useState([]);
   const [stockMovimientos, setStockMovimientos] = useState([]);
   const [combos, setCombos] = useState([]);
+  const [descuentos, setDescuentos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -49,6 +51,12 @@ export function useVentas() {
     return c;
   }, []);
 
+  const reloadDescuentos = useCallback(async () => {
+    const d = await descuentosApi.fetchDescuentos();
+    setDescuentos(d);
+    return d;
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -56,11 +64,12 @@ export function useVentas() {
         setLoading(true);
         await Promise.all([
           canalesApi.ensureCanalesVentaSheet(), feriasApi.ensureFeriasSheet(),
-          stockApi.ensureStockSheets(), combosApi.ensureCombosSheet()
+          stockApi.ensureStockSheets(), combosApi.ensureCombosSheet(), descuentosApi.ensureDescuentosSheet()
         ]);
-        const [c, f, ej, testigos, movimientos, combosList] = await Promise.all([
+        const [c, f, ej, testigos, movimientos, combosList, descuentosList] = await Promise.all([
           canalesApi.fetchCanales(), feriasApi.fetchFerias(), fetchEjecuciones(),
-          stockApi.fetchStockTestigos(), stockApi.fetchStockMovimientos(), combosApi.fetchCombos()
+          stockApi.fetchStockTestigos(), stockApi.fetchStockMovimientos(), combosApi.fetchCombos(),
+          descuentosApi.fetchDescuentos()
         ]);
         if (cancelled) return;
         // Los canales ya no los crea el usuario (ver CANALES_POR_DEFECTO) —
@@ -100,6 +109,7 @@ export function useVentas() {
         setStockTestigos(testigos);
         setStockMovimientos(movimientos);
         setCombos(combosList);
+        setDescuentos(descuentosList);
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -180,7 +190,7 @@ export function useVentas() {
         id: crypto.randomUUID(), horaInicio: '', horaFin: '', fechaImportante: '', alineacion: 0,
         estado: 'confirmada', conteoPersonas: 0, planStock: {}, ventas: [], observacionesDiarias: [],
         conteoProductos: null, conteoMenores30: 0, conteoEntre30y55: 0, conteoMayores55: 0,
-        cerrada: false, muestras: [], canalId: canalId || '', comboIds: [], ventasCombo: [], ...datos
+        cerrada: false, muestras: [], canalId: canalId || '', comboIds: [], ventasCombo: [], descuentoIds: [], ...datos
       });
     }
     await reloadFerias();
@@ -322,8 +332,10 @@ export function useVentas() {
   // del combo. Genera un ventaComboId compartido: una fila resumen en
   // feria.ventasCombo[] (para el resumen con precio) y una fila por lote en
   // feria.ventas[] (para que el cálculo de stock/disponible, que lee
-  // feria.ventas igual que siempre, no se tenga que tocar).
-  const registrarVentaCombo = useCallback(async (feriaId, comboId, cantidadCombos, distribucion, fecha) => {
+  // feria.ventas igual que siempre, no se tenga que tocar). descuentoId
+  // (opcional): se aplica sobre el TOTAL de esta venta (subtotal = precio *
+  // cantidadCombos), nunca por unidad — a pedido explícito del usuario.
+  const registrarVentaCombo = useCallback(async (feriaId, comboId, cantidadCombos, distribucion, fecha, descuentoId) => {
     const f = ferias.find(x => x.id === feriaId);
     if (!f) return;
     const combo = combos.find(c => c.id === comboId);
@@ -352,9 +364,14 @@ export function useVentas() {
       });
     });
     if (excesos.length) throw new Error(`No hay stock suficiente: ${excesos.join('; ')}.`);
+    const subtotal = combo.precio * cantidadCombos;
+    const descuento = descuentoId ? descuentos.find(d => d.id === descuentoId) : null;
+    const descuentoMonto = descuentosApi.calcularDescuento(descuento, subtotal);
     const nuevaVentaCombo = {
       id: ventaComboId, comboId, comboNombre: combo.nombre, unidades: combo.unidades,
-      precio: combo.precio, cantidadCombos, montoTotal: combo.precio * cantidadCombos,
+      precio: combo.precio, cantidadCombos, subtotal,
+      descuentoId: descuento?.id || '', descuentoNombre: descuento?.nombre || '', descuentoMonto,
+      montoTotal: subtotal - descuentoMonto,
       fecha, createdAt: new Date().toISOString()
     };
     await feriasApi.updateFeria({
@@ -363,7 +380,7 @@ export function useVentas() {
       ventasCombo: [...(f.ventasCombo || []), nuevaVentaCombo]
     });
     await reloadFerias();
-  }, [ferias, ejecuciones, combos, reloadFerias]);
+  }, [ferias, ejecuciones, combos, descuentos, reloadFerias]);
 
   // Cascada: borra la fila resumen Y todas las ventas por lote que
   // comparten el mismo ventaComboId — una venta-combo son N filas en
@@ -378,12 +395,35 @@ export function useVentas() {
     await reloadFerias();
   }, [ferias, reloadFerias]);
 
+  // ── Descuentos ─────────────────────────────────────────────────────────
+
+  const saveDescuento = useCallback(async ({ nombre, tipo, valor }, editingId) => {
+    if (editingId) {
+      const descuento = descuentos.find(d => d.id === editingId);
+      await descuentosApi.updateDescuento({ ...descuento, nombre, tipo, valor });
+    } else {
+      await descuentosApi.appendDescuento({ id: crypto.randomUUID(), nombre, tipo, valor, creadoEn: new Date().toISOString() });
+    }
+    await reloadDescuentos();
+  }, [descuentos, reloadDescuentos]);
+
+  const deleteDescuento = useCallback(async descuentoId => {
+    if (ferias.some(f => (f.descuentoIds || []).includes(descuentoId))) {
+      throw new Error('Este descuento está asignado a una feria — no se puede eliminar.');
+    }
+    const descuento = descuentos.find(d => d.id === descuentoId);
+    if (!descuento) return;
+    await descuentosApi.deleteDescuentoRow(descuento.rowIndex);
+    await reloadDescuentos();
+  }, [descuentos, ferias, reloadDescuentos]);
+
   return {
-    canales, ferias, ejecuciones, stockTestigos, stockMovimientos, combos, ctx, loading, error,
+    canales, ferias, ejecuciones, stockTestigos, stockMovimientos, combos, descuentos, ctx, loading, error,
     resumenVentasPorDia,
     saveCanal, deleteCanal, reorderCanales,
     saveFeria, deleteFeria, reabrirFeria, terminarFeria, cambiarEstadoFeria,
     saveStockPlan, registrarSalida, removeSalida, addObservacionDiaria, commitConteoSession,
-    reloadCombos, saveCombo, deleteCombo, registrarVentaCombo, removeVentaCombo
+    reloadCombos, saveCombo, deleteCombo, registrarVentaCombo, removeVentaCombo,
+    reloadDescuentos, saveDescuento, deleteDescuento
   };
 }

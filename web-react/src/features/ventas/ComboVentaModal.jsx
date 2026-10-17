@@ -7,6 +7,7 @@ import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
 import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 import { getFeriaSalidaTotal } from '../../services/feriasApi';
+import { calcularDescuento } from '../../services/descuentosApi';
 import { fmtCOP } from '../../utils/format';
 import './FeriaStockModal.css';
 
@@ -17,13 +18,18 @@ import './FeriaStockModal.css';
 // unidades (puede ser un solo sabor o repartido entre varios). "Registrar
 // muestra" sigue en FeriaSalidaModal, sin cambios — las muestras no llevan
 // precio.
-export default function ComboVentaModal({ open, onClose, feria, ejecuciones, combos, fecha, onSave }) {
+export default function ComboVentaModal({ open, onClose, feria, ejecuciones, combos, descuentos, fecha, onSave }) {
   const combosFeria = useMemo(
     () => (combos || []).filter(c => (feria?.comboIds || []).includes(c.id)),
     [combos, feria]
   );
+  const descuentosFeria = useMemo(
+    () => (descuentos || []).filter(d => (feria?.descuentoIds || []).includes(d.id)),
+    [descuentos, feria]
+  );
   const [comboId, setComboId] = useState('');
   const [cantidadCombos, setCantidadCombos] = useState('1');
+  const [descuentoId, setDescuentoId] = useState('');
   const [distribucion, setDistribucion] = useState({}); // { ejecucionId: cantidad }
   const [busy, setBusy] = useState(false);
   const [feedback, showFeedback] = useFeedback();
@@ -32,6 +38,7 @@ export default function ComboVentaModal({ open, onClose, feria, ejecuciones, com
     if (!open) return;
     setComboId(combosFeria[0]?.id || '');
     setCantidadCombos('1');
+    setDescuentoId('');
     setDistribucion({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -45,6 +52,10 @@ export default function ComboVentaModal({ open, onClose, feria, ejecuciones, com
   const cantNum = parseInt(cantidadCombos, 10) || 0;
   const totalEsperado = combo ? combo.unidades * cantNum : 0;
   const totalDistribuido = Object.values(distribucion).reduce((s, v) => s + (v || 0), 0);
+  const subtotal = combo ? combo.precio * cantNum : 0;
+  const descuentoSel = descuentoId ? descuentosFeria.find(d => d.id === descuentoId) : null;
+  const descuentoMonto = calcularDescuento(descuentoSel, subtotal);
+  const totalConDescuento = subtotal - descuentoMonto;
 
   const plan = feria.planStock || {};
   const salidaTotal = getFeriaSalidaTotal(feria);
@@ -67,7 +78,7 @@ export default function ComboVentaModal({ open, onClose, feria, ejecuciones, com
       .map(([ejecucionId, cantidad]) => ({ ejecucionId, cantidad }));
     setBusy(true);
     try {
-      await onSave(feria.id, combo.id, cantNum, items, fecha);
+      await onSave(feria.id, combo.id, cantNum, items, fecha, descuentoId || null);
       onClose();
     } catch (err) {
       showFeedback(err.message, 'err');
@@ -97,9 +108,24 @@ export default function ComboVentaModal({ open, onClose, feria, ejecuciones, com
             />
           </div>
 
+          {!!descuentosFeria.length && (
+            <Select
+              label="Descuento (opcional)" value={descuentoId}
+              onChange={e => setDescuentoId(e.target.value)}
+              disabled={busy}
+              options={[
+                { value: '', label: 'Ninguno' },
+                ...descuentosFeria.map(d => ({ value: d.id, label: `${d.nombre} (${d.tipo === 'monto' ? fmtCOP(d.valor) : `${d.valor}%`})` }))
+              ]}
+            />
+          )}
+
           {combo && (
             <p className="modal-contexto">
-              Total: {fmtCOP(combo.precio * cantNum)} · Distribuido {totalDistribuido} / {totalEsperado} unidades
+              {descuentoMonto > 0
+                ? `Subtotal: ${fmtCOP(subtotal)} · Descuento: −${fmtCOP(descuentoMonto)} · Total: ${fmtCOP(totalConDescuento)}`
+                : `Total: ${fmtCOP(subtotal)}`}
+              {' · '}Distribuido {totalDistribuido} / {totalEsperado} unidades
             </p>
           )}
 

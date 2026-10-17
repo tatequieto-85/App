@@ -14,3 +14,12 @@
 
 .combo-row { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .combo-row-actions td { padding: 0; border-bottom: 1px solid var(--border); }
+
+/* Línea muy sutil entre Combos y Descuentos — mismo criterio que separa
+   las secciones de Inventario (ver ComprasPage.css). */
+.combo-catalog-section + .combo-catalog-section {
+  border-top: 1px solid var(--border);
+  margin-top: 18px; padding-top: 14px;
+}
+.combo-catalog-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.combo-catalog-section-head .btn--outline { width: auto; padding: 6px 12px; display: flex; align-items: center; gap: 5px; }

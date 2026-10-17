@@ -23,7 +23,7 @@ export async function ensureFeriasSheet() {
 
   if (hasF) {
     feriasSheetId = hasF.properties.sheetId;
-    const headerData = await sheetsReq('/values/Ferias!A1:AA1').catch(() => ({}));
+    const headerData = await sheetsReq('/values/Ferias!A1:AB1').catch(() => ({}));
     const headerRow = (headerData.values || [])[0] || [];
     if (headerRow.length < 18) {
       await sheetsReq('/values/Ferias!M1:R1?valueInputOption=RAW', {
@@ -82,7 +82,7 @@ export async function ensureFeriasSheet() {
         method: 'POST',
         body: JSON.stringify({ requests: [{
           updateSheetProperties: {
-            properties: { sheetId: feriasSheetId, gridProperties: { columnCount: 30 } },
+            properties: { sheetId: feriasSheetId, gridProperties: { columnCount: 35 } },
             fields: 'gridProperties.columnCount'
           }
         }] })
@@ -90,6 +90,15 @@ export async function ensureFeriasSheet() {
       await sheetsReq('/values/Ferias!AA1?valueInputOption=RAW', {
         method: 'PUT',
         body: JSON.stringify({ values: [['VentasCombo']] })
+      });
+    }
+    // DescuentoIds (qué descuentos del catálogo global se pueden aplicar en
+    // ESTA feria) — mismo patrón que ComboIds, a pedido explícito del
+    // usuario, ver descuentosApi.js.
+    if (headerRow.length < 28) {
+      await sheetsReq('/values/Ferias!AB1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [['DescuentoIds']] })
       });
     }
   } else {
@@ -106,14 +115,14 @@ export async function ensureFeriasSheet() {
         'Observaciones', 'Alineacion', 'Estado', 'ConteoPersonas', 'CreadoEn',
         'HoraInicio', 'HoraFin', 'PlanStock', 'Ventas', 'ObservacionesDiarias', 'ConteoProductos',
         'ConteoMenores30', 'ConteoEntre30y55', 'ConteoMayores55', 'Cerrada', 'Muestras', 'CanalId', 'ContactoId',
-        'ComboIds', 'VentasCombo'
+        'ComboIds', 'VentasCombo', 'DescuentoIds'
       ]] })
     });
   }
 }
 
 export async function fetchFerias() {
-  const data = await sheetsReq('/values/Ferias!A:AA');
+  const data = await sheetsReq('/values/Ferias!A:AB');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0]  || '',
@@ -143,6 +152,7 @@ export async function fetchFerias() {
     contactoId:           r[24] || '',
     comboIds:             safeParseJSON(r[25], []),
     ventasCombo:          safeParseJSON(r[26], []),
+    descuentoIds:         safeParseJSON(r[27], []),
     rowIndex:             i + 2
   }));
 }
@@ -156,19 +166,19 @@ function feriaRowValues(f) {
     JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {}),
     f.conteoMenores30 || 0, f.conteoEntre30y55 || 0, f.conteoMayores55 || 0,
     f.cerrada ? 'TRUE' : 'FALSE', JSON.stringify(f.muestras || []), f.canalId || '', f.contactoId || '',
-    JSON.stringify(f.comboIds || []), JSON.stringify(f.ventasCombo || [])
+    JSON.stringify(f.comboIds || []), JSON.stringify(f.ventasCombo || []), JSON.stringify(f.descuentoIds || [])
   ];
 }
 
 export async function appendFeria(f) {
-  await sheetsReq('/values/Ferias!A:AA:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Ferias!A:AB:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
 }
 
 export async function updateFeria(f) {
-  await sheetsReq(`/values/Ferias!A${f.rowIndex}:AA${f.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Ferias!A${f.rowIndex}:AB${f.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });

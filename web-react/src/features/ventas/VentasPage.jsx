@@ -15,6 +15,8 @@ import CanalCard from './CanalCard';
 import CanalModal from './CanalModal';
 import ComboModal from './ComboModal';
 import ComboRow from './ComboRow';
+import DescuentoModal from './DescuentoModal';
+import DescuentoRow from './DescuentoRow';
 import FeriaBlock from './FeriaBlock';
 import { FeriaEstadoDndContext, FeriaEstadoDropZone, FeriaDraggable } from './FeriaEstadoDnd';
 import FeriaModal from './FeriaModal';
@@ -54,6 +56,8 @@ export default function VentasPage({ onBack }) {
   const [showCombos, setShowCombos] = useState(false);
   const [comboModal, setComboModal] = useState(null); // { editing } | null
   const [comboActionsFor, setComboActionsFor] = useState(null);
+  const [descuentoModal, setDescuentoModal] = useState(null); // { editing } | null
+  const [descuentoActionsFor, setDescuentoActionsFor] = useState(null);
 
   const canal = currentCanalId ? vt.canales.find(c => c.id === currentCanalId) : null;
   const canalIds = useMemo(() => vt.canales.map(c => c.id), [vt.canales]);
@@ -112,31 +116,68 @@ export default function VentasPage({ onBack }) {
         {vt.loading && <div className="loading-state">Cargando…</div>}
         {vt.error && <EmptyState>No se pudo cargar: {vt.error}</EmptyState>}
 
-        {/* Catálogo de combos ("Armar combos") — precio unitario/por combo
-            de cada canal, independiente de los canales mismos; cada feria
-            elige después cuáles aplican (ver FeriaModal). */}
+        {/* Catálogo de combos y descuentos ("Armar combos") — precio
+            unitario/por combo y descuentos aplicables, independiente de los
+            canales mismos; cada feria elige después cuáles de cada uno
+            aplican (ver FeriaModal). Separados por una línea muy sutil,
+            mismo criterio que las secciones de Inventario. */}
         {!vt.loading && !vt.error && showCombos && (
-          !vt.combos.length ? (
-            <EmptyState>Aún no hay combos. Agregá el primero con el botón de abajo.</EmptyState>
-          ) : (
-            <table className="combo-table">
-              <thead>
-                <tr><th>Combo</th><th>Unidades</th><th>Precio</th></tr>
-              </thead>
-              <tbody>
-                {vt.combos.map(c => (
-                  <ComboRow
-                    key={c.id}
-                    combo={c}
-                    actionsOpen={comboActionsFor === c.id}
-                    onOpenActionsChange={setComboActionsFor}
-                    onEdit={cc => setComboModal({ editing: cc })}
-                    onDelete={vt.deleteCombo}
-                  />
-                ))}
-              </tbody>
-            </table>
-          )
+          <>
+            <section className="combo-catalog-section">
+              <h2 className="subsection-title">Combos</h2>
+              {!vt.combos.length ? (
+                <EmptyState>Aún no hay combos. Agregá el primero con el botón de abajo.</EmptyState>
+              ) : (
+                <table className="combo-table">
+                  <thead>
+                    <tr><th>Combo</th><th>Unidades</th><th>Precio</th></tr>
+                  </thead>
+                  <tbody>
+                    {vt.combos.map(c => (
+                      <ComboRow
+                        key={c.id}
+                        combo={c}
+                        actionsOpen={comboActionsFor === c.id}
+                        onOpenActionsChange={setComboActionsFor}
+                        onEdit={cc => setComboModal({ editing: cc })}
+                        onDelete={vt.deleteCombo}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
+
+            <section className="combo-catalog-section">
+              <div className="combo-catalog-section-head">
+                <h2 className="subsection-title">Descuentos</h2>
+                <Button type="button" variant="outline" onClick={() => setDescuentoModal({ editing: null })}>
+                  <Icon name="plus" size={13} /> Descuento
+                </Button>
+              </div>
+              {!vt.descuentos.length ? (
+                <EmptyState>Aún no hay descuentos.</EmptyState>
+              ) : (
+                <table className="combo-table">
+                  <thead>
+                    <tr><th>Descuento</th><th>Tipo</th><th>Valor</th></tr>
+                  </thead>
+                  <tbody>
+                    {vt.descuentos.map(d => (
+                      <DescuentoRow
+                        key={d.id}
+                        descuento={d}
+                        actionsOpen={descuentoActionsFor === d.id}
+                        onOpenActionsChange={setDescuentoActionsFor}
+                        onEdit={dd => setDescuentoModal({ editing: dd })}
+                        onDelete={vt.deleteDescuento}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
+          </>
         )}
 
         {!vt.loading && !vt.error && !showCombos && !canal && (
@@ -255,6 +296,13 @@ export default function VentasPage({ onBack }) {
         onSave={vt.saveCombo}
       />
 
+      <DescuentoModal
+        open={!!descuentoModal}
+        onClose={() => setDescuentoModal(null)}
+        editingDescuento={descuentoModal?.editing || null}
+        onSave={vt.saveDescuento}
+      />
+
       <CanalModal
         open={!!canalModal}
         onClose={() => setCanalModal(null)}
@@ -268,6 +316,7 @@ export default function VentasPage({ onBack }) {
         editingFeria={feriaModal?.editing || null}
         contactos={contactos}
         combos={vt.combos}
+        descuentos={vt.descuentos}
         onSave={(datos, editingId) => vt.saveFeria(datos, editingId, currentCanalId)}
         onReabrir={vt.reabrirFeria}
       />
@@ -287,6 +336,7 @@ export default function VentasPage({ onBack }) {
         feria={openFeria}
         ejecuciones={vt.ejecuciones}
         combos={vt.combos}
+        descuentos={vt.descuentos}
         onRegistrarSalida={vt.registrarSalida}
         onRegistrarVentaCombo={vt.registrarVentaCombo}
         onAddObservacionDiaria={vt.addObservacionDiaria}
