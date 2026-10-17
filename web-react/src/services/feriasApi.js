@@ -73,6 +73,20 @@ export async function ensureFeriasSheet() {
       });
     }
     if (headerRow.length < 27) {
+      // La hoja "Ferias" es vieja y su grilla real nunca se agrandó más
+      // allá de la Z (26 columnas, tamaño por defecto de Sheets) — escribir
+      // en AA sin esto tira "Range exceeds grid limits" (bug real reportado
+      // por el usuario, pantalla en blanco al abrir Ventas). Agrandar la
+      // grilla es idempotente: una vez hecho, queda así para siempre.
+      await sheetsReq(':batchUpdate', {
+        method: 'POST',
+        body: JSON.stringify({ requests: [{
+          updateSheetProperties: {
+            properties: { sheetId: feriasSheetId, gridProperties: { columnCount: 30 } },
+            fields: 'gridProperties.columnCount'
+          }
+        }] })
+      });
       await sheetsReq('/values/Ferias!AA1?valueInputOption=RAW', {
         method: 'PUT',
         body: JSON.stringify({ values: [['VentasCombo']] })
