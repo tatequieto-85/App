@@ -23,7 +23,7 @@ export async function ensureFeriasSheet() {
 
   if (hasF) {
     feriasSheetId = hasF.properties.sheetId;
-    const headerData = await sheetsReq('/values/Ferias!A1:Y1').catch(() => ({}));
+    const headerData = await sheetsReq('/values/Ferias!A1:AA1').catch(() => ({}));
     const headerRow = (headerData.values || [])[0] || [];
     if (headerRow.length < 18) {
       await sheetsReq('/values/Ferias!M1:R1?valueInputOption=RAW', {
@@ -63,6 +63,21 @@ export async function ensureFeriasSheet() {
         body: JSON.stringify({ values: [['ContactoId']] })
       });
     }
+    // ComboIds (qué combos del catálogo global se venden en ESTA feria) y
+    // VentasCombo (el registro de cada venta-por-combo, con su precio
+    // congelado) — a pedido explícito del usuario, ver combosApi.js.
+    if (headerRow.length < 26) {
+      await sheetsReq('/values/Ferias!Z1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [['ComboIds']] })
+      });
+    }
+    if (headerRow.length < 27) {
+      await sheetsReq('/values/Ferias!AA1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [['VentasCombo']] })
+      });
+    }
   } else {
     const res = await sheetsReq(':batchUpdate', {
       method: 'POST',
@@ -76,14 +91,15 @@ export async function ensureFeriasSheet() {
         'ID', 'Empresa', 'FechaInicio', 'FechaFin', 'Precio', 'FechaImportante', 'Lugar',
         'Observaciones', 'Alineacion', 'Estado', 'ConteoPersonas', 'CreadoEn',
         'HoraInicio', 'HoraFin', 'PlanStock', 'Ventas', 'ObservacionesDiarias', 'ConteoProductos',
-        'ConteoMenores30', 'ConteoEntre30y55', 'ConteoMayores55', 'Cerrada', 'Muestras', 'CanalId', 'ContactoId'
+        'ConteoMenores30', 'ConteoEntre30y55', 'ConteoMayores55', 'Cerrada', 'Muestras', 'CanalId', 'ContactoId',
+        'ComboIds', 'VentasCombo'
       ]] })
     });
   }
 }
 
 export async function fetchFerias() {
-  const data = await sheetsReq('/values/Ferias!A:Y');
+  const data = await sheetsReq('/values/Ferias!A:AA');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0]  || '',
@@ -111,6 +127,8 @@ export async function fetchFerias() {
     muestras:             safeParseJSON(r[22], []),
     canalId:              r[23] || '',
     contactoId:           r[24] || '',
+    comboIds:             safeParseJSON(r[25], []),
+    ventasCombo:          safeParseJSON(r[26], []),
     rowIndex:             i + 2
   }));
 }
@@ -123,19 +141,20 @@ function feriaRowValues(f) {
     f.horaInicio || '', f.horaFin || '', JSON.stringify(f.planStock || {}), JSON.stringify(f.ventas || []),
     JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {}),
     f.conteoMenores30 || 0, f.conteoEntre30y55 || 0, f.conteoMayores55 || 0,
-    f.cerrada ? 'TRUE' : 'FALSE', JSON.stringify(f.muestras || []), f.canalId || '', f.contactoId || ''
+    f.cerrada ? 'TRUE' : 'FALSE', JSON.stringify(f.muestras || []), f.canalId || '', f.contactoId || '',
+    JSON.stringify(f.comboIds || []), JSON.stringify(f.ventasCombo || [])
   ];
 }
 
 export async function appendFeria(f) {
-  await sheetsReq('/values/Ferias!A:Y:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Ferias!A:AA:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
 }
 
 export async function updateFeria(f) {
-  await sheetsReq(`/values/Ferias!A${f.rowIndex}:Y${f.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Ferias!A${f.rowIndex}:AA${f.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
@@ -170,6 +189,15 @@ export function feriaTotalVendidos(f) {
 
 export function feriaTotalMuestras(f) {
   return (f.muestras || []).reduce((sum, m) => sum + (m.cantidad || 0), 0);
+}
+
+// Plata real vendida en una feria — suma el montoTotal de cada venta-por-
+// combo (ya congelado al momento de la venta, ver registrarVentaCombo en
+// useVentas.js). Ventas de antes de que existieran los combos no suman acá
+// (no tienen precio asociado) — sí siguen contando en cantidad de
+// unidades vía feriaTotalVendidos.
+export function feriaTotalVendidoDinero(f) {
+  return (f.ventasCombo || []).reduce((sum, v) => sum + (v.montoTotal || 0), 0);
 }
 
 // Ventas + muestras ya entregadas, por lote — las dos salen del mismo stock
@@ -311,6 +339,7 @@ export function feriaToText(f, ejecuciones, fmtCOP, fmtDate, contactoNombre) {
   if (contactoNombre) lines.push(`Contacto: ${contactoNombre}`);
   lines.push(`Precio de participación: ${fmtCOP(f.precio)}`);
   if (f.observaciones) lines.push(`Observaciones generales: ${f.observaciones}`);
+  if ((f.ventasCombo || []).length) lines.push(`Total vendido: ${fmtCOP(feriaTotalVendidoDinero(f))}`);
   lines.push('', `Personas que probaron TateQuieto (total): ${feriaConteoTotal(f)}`);
   lines.push(`  • Menores de 30: ${f.conteoMenores30 || 0}`);
   lines.push(`  • Entre 30 y 55: ${f.conteoEntre30y55 || 0}`);

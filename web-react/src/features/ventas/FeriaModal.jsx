@@ -20,7 +20,7 @@ import './FeriaModal.css';
 // vincular uno es obligatorio al crear, y "Empresa organizadora" ya no se
 // tipea a mano: sale sola de la empresa de ese contacto (o su nombre, si no
 // tiene empresa cargada) — a pedido del usuario.
-export default function FeriaModal({ open, onClose, editingFeria, contactos, onSave, onReabrir }) {
+export default function FeriaModal({ open, onClose, editingFeria, contactos, combos, onSave, onReabrir }) {
   const today = toISODate(new Date());
   const [fechaInicio, setFechaInicio] = useState(today);
   const [fechaFin, setFechaFin] = useState(today);
@@ -31,15 +31,17 @@ export default function FeriaModal({ open, onClose, editingFeria, contactos, onS
   // Texto predictivo (datalist), no un <select> — el usuario escribe el
   // nombre del contacto y se resuelve contra `contactos` al guardar.
   const [contactoNombre, setContactoNombre] = useState('');
+  const [comboIds, setComboIds] = useState([]);
   const [busy, setBusy] = useState(false);
   const [feedback, showFeedback] = useFeedback();
-  const initialRef = useRef({ contactoNombre: '', lugar: '', observaciones: '' });
+  const initialRef = useRef({ contactoNombre: '', lugar: '', observaciones: '', comboIds: [] });
 
   useEffect(() => {
     if (!open) return;
     const cn = editingFeria ? (contactos?.find(c => c.id === editingFeria.contactoId)?.nombre || '') : '';
     const l = editingFeria ? editingFeria.lugar || '' : '';
     const o = editingFeria ? editingFeria.observaciones || '' : '';
+    const ci = editingFeria ? (editingFeria.comboIds || []) : [];
     setContactoNombre(cn);
     setFechaInicio(editingFeria ? editingFeria.fechaInicio || today : today);
     setFechaFin(editingFeria ? editingFeria.fechaFin || today : today);
@@ -47,14 +49,21 @@ export default function FeriaModal({ open, onClose, editingFeria, contactos, onS
     setLugar(l);
     setObservaciones(o);
     setEstado(editingFeria?.estado === 'publicado' ? 'publicado' : 'participar');
-    initialRef.current = { contactoNombre: cn, lugar: l, observaciones: o };
+    setComboIds(ci);
+    initialRef.current = { contactoNombre: cn, lugar: l, observaciones: o, comboIds: ci };
   }, [open, editingFeria, contactos]);
 
   const isDirty = () =>
     contactoNombre.trim() !== initialRef.current.contactoNombre ||
     lugar.trim() !== initialRef.current.lugar ||
-    observaciones.trim() !== initialRef.current.observaciones;
+    observaciones.trim() !== initialRef.current.observaciones ||
+    comboIds.length !== initialRef.current.comboIds.length ||
+    comboIds.some(id => !initialRef.current.comboIds.includes(id));
   const close = useDirtyGuard(isDirty, onClose);
+
+  function toggleCombo(id) {
+    setComboIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -70,7 +79,7 @@ export default function FeriaModal({ open, onClose, editingFeria, contactos, onS
         fechaInicio, fechaFin,
         precio: parseThousandsInput(precio) || 0,
         lugar: lugar.trim(), observaciones: observaciones.trim(),
-        estado, contactoId: contacto.id
+        estado, contactoId: contacto.id, comboIds
       }, editingFeria?.id || null);
       onClose();
     } catch (err) {
@@ -103,6 +112,24 @@ export default function FeriaModal({ open, onClose, editingFeria, contactos, onS
           <TextField label="Lugar" value={lugar} onChange={e => setLugar(e.target.value)} disabled={busy} />
         </div>
         <Textarea label="Observaciones" value={observaciones} onChange={e => setObservaciones(e.target.value)} disabled={busy} />
+
+        {!!combos?.length && (
+          <div className="field">
+            <label className="field-label">Combos que se van a vender</label>
+            <div className="feria-combo-checklist">
+              {combos.map(c => (
+                <label key={c.id} className="feria-combo-check">
+                  <input
+                    type="checkbox" disabled={busy}
+                    checked={comboIds.includes(c.id)}
+                    onChange={() => toggleCombo(c.id)}
+                  />
+                  {c.nombre} ({c.unidades}u)
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         {editingFeria?.cerrada && (
           <div className="feria-reabrir-wrap">

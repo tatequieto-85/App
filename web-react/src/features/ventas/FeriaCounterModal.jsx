@@ -4,6 +4,7 @@ import Button from '../../components/ui/Button';
 import { feriaConteoTotal, getFeriaDefaultDay } from '../../services/feriasApi';
 import { fmtDateShortEs } from '../../utils/format';
 import FeriaSalidaModal from './FeriaSalidaModal';
+import ComboVentaModal from './ComboVentaModal';
 import FeriaObsModal from './FeriaObsModal';
 import './FeriaCounterModal.css';
 
@@ -32,7 +33,7 @@ function clearDraft(feriaId) {
 // vuelca al total recién al cerrar (onCommitSession). Si la ventana se
 // cierra de cualquier otra forma sin pasar por ahí, el borrador en
 // localStorage se ofrece recuperar la próxima vez que se abra.
-export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, onRegistrarSalida, onAddObservacionDiaria, onTerminar, onCommitSession }) {
+export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, combos, onRegistrarSalida, onRegistrarVentaCombo, onAddObservacionDiaria, onTerminar, onCommitSession }) {
   const [session, setSession] = useState({ menores30: 0, entre30y55: 0, mayores55: 0 });
   const [salidaModal, setSalidaModal] = useState(null); // 'ventas' | 'muestras' | null
   const [obsOpen, setObsOpen] = useState(false);
@@ -108,7 +109,7 @@ export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, o
         </div>
 
         <div className="feria-counter-actions">
-          <Button type="button" variant="outline" onClick={() => setSalidaModal('ventas')}>Registrar venta</Button>
+          <Button type="button" variant="outline" onClick={() => setSalidaModal('ventaCombo')}>Registrar venta</Button>
           <Button type="button" variant="outline" onClick={() => setSalidaModal('muestras')}>Registrar muestra</Button>
           <Button type="button" variant="outline" onClick={() => setObsOpen(true)}>Agregar observación</Button>
           <Button type="button" variant="outline" className="feria-counter-btn-terminar" disabled={busy} onClick={handleTerminar}>
@@ -117,15 +118,14 @@ export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, o
         </div>
       </Modal>
 
-      <FeriaSalidaModal
-        open={salidaModal === 'ventas'}
+      <ComboVentaModal
+        open={salidaModal === 'ventaCombo'}
         onClose={() => setSalidaModal(null)}
         feria={feria}
         ejecuciones={ejecuciones}
-        arrField="ventas"
-        title="Registrar venta"
+        combos={combos}
         fecha={fecha}
-        onSave={onRegistrarSalida}
+        onSave={onRegistrarVentaCombo}
       />
       <FeriaSalidaModal
         open={salidaModal === 'muestras'}

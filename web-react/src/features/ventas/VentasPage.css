@@ -1,1 +1,2 @@
 .obs-empty { text-align: center; color: var(--text-sub); padding: 24px 0; font-size: 13px; }
+.ventas-combos-entry { display: flex; justify-content: flex-end; margin-bottom: 10px; }
