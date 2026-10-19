@@ -12,5 +12,6 @@ export const MODULE_REGISTRY = [
   { id: 'procesos', label: 'Procesos', icon: 'beaker', color: 'green', screen: 'procesos' },
   { id: 'qr', label: 'QR', icon: 'qr', color: 'purple', screen: 'qr' },
   { id: 'tareas', label: 'Tareas', icon: 'checkSquare', color: 'teal', screen: 'tareas' },
-  { id: 'contenido', label: 'Contenido', icon: 'calendar', color: 'orange', screen: 'contenido' }
+  { id: 'contenido', label: 'Contenido', icon: 'calendar', color: 'orange', screen: 'contenido' },
+  { id: 'contabilidad', label: 'Contabilidad', icon: 'dollarSign', color: 'blue', screen: 'contabilidad' }
 ];

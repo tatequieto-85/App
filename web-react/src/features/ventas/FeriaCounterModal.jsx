@@ -4,7 +4,7 @@ import Button from '../../components/ui/Button';
 import { feriaConteoTotal, getFeriaDefaultDay } from '../../services/feriasApi';
 import { fmtDateShortEs } from '../../utils/format';
 import FeriaSalidaModal from './FeriaSalidaModal';
-import ComboVentaModal from './ComboVentaModal';
+import FeriaCierreModal from './FeriaCierreModal';
 import FeriaObsModal from './FeriaObsModal';
 import './FeriaCounterModal.css';
 
@@ -33,9 +33,10 @@ function clearDraft(feriaId) {
 // vuelca al total recién al cerrar (onCommitSession). Si la ventana se
 // cierra de cualquier otra forma sin pasar por ahí, el borrador en
 // localStorage se ofrece recuperar la próxima vez que se abra.
-export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, combos, descuentos, onRegistrarSalida, onRegistrarVentaCombo, onAddObservacionDiaria, onTerminar, onCommitSession }) {
+export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, onRegistrarSalida, onCerrarFeria, onAddObservacionDiaria, onTerminar, onCommitSession }) {
   const [session, setSession] = useState({ menores30: 0, entre30y55: 0, mayores55: 0 });
-  const [salidaModal, setSalidaModal] = useState(null); // 'ventas' | 'muestras' | null
+  const [salidaModal, setSalidaModal] = useState(null); // 'muestras' | null
+  const [cierreOpen, setCierreOpen] = useState(false);
   const [obsOpen, setObsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -69,20 +70,28 @@ export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, c
     onClose();
   }
 
+  // "Terminar feria" ya no cierra la feria directo — abre el cierre
+  // (unidades vendidas por lote + total recibido, ver FeriaCierreModal) y
+  // recién ese guardado marca la feria como terminada.
   async function handleTerminar() {
-    if (!window.confirm('¿Terminar esta feria? Vas a poder ver el resumen y el conteo de productos, pero no seguir registrando el conteo del día.')) return;
     setBusy(true);
     try {
       await onCommitSession(feria.id, session);
       clearDraft(feria.id);
-      // No se llama a onClose(): onTerminar deja la feria abierta pero pasa
-      // la vista a "resumen" en VentasPage, lo que ya oculta este modal solo.
-      await onTerminar(feria.id);
+      setCierreOpen(true);
     } catch (err) {
-      alert('Error al terminar la feria: ' + err.message);
+      alert('Error: ' + err.message);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleCerrar(feriaId, cantidades, total) {
+    await onCerrarFeria(feriaId, cantidades, total);
+    // No se llama a onClose(): onTerminar pasa la vista a "resumen" en
+    // VentasPage, lo que ya oculta este modal (y el de cierre, anidado
+    // adentro) solos.
+    await onTerminar(feriaId);
   }
 
   return (
@@ -109,7 +118,6 @@ export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, c
         </div>
 
         <div className="feria-counter-actions">
-          <Button type="button" variant="outline" onClick={() => setSalidaModal('ventaCombo')}>Registrar venta</Button>
           <Button type="button" variant="outline" onClick={() => setSalidaModal('muestras')}>Registrar muestra</Button>
           <Button type="button" variant="outline" onClick={() => setObsOpen(true)}>Agregar observación</Button>
           <Button type="button" variant="outline" className="feria-counter-btn-terminar" disabled={busy} onClick={handleTerminar}>
@@ -118,15 +126,12 @@ export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, c
         </div>
       </Modal>
 
-      <ComboVentaModal
-        open={salidaModal === 'ventaCombo'}
-        onClose={() => setSalidaModal(null)}
+      <FeriaCierreModal
+        open={cierreOpen}
+        onClose={() => setCierreOpen(false)}
         feria={feria}
         ejecuciones={ejecuciones}
-        combos={combos}
-        descuentos={descuentos}
-        fecha={fecha}
-        onSave={onRegistrarVentaCombo}
+        onSave={handleCerrar}
       />
       <FeriaSalidaModal
         open={salidaModal === 'muestras'}

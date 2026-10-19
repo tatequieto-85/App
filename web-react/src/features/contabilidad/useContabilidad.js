@@ -1,0 +1,108 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as api from '../../services/contabilidadApi';
+import * as canalesApi from '../../services/canalesVentaApi';
+import * as feriasApi from '../../services/feriasApi';
+
+// Toda la lógica de negocio de Contabilidad vive acá: "Cajas" (ingresos/
+// egresos manuales + los automáticos que generan Ventas/Compras, ver
+// contabilidadApi.js) y el "Resumen de ventas por canal", que no tiene
+// hoja propia — se arma leyendo CanalesVenta/Ferias directo, mismo patrón
+// que Stock lee datos de Procesos/Ferias sin tener que migrar esos módulos
+// enteros.
+export function useContabilidad() {
+  const [cajas, setCajas] = useState([]);
+  const [movimientos, setMovimientos] = useState([]);
+  const [canales, setCanales] = useState([]);
+  const [ferias, setFerias] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const reload = useCallback(async () => {
+    const [c, m] = await Promise.all([api.fetchCajas(), api.fetchMovimientos()]);
+    setCajas(c);
+    setMovimientos(m);
+    return { cajas: c, movimientos: m };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        await api.ensureContabilidadSheets();
+        const [c, m, canalesList, feriasList] = await Promise.all([
+          api.fetchCajas(), api.fetchMovimientos(), canalesApi.fetchCanales(), feriasApi.fetchFerias()
+        ]);
+        if (cancelled) return;
+        setCajas(c);
+        setMovimientos(m);
+        setCanales(canalesList);
+        setFerias(feriasList);
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Un total por canal (todas sus ferias, "Total vendido" = lo cargado al
+  // cerrar cada una, ver feriaTotalVendidoDinero) — nada por calcular acá
+  // más que sumar, los números reales ya viven en Ferias.
+  const resumenPorCanal = useMemo(() => {
+    return canales.map(canal => ({
+      canal,
+      total: ferias
+        .filter(f => f.canalId === canal.id)
+        .reduce((s, f) => s + feriasApi.feriaTotalVendidoDinero(f), 0)
+    }));
+  }, [canales, ferias]);
+
+  const saveCaja = useCallback(async ({ nombre, fuenteAutomatica }, editingId) => {
+    if (fuenteAutomatica !== 'ninguna' && cajas.some(c => c.fuenteAutomatica === fuenteAutomatica && c.id !== editingId)) {
+      throw new Error('Ya hay otra caja configurada con esa fuente automática.');
+    }
+    if (editingId) {
+      const caja = cajas.find(c => c.id === editingId);
+      await api.updateCaja({ ...caja, nombre, fuenteAutomatica });
+    } else {
+      await api.appendCaja({ id: crypto.randomUUID(), nombre, fuenteAutomatica, creadoEn: new Date().toISOString() });
+    }
+    await reload();
+  }, [cajas, reload]);
+
+  // Cascada: al borrar una caja se borran también sus movimientos (manuales
+  // y automáticos) — de mayor a menor rowIndex, para que borrar uno no
+  // invalide el índice de los que todavía faltan (mismo cuidado que
+  // pruneOldCompras en comprasApi.js).
+  const deleteCaja = useCallback(async cajaId => {
+    const caja = cajas.find(c => c.id === cajaId);
+    if (!caja) return;
+    const propios = movimientos.filter(m => m.cajaId === cajaId).slice().sort((a, b) => b.rowIndex - a.rowIndex);
+    for (const m of propios) await api.deleteMovimientoRow(m.rowIndex);
+    await api.deleteCajaRow(caja.rowIndex);
+    await reload();
+  }, [cajas, movimientos, reload]);
+
+  const addMovimiento = useCallback(async (cajaId, { tipo, monto, concepto, fecha }) => {
+    await api.appendMovimiento({ id: crypto.randomUUID(), cajaId, tipo, monto, concepto, fecha, origen: 'manual' });
+    await reload();
+  }, [reload]);
+
+  // Los movimientos automáticos no se borran a mano desde acá — se van
+  // solos si se borra la compra/venta que los generó (ver useCompras.js/
+  // useVentas.js). Quien llama a esto ya filtra por origen==='manual'.
+  const removeMovimiento = useCallback(async movimientoId => {
+    const mov = movimientos.find(m => m.id === movimientoId);
+    if (!mov) return;
+    await api.deleteMovimientoRow(mov.rowIndex);
+    await reload();
+  }, [movimientos, reload]);
+
+  return {
+    cajas, movimientos, resumenPorCanal, loading, error,
+    saveCaja, deleteCaja, addMovimiento, removeMovimiento,
+    saldoCaja: cajaId => api.cajaSaldo(movimientos, cajaId)
+  };
+}

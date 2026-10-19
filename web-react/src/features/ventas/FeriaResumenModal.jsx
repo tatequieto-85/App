@@ -4,7 +4,7 @@ import Button from '../../components/ui/Button';
 import Icon from '../../components/icons/Icon';
 import { useRowGestures } from '../../hooks/useRowGestures';
 import { useCloseOnOutsideClick } from '../../hooks/useCloseOnOutsideClick';
-import { feriaToText } from '../../services/feriasApi';
+import { feriaToText, feriaTotalVendidoDinero, feriaPromedioUnidad } from '../../services/feriasApi';
 import { fmtCOP, fmtDateShortEs, fmtDayMonthSlash } from '../../utils/format';
 import './FeriaResumenModal.css';
 
@@ -101,62 +101,6 @@ function SalidasLista({ titulo, items, onRemove }) {
   );
 }
 
-// Fila de una venta-combo YA registrada (ver ComboVentaModal) — borrar acá
-// es una cascada: se va la fila resumen Y todas las filas por lote que
-// comparten el mismo ventaComboId (ver removeVentaCombo en useVentas.js).
-function VentaComboRow({ item, onDelete }) {
-  const [actionsOpen, setActionsOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const wrapRef = useCloseOnOutsideClick(actionsOpen, () => setActionsOpen(false));
-  const gestureProps = useRowGestures({ onLongPress: () => setActionsOpen(true) });
-
-  async function handleDelete() {
-    if (!window.confirm(`¿Borrar la venta de ${item.cantidadCombos}x "${item.comboNombre}" del ${fmtDayMonthSlash(item.fecha)}?`)) return;
-    setBusy(true);
-    try {
-      await onDelete();
-    } catch (err) {
-      alert('Error: ' + err.message);
-    } finally {
-      setBusy(false);
-      setActionsOpen(false);
-    }
-  }
-
-  return (
-    <div ref={wrapRef} className="feria-salida-row-wrap">
-      <div className="feria-salida-row" {...gestureProps}>
-        <span className="feria-salida-row-fecha">{fmtDayMonthSlash(item.fecha)}</span>
-        <span className="feria-salida-row-nombre">
-          {item.cantidadCombos}x {item.comboNombre}
-          {item.descuentoNombre && ` — ${item.descuentoNombre}`}
-        </span>
-        <span className="feria-salida-row-cantidad">{fmtCOP(item.montoTotal)}</span>
-      </div>
-      {actionsOpen && (
-        <div className="row-actions-bar feria-salida-row-actions">
-          <button type="button" className="danger" disabled={busy} onClick={handleDelete}>{busy ? 'Borrando…' : 'Borrar'}</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function VentaCombosLista({ items, onRemove }) {
-  if (!items.length) return null;
-  const totalDinero = items.reduce((s, v) => s + (v.montoTotal || 0), 0);
-  return (
-    <div className="feria-section">
-      <h4 className="feria-section-title">Ventas registradas — {fmtCOP(totalDinero)}</h4>
-      <div className="feria-salidas-lista">
-        {items.map(item => (
-          <VentaComboRow key={item.id} item={item} onDelete={() => onRemove(item.id)} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function downloadFeriaTxt(feria, ejecuciones, contactoNombre) {
   const text = feriaToText(feria, ejecuciones, fmtCOP, fmtDateShortEs, contactoNombre);
   const blob = new Blob([text], { type: 'text/plain' });
@@ -168,14 +112,9 @@ function downloadFeriaTxt(feria, ejecuciones, contactoNombre) {
   URL.revokeObjectURL(url);
 }
 
-export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, contactos, onRemoveSalida, onRemoveVentaCombo }) {
+export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, contactos, onRemoveSalida }) {
   if (!feria) return null;
   const contactoNombre = contactos?.find(c => c.id === feria.contactoId)?.nombre || '';
-  // Ventas de antes de "Armar combos" (sin ventaComboId) siguen viéndose y
-  // se pueden borrar igual que antes — solo las nuevas pasan por el combo.
-  const ventasSinCombo = (feria.ventas || [])
-    .map((v, i) => ({ ...v, _idx: i }))
-    .filter(v => !v.ventaComboId);
 
   return (
     <Modal open={open} onClose={onClose} showBack title={feria.empresa}>
@@ -186,14 +125,19 @@ export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, c
         <ConteoProductos feria={feria} ejecuciones={ejecuciones} />
       </div>
 
-      <VentaCombosLista
-        items={feria.ventasCombo || []}
-        onRemove={ventaComboId => onRemoveVentaCombo(feria.id, ventaComboId)}
-      />
+      {!!feria.ventaTotalRecibido && (
+        <div className="feria-section">
+          <h4 className="feria-section-title">
+            Total vendido — {fmtCOP(feriaTotalVendidoDinero(feria))}
+          </h4>
+          <p className="feria-resumen-promedio">Promedio por unidad: {fmtCOP(feriaPromedioUnidad(feria))}</p>
+        </div>
+      )}
+
       <SalidasLista
-        titulo="Ventas registradas (sin combo)"
-        items={ventasSinCombo}
-        onRemove={i => onRemoveSalida(feria.id, 'ventas', ventasSinCombo[i]._idx)}
+        titulo="Unidades vendidas por lote"
+        items={feria.ventas || []}
+        onRemove={i => onRemoveSalida(feria.id, 'ventas', i)}
       />
       <SalidasLista
         titulo="Muestras registradas"

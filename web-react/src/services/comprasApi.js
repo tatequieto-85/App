@@ -40,11 +40,14 @@ export async function fetchCompras() {
   }));
 }
 
+// id: generado por quien llama (useCompras.js) — así Contabilidad puede
+// enlazar su movimiento automático a esta compra desde el mismo momento en
+// que se crea, sin tener que releer la hoja para saber qué id le tocó.
 export async function appendCompra(c) {
   await sheetsReq('/values/Compras!A:F:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
-      crypto.randomUUID(), c.ingrediente, c.cantidad, c.precioTotal, c.fecha, new Date().toISOString()
+      c.id || crypto.randomUUID(), c.ingrediente, c.cantidad, c.precioTotal, c.fecha, new Date().toISOString()
     ]] })
   });
 }

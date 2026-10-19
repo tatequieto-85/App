@@ -22,11 +22,12 @@ Build de producción publicado en `home/` (raíz del repo) y servido por GitHub 
 | Inventario (antes "Insumos") | `compras/`, `ingredientes/` | Dos secciones separadas por línea sutil: **Insumos** (Ingredientes+Compras — incluye materia prima como envases/etiquetas/tapas con Categoría/Mínimo opcionales en el mismo catálogo, stock corriente que compras suma y ejecuciones descuentan), **Inventario de activos** (herramientas/maquinaria/equipos — estado/responsable) |
 | Stock | `stock/` | Resumen de inventario, trazabilidad por lote (230/130 ml), producto testigo, widget de Home |
 | Contactos | `contactos/` | Cumpleaños (día/mes, edad calculada en vivo), empresa/posición, teléfono/WhatsApp, vínculos muchos-a-muchos con categoría libre |
-| Ventas | `ventas/` | Canales de venta (galería tipo Módulos) → ferias/eventos con plan de stock por lote, conteo de personas, ventas, muestras, resumen |
+| Ventas | `ventas/` | Canales de venta (galería tipo Módulos) → ferias/eventos con plan de stock por lote, conteo de personas, muestras, resumen. Las ventas NO se registran una por una (rechazado explícito por el usuario) — al "Terminar feria" se cargan juntas las unidades vendidas por lote + un único total de dinero recibido en toda la feria; el promedio por unidad sale de dividir esos dos (nunca se guarda aparte, ver `feriaPromedioUnidad` en `feriasApi.js`) |
 | Procesos | `procesos/` | Grupos de recetas + recetas (ingredientes por peso/unidad, escalado), Ejecuciones (cronómetro por etapa, evaluación pH/envasado/costo) |
 | Tareas | `tareas/` | Lista de tareas (no Kanban — rechazado explícito por el usuario), 3 estados fijos (Tarea nueva/En proceso/Finalizada), archivado real a `TareasHistorial` al finalizar |
 | Contenido | `contenido/` | Historias de Instagram programadas (dropzone a Drive, emoji picker, publicar) + Ideas de marketing (fotos + notas de voz grabadas), una sola ventana con ambas secciones |
 | QR | `qr/` | Generar y guardar códigos QR, vista de pantalla completa para escanear |
+| Contabilidad | `contabilidad/` | "Cajas" (creadas a mano, cada una opcionalmente alimentada sola por los ingresos de Ventas o los egresos de Compras — como mucho una caja por fuente, ver `registrarMovimientoAuto` en `contabilidadApi.js`) + "Resumen de ventas por canal" (solo lectura, suma `feriaTotalVendidoDinero` de Ferias agrupado por canal) |
 
 ## Capa base compartida (tocar solo si el cambio es transversal)
 

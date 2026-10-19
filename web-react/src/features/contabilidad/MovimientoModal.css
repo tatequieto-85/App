@@ -1,0 +1,9 @@
+.movimiento-tipo-picker { display: flex; gap: 8px; }
+.movimiento-tipo-pill {
+  flex: 1; padding: 9px 14px; border-radius: 999px; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+}
+.movimiento-tipo-pill.is-selected.is-ingreso { background: #2E7D32; border-color: #2E7D32; color: #fff; }
+.movimiento-tipo-pill.is-selected.is-egreso { background: var(--danger); border-color: var(--danger); color: #fff; }
+.movimiento-tipo-pill:disabled { opacity: .5; cursor: not-allowed; }

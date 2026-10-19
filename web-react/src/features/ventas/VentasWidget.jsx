@@ -64,8 +64,9 @@ export default function VentasWidget({ removing, onRequestRemove, onConfirmRemov
             feria={proxima}
             ejecuciones={vt.ejecuciones}
             onRegistrarSalida={vt.registrarSalida}
+            onCerrarFeria={vt.cerrarFeria}
             onAddObservacionDiaria={vt.addObservacionDiaria}
-            onTerminar={async feriaId => { await vt.terminarFeria(feriaId); setOpenView('resumen'); }}
+            onTerminar={async () => setOpenView('resumen')}
             onCommitSession={vt.commitConteoSession}
           />
           <FeriaStockModal

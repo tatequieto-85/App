@@ -1,0 +1,5 @@
+.caja-detail-saldo { font-size: 28px; font-weight: 800; margin-bottom: 14px; }
+.caja-detail-saldo--pos { color: #2E7D32; }
+.caja-detail-saldo--neg { color: var(--danger); }
+
+.caja-movimientos-lista { max-height: 320px; overflow-y: auto; }

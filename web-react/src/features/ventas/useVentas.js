@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as canalesApi from '../../services/canalesVentaApi';
 import * as feriasApi from '../../services/feriasApi';
-import * as combosApi from '../../services/combosApi';
-import * as descuentosApi from '../../services/descuentosApi';
 import { fetchEjecuciones } from '../../services/ejecucionesApi';
 import * as stockApi from '../../services/stockApi';
+import * as contabilidadApi from '../../services/contabilidadApi';
 
 // El usuario ya no puede crear canales de venta a mano (ver regla — cada
 // canal va a tener su propia configuración más adelante, no son genéricos)
@@ -34,8 +33,6 @@ export function useVentas() {
   const [ejecuciones, setEjecuciones] = useState([]);
   const [stockTestigos, setStockTestigos] = useState([]);
   const [stockMovimientos, setStockMovimientos] = useState([]);
-  const [combos, setCombos] = useState([]);
-  const [descuentos, setDescuentos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -45,18 +42,6 @@ export function useVentas() {
     return f;
   }, []);
 
-  const reloadCombos = useCallback(async () => {
-    const c = await combosApi.fetchCombos();
-    setCombos(c);
-    return c;
-  }, []);
-
-  const reloadDescuentos = useCallback(async () => {
-    const d = await descuentosApi.fetchDescuentos();
-    setDescuentos(d);
-    return d;
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -64,12 +49,11 @@ export function useVentas() {
         setLoading(true);
         await Promise.all([
           canalesApi.ensureCanalesVentaSheet(), feriasApi.ensureFeriasSheet(),
-          stockApi.ensureStockSheets(), combosApi.ensureCombosSheet(), descuentosApi.ensureDescuentosSheet()
+          stockApi.ensureStockSheets()
         ]);
-        const [c, f, ej, testigos, movimientos, combosList, descuentosList] = await Promise.all([
+        const [c, f, ej, testigos, movimientos] = await Promise.all([
           canalesApi.fetchCanales(), feriasApi.fetchFerias(), fetchEjecuciones(),
-          stockApi.fetchStockTestigos(), stockApi.fetchStockMovimientos(), combosApi.fetchCombos(),
-          descuentosApi.fetchDescuentos()
+          stockApi.fetchStockTestigos(), stockApi.fetchStockMovimientos()
         ]);
         if (cancelled) return;
         // Los canales ya no los crea el usuario (ver CANALES_POR_DEFECTO) —
@@ -108,8 +92,6 @@ export function useVentas() {
         setEjecuciones(ej);
         setStockTestigos(testigos);
         setStockMovimientos(movimientos);
-        setCombos(combosList);
-        setDescuentos(descuentosList);
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -208,12 +190,40 @@ export function useVentas() {
     await reloadFerias();
   }, [ferias, reloadFerias]);
 
-  const terminarFeria = useCallback(async feriaId => {
+  // Cierre de una feria — reemplaza el registro venta-por-venta durante el
+  // evento (rechazado explícitamente por el usuario: "no quiero registrar
+  // las ventas una a una"). Todo se carga junto al terminar: cuántas
+  // unidades se vendieron de cada lote (hace falta saber de qué lote salió
+  // cada una, para el stock — ver FeriaCierreModal.jsx) + un único total de
+  // dinero recibido en TODA la feria. El promedio por unidad nunca se
+  // guarda, sale de dividir esos dos (ver feriaPromedioUnidad en
+  // feriasApi.js). ventasPorLote: { ejecucionId: cantidad }.
+  const cerrarFeria = useCallback(async (feriaId, ventasPorLote, totalRecibido) => {
     const f = ferias.find(x => x.id === feriaId);
     if (!f) return;
-    await feriasApi.updateFeria({ ...f, cerrada: true });
+    const fecha = feriasApi.getFeriaDefaultDay(f);
+    const ventas = Object.entries(ventasPorLote)
+      .filter(([, cantidad]) => cantidad > 0)
+      .map(([ejecucionId, cantidad]) => {
+        const ej = ejecuciones.find(x => x.id === ejecucionId);
+        return {
+          fecha, ejecucionId, loteId: ej?.loteId || '', recetaId: ej?.recetaId || '',
+          recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString()
+        };
+      });
+    await feriasApi.updateFeria({ ...f, ventas, ventaTotalRecibido: totalRecibido, cerrada: true });
+    // Ingreso automático en Contabilidad, si hay una caja configurada para
+    // eso (ver contabilidadApi.js) — se borra el anterior primero (por si
+    // se reabre y se vuelve a cerrar con otro total) para no duplicar.
+    try {
+      await contabilidadApi.removeMovimientoAuto(feriaId);
+      await contabilidadApi.registrarMovimientoAuto('ventas', {
+        tipo: 'ingreso', monto: totalRecibido, concepto: `Venta: ${f.empresa}`,
+        fecha, origenRefId: feriaId
+      });
+    } catch { /* Contabilidad es opcional — no bloquea el cierre de la feria */ }
     await reloadFerias();
-  }, [ferias, reloadFerias]);
+  }, [ferias, ejecuciones, reloadFerias]);
 
   // Arrastrar una feria de un bloque a otro (Participar/Publicado) para
   // cambiar su estado — las terminadas quedan afuera, ver VentasPage.
@@ -305,125 +315,11 @@ export function useVentas() {
     await reloadFerias();
   }, [ferias, reloadFerias]);
 
-  // ── Combos ─────────────────────────────────────────────────────────────
-
-  const saveCombo = useCallback(async ({ nombre, unidades, precio }, editingId) => {
-    if (editingId) {
-      const combo = combos.find(c => c.id === editingId);
-      await combosApi.updateCombo({ ...combo, nombre, unidades, precio });
-    } else {
-      await combosApi.appendCombo({ id: crypto.randomUUID(), nombre, unidades, precio, creadoEn: new Date().toISOString() });
-    }
-    await reloadCombos();
-  }, [combos, reloadCombos]);
-
-  const deleteCombo = useCallback(async comboId => {
-    if (ferias.some(f => (f.comboIds || []).includes(comboId))) {
-      throw new Error('Este combo está asignado a una feria — no se puede eliminar.');
-    }
-    const combo = combos.find(c => c.id === comboId);
-    if (!combo) return;
-    await combosApi.deleteComboRow(combo.rowIndex);
-    await reloadCombos();
-  }, [combos, ferias, reloadCombos]);
-
-  // comboId + cantidadCombos (cuántos combos se vendieron) + distribucion:
-  // [{ejecucionId, cantidad}] — debe sumar exactamente unidades*cantidadCombos
-  // del combo. Genera un ventaComboId compartido: una fila resumen en
-  // feria.ventasCombo[] (para el resumen con precio) y una fila por lote en
-  // feria.ventas[] (para que el cálculo de stock/disponible, que lee
-  // feria.ventas igual que siempre, no se tenga que tocar). descuentoId
-  // (opcional): se aplica sobre el TOTAL de esta venta (subtotal = precio *
-  // cantidadCombos), nunca por unidad — a pedido explícito del usuario.
-  const registrarVentaCombo = useCallback(async (feriaId, comboId, cantidadCombos, distribucion, fecha, descuentoId) => {
-    const f = ferias.find(x => x.id === feriaId);
-    if (!f) return;
-    const combo = combos.find(c => c.id === comboId);
-    if (!combo) throw new Error('Combo no encontrado.');
-    const totalEsperado = combo.unidades * cantidadCombos;
-    const totalDistribuido = distribucion.reduce((s, d) => s + (d.cantidad || 0), 0);
-    if (totalDistribuido !== totalEsperado) {
-      throw new Error(`Tenés que distribuir exactamente ${totalEsperado} unidades (vas en ${totalDistribuido}).`);
-    }
-    const plan = f.planStock || {};
-    const salidaTotal = feriasApi.getFeriaSalidaTotal(f);
-    const excesos = [];
-    const nuevasVentas = [];
-    const ventaComboId = crypto.randomUUID();
-    distribucion.forEach(({ ejecucionId, cantidad }) => {
-      if (cantidad <= 0) return;
-      const ej = ejecuciones.find(x => x.id === ejecucionId);
-      const disponible = (plan[ejecucionId] || 0) - (salidaTotal[ejecucionId] || 0);
-      if (cantidad > disponible) {
-        excesos.push(`${ej?.nombreReceta || ejecucionId} (pediste ${cantidad}, disponible ${disponible})`);
-        return;
-      }
-      nuevasVentas.push({
-        fecha, ejecucionId, loteId: ej?.loteId || '', recetaId: ej?.recetaId || '',
-        recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString(), ventaComboId
-      });
-    });
-    if (excesos.length) throw new Error(`No hay stock suficiente: ${excesos.join('; ')}.`);
-    const subtotal = combo.precio * cantidadCombos;
-    const descuento = descuentoId ? descuentos.find(d => d.id === descuentoId) : null;
-    const descuentoMonto = descuentosApi.calcularDescuento(descuento, subtotal);
-    const nuevaVentaCombo = {
-      id: ventaComboId, comboId, comboNombre: combo.nombre, unidades: combo.unidades,
-      precio: combo.precio, cantidadCombos, subtotal,
-      descuentoId: descuento?.id || '', descuentoNombre: descuento?.nombre || '', descuentoMonto,
-      montoTotal: subtotal - descuentoMonto,
-      fecha, createdAt: new Date().toISOString()
-    };
-    await feriasApi.updateFeria({
-      ...f,
-      ventas: [...(f.ventas || []), ...nuevasVentas],
-      ventasCombo: [...(f.ventasCombo || []), nuevaVentaCombo]
-    });
-    await reloadFerias();
-  }, [ferias, ejecuciones, combos, descuentos, reloadFerias]);
-
-  // Cascada: borra la fila resumen Y todas las ventas por lote que
-  // comparten el mismo ventaComboId — una venta-combo son N filas en
-  // feria.ventas (una por lote), no 1, así que no alcanza con el índice
-  // simple que usa removeSalida.
-  const removeVentaCombo = useCallback(async (feriaId, ventaComboId) => {
-    const f = ferias.find(x => x.id === feriaId);
-    if (!f) return;
-    const ventasCombo = (f.ventasCombo || []).filter(v => v.id !== ventaComboId);
-    const ventas = (f.ventas || []).filter(v => v.ventaComboId !== ventaComboId);
-    await feriasApi.updateFeria({ ...f, ventasCombo, ventas });
-    await reloadFerias();
-  }, [ferias, reloadFerias]);
-
-  // ── Descuentos ─────────────────────────────────────────────────────────
-
-  const saveDescuento = useCallback(async ({ nombre, tipo, valor }, editingId) => {
-    if (editingId) {
-      const descuento = descuentos.find(d => d.id === editingId);
-      await descuentosApi.updateDescuento({ ...descuento, nombre, tipo, valor });
-    } else {
-      await descuentosApi.appendDescuento({ id: crypto.randomUUID(), nombre, tipo, valor, creadoEn: new Date().toISOString() });
-    }
-    await reloadDescuentos();
-  }, [descuentos, reloadDescuentos]);
-
-  const deleteDescuento = useCallback(async descuentoId => {
-    if (ferias.some(f => (f.descuentoIds || []).includes(descuentoId))) {
-      throw new Error('Este descuento está asignado a una feria — no se puede eliminar.');
-    }
-    const descuento = descuentos.find(d => d.id === descuentoId);
-    if (!descuento) return;
-    await descuentosApi.deleteDescuentoRow(descuento.rowIndex);
-    await reloadDescuentos();
-  }, [descuentos, ferias, reloadDescuentos]);
-
   return {
-    canales, ferias, ejecuciones, stockTestigos, stockMovimientos, combos, descuentos, ctx, loading, error,
+    canales, ferias, ejecuciones, stockTestigos, stockMovimientos, ctx, loading, error,
     resumenVentasPorDia,
     saveCanal, deleteCanal, reorderCanales,
-    saveFeria, deleteFeria, reabrirFeria, terminarFeria, cambiarEstadoFeria,
-    saveStockPlan, registrarSalida, removeSalida, addObservacionDiaria, commitConteoSession,
-    reloadCombos, saveCombo, deleteCombo, registrarVentaCombo, removeVentaCombo,
-    reloadDescuentos, saveDescuento, deleteDescuento
+    saveFeria, deleteFeria, reabrirFeria, cerrarFeria, cambiarEstadoFeria,
+    saveStockPlan, registrarSalida, removeSalida, addObservacionDiaria, commitConteoSession
   };
 }

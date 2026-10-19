@@ -23,7 +23,7 @@ export async function ensureFeriasSheet() {
 
   if (hasF) {
     feriasSheetId = hasF.properties.sheetId;
-    const headerData = await sheetsReq('/values/Ferias!A1:AB1').catch(() => ({}));
+    const headerData = await sheetsReq('/values/Ferias!A1:AC1').catch(() => ({}));
     const headerRow = (headerData.values || [])[0] || [];
     if (headerRow.length < 18) {
       await sheetsReq('/values/Ferias!M1:R1?valueInputOption=RAW', {
@@ -63,9 +63,12 @@ export async function ensureFeriasSheet() {
         body: JSON.stringify({ values: [['ContactoId']] })
       });
     }
-    // ComboIds (qué combos del catálogo global se venden en ESTA feria) y
-    // VentasCombo (el registro de cada venta-por-combo, con su precio
-    // congelado) — a pedido explícito del usuario, ver combosApi.js.
+    // ComboIds/VentasCombo/DescuentoIds (abajo): de un catálogo de combos
+    // con precio por venta que el usuario pidió y después rechazó usar
+    // ("no quiero registrar las ventas una a una") — las columnas quedan
+    // reservadas para no desalinear filas ya guardadas, pero ya no se
+    // escriben ni se leen desde ninguna pantalla. Ver VentaTotalRecibido,
+    // más abajo, por lo que lo reemplazó.
     if (headerRow.length < 26) {
       await sheetsReq('/values/Ferias!Z1?valueInputOption=RAW', {
         method: 'PUT',
@@ -92,13 +95,21 @@ export async function ensureFeriasSheet() {
         body: JSON.stringify({ values: [['VentasCombo']] })
       });
     }
-    // DescuentoIds (qué descuentos del catálogo global se pueden aplicar en
-    // ESTA feria) — mismo patrón que ComboIds, a pedido explícito del
-    // usuario, ver descuentosApi.js.
     if (headerRow.length < 28) {
       await sheetsReq('/values/Ferias!AB1?valueInputOption=RAW', {
         method: 'PUT',
         body: JSON.stringify({ values: [['DescuentoIds']] })
+      });
+    }
+    // VentaTotalRecibido: el total de dinero recibido en TODA la feria,
+    // cargado una sola vez al terminarla (ver FeriaCierreModal.jsx) — a
+    // pedido explícito del usuario, que rechazó registrar cada venta por
+    // separado. El promedio por unidad no se guarda, sale de dividir esto
+    // entre feriaTotalVendidos(f) (ver feriaPromedioUnidad más abajo).
+    if (headerRow.length < 29) {
+      await sheetsReq('/values/Ferias!AC1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [['VentaTotalRecibido']] })
       });
     }
   } else {
@@ -115,14 +126,14 @@ export async function ensureFeriasSheet() {
         'Observaciones', 'Alineacion', 'Estado', 'ConteoPersonas', 'CreadoEn',
         'HoraInicio', 'HoraFin', 'PlanStock', 'Ventas', 'ObservacionesDiarias', 'ConteoProductos',
         'ConteoMenores30', 'ConteoEntre30y55', 'ConteoMayores55', 'Cerrada', 'Muestras', 'CanalId', 'ContactoId',
-        'ComboIds', 'VentasCombo', 'DescuentoIds'
+        'ComboIds', 'VentasCombo', 'DescuentoIds', 'VentaTotalRecibido'
       ]] })
     });
   }
 }
 
 export async function fetchFerias() {
-  const data = await sheetsReq('/values/Ferias!A:AB');
+  const data = await sheetsReq('/values/Ferias!A:AC');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0]  || '',
@@ -153,6 +164,7 @@ export async function fetchFerias() {
     comboIds:             safeParseJSON(r[25], []),
     ventasCombo:          safeParseJSON(r[26], []),
     descuentoIds:         safeParseJSON(r[27], []),
+    ventaTotalRecibido:   parseFloat(r[28]) || 0,
     rowIndex:             i + 2
   }));
 }
@@ -166,19 +178,20 @@ function feriaRowValues(f) {
     JSON.stringify(f.observacionesDiarias || []), JSON.stringify(f.conteoProductos || {}),
     f.conteoMenores30 || 0, f.conteoEntre30y55 || 0, f.conteoMayores55 || 0,
     f.cerrada ? 'TRUE' : 'FALSE', JSON.stringify(f.muestras || []), f.canalId || '', f.contactoId || '',
-    JSON.stringify(f.comboIds || []), JSON.stringify(f.ventasCombo || []), JSON.stringify(f.descuentoIds || [])
+    JSON.stringify(f.comboIds || []), JSON.stringify(f.ventasCombo || []), JSON.stringify(f.descuentoIds || []),
+    f.ventaTotalRecibido || 0
   ];
 }
 
 export async function appendFeria(f) {
-  await sheetsReq('/values/Ferias!A:AB:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Ferias!A:AC:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
 }
 
 export async function updateFeria(f) {
-  await sheetsReq(`/values/Ferias!A${f.rowIndex}:AB${f.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Ferias!A${f.rowIndex}:AC${f.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
@@ -215,13 +228,20 @@ export function feriaTotalMuestras(f) {
   return (f.muestras || []).reduce((sum, m) => sum + (m.cantidad || 0), 0);
 }
 
-// Plata real vendida en una feria — suma el montoTotal de cada venta-por-
-// combo (ya congelado al momento de la venta, ver registrarVentaCombo en
-// useVentas.js). Ventas de antes de que existieran los combos no suman acá
-// (no tienen precio asociado) — sí siguen contando en cantidad de
-// unidades vía feriaTotalVendidos.
+// Plata real vendida en una feria — un solo total cargado al terminarla
+// (ver FeriaCierreModal.jsx), no la suma de ventas individuales: el usuario
+// rechazó explícitamente registrar cada venta por separado durante el
+// evento, prefiere cargar unidades por lote + un total único al cierre.
 export function feriaTotalVendidoDinero(f) {
-  return (f.ventasCombo || []).reduce((sum, v) => sum + (v.montoTotal || 0), 0);
+  return f.ventaTotalRecibido || 0;
+}
+
+// Promedio de precio por unidad de TateQuieto vendida en la feria — nunca
+// se guarda, siempre sale de dividir el total cargado al cierre entre las
+// unidades vendidas (que sí se cargan por lote, para el stock).
+export function feriaPromedioUnidad(f) {
+  const unidades = feriaTotalVendidos(f);
+  return unidades > 0 ? (f.ventaTotalRecibido || 0) / unidades : 0;
 }
 
 // Ventas + muestras ya entregadas, por lote — las dos salen del mismo stock
@@ -363,7 +383,9 @@ export function feriaToText(f, ejecuciones, fmtCOP, fmtDate, contactoNombre) {
   if (contactoNombre) lines.push(`Contacto: ${contactoNombre}`);
   lines.push(`Precio de participación: ${fmtCOP(f.precio)}`);
   if (f.observaciones) lines.push(`Observaciones generales: ${f.observaciones}`);
-  if ((f.ventasCombo || []).length) lines.push(`Total vendido: ${fmtCOP(feriaTotalVendidoDinero(f))}`);
+  if (f.ventaTotalRecibido) {
+    lines.push(`Total vendido: ${fmtCOP(feriaTotalVendidoDinero(f))} · Promedio por unidad: ${fmtCOP(feriaPromedioUnidad(f))}`);
+  }
   lines.push('', `Personas que probaron TateQuieto (total): ${feriaConteoTotal(f)}`);
   lines.push(`  • Menores de 30: ${f.conteoMenores30 || 0}`);
   lines.push(`  • Entre 30 y 55: ${f.conteoEntre30y55 || 0}`);

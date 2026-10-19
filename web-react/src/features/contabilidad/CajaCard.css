@@ -1,0 +1,17 @@
+.caja-card-wrap {
+  border: 1.5px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; margin-bottom: 10px; background: var(--surface);
+}
+.caja-card-wrap:last-child { margin-bottom: 0; }
+
+.caja-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 14px 16px; cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+.caja-card-main  { flex: 1; min-width: 0; }
+.caja-card-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.caja-card-meta  { font-size: 11.5px; color: var(--text-sub); margin-top: 4px; }
+
+.caja-card-saldo { font-size: 17px; font-weight: 800; white-space: nowrap; }
+.caja-card-saldo--pos { color: #2E7D32; }
+.caja-card-saldo--neg { color: var(--danger); }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as api from '../../services/comprasApi';
 import { applyStockDelta } from '../../services/ingredientesApi';
+import * as contabilidadApi from '../../services/contabilidadApi';
 
 // Toda la lógica de negocio de Compras vive acá — combina el catálogo de
 // ingredientes (que ya trae useIngredientes) con las compras registradas.
@@ -60,11 +61,21 @@ export function useCompras(ingredientes, reloadIngredientes) {
     if (editRecord) {
       await api.updateCompra({ ...editRecord, ...data });
     } else {
-      await api.appendCompra(data);
+      const id = crypto.randomUUID();
+      await api.appendCompra({ ...data, id });
       // Recién agregada, con rowIndex reales — necesario para saber cuáles
       // son las más viejas y borrarlas (ver comprasApi.pruneOldCompras).
       const fresh = await api.fetchCompras();
       await api.pruneOldCompras(fresh, data.ingrediente);
+      // Egreso automático en Contabilidad, si hay una caja configurada para
+      // eso (ver contabilidadApi.js) — nunca debe tumbar el registro de la
+      // compra en sí si Contabilidad falla por lo que sea.
+      try {
+        await contabilidadApi.registrarMovimientoAuto('compras', {
+          tipo: 'egreso', monto: data.precioTotal, concepto: `Compra: ${data.ingrediente}`,
+          fecha: data.fecha, origenRefId: id
+        });
+      } catch { /* Contabilidad es opcional — no bloquea el registro de la compra */ }
     }
     await applyStockDelta(ingredientes, data.ingrediente, data.cantidad - oldCantidad);
     await reload();
@@ -74,7 +85,12 @@ export function useCompras(ingredientes, reloadIngredientes) {
   const removeCompra = useCallback(async rowIndex => {
     const compra = compras.find(c => c.rowIndex === rowIndex);
     await api.deleteCompraRow(rowIndex);
-    if (compra) await applyStockDelta(ingredientes, compra.ingrediente, -compra.cantidad);
+    if (compra) {
+      await applyStockDelta(ingredientes, compra.ingrediente, -compra.cantidad);
+      try {
+        await contabilidadApi.removeMovimientoAuto(compra.id);
+      } catch { /* Contabilidad es opcional — no bloquea el borrado de la compra */ }
+    }
     await reload();
     await reloadIngredientes?.();
   }, [reload, compras, ingredientes, reloadIngredientes]);
