@@ -97,7 +97,7 @@ export default function CalculadoraPage() {
       const costoFaltante = faltante * unitPrice;
       totalFaltante += costoFaltante;
       return { ...f, stockActual, faltante, costoFaltante };
-    }).sort((a, b) => b.costo - a.costo);
+    }).sort((a, b) => b.costoFaltante - a.costoFaltante);
 
     return {
       filasInsumos,
@@ -188,15 +188,13 @@ export default function CalculadoraPage() {
               </p>
               <div className="calculadora-table-wrap">
                 <table className="calculadora-table">
-                  <thead><tr><th>Insumo</th><th>Cantidad</th><th>Costo</th><th>%</th><th>Falta comprar</th></tr></thead>
+                  <thead><tr><th>Insumo</th><th>Costo de faltante</th><th>Cantidad faltante</th></tr></thead>
                   <tbody>
                     {resultados.filasInsumos.map(f => (
                       <tr key={f.nombre}>
                         <td>{f.nombre}</td>
-                        <td>{f.cantidad.toLocaleString('es-CO', { maximumFractionDigits: 2 })} {f.unidad}</td>
-                        <td>{fmtCOP(f.costo)}</td>
-                        <td>{resultados.totalGeneral ? ((f.costo / resultados.totalGeneral) * 100).toFixed(1) : '0.0'}%</td>
                         <td>{f.faltante > 0 ? fmtCOP(f.costoFaltante) : '— ya hay stock'}</td>
+                        <td>{f.faltante > 0 ? `${f.faltante.toLocaleString('es-CO', { maximumFractionDigits: 2 })} ${f.unidad}` : '—'}</td>
                       </tr>
                     ))}
                   </tbody>
