@@ -10,6 +10,7 @@ import SearchBar from '../../components/ui/SearchBar';
 import { useIngredientes } from '../ingredientes/useIngredientes';
 import { useCompras } from './useCompras';
 import { useInventarioExtra } from './useInventarioExtra';
+import { esUnidadDePeso } from '../../services/recetasApi';
 import CompraRow from './CompraRow';
 import CompraModal from './CompraModal';
 import InsumoModal from './InsumoModal';
@@ -49,6 +50,13 @@ export default function ComprasPage({ onBack }) {
     if (!q) return rows;
     return rows.filter(r => r.ingrediente.nombre.toLowerCase().includes(q) || r.ingrediente.categoria?.toLowerCase().includes(q));
   }, [rows, q]);
+  // Mismo criterio que agrupa los ingredientes de una receta en Procesos
+  // (ver RecetaIngredientesTable.jsx) — por peso/volumen (g/kg/ml/L) vs por
+  // unidad (conteo, p. ej. frascos/etiquetas), a pedido explícito del
+  // usuario. Sin unidad cargada todavía, cae al grupo "por peso" por
+  // defecto, mismo comportamiento que en Procesos.
+  const rowsPorPeso = useMemo(() => filteredRows.filter(r => !r.ingrediente.unidad || esUnidadDePeso(r.ingrediente.unidad)), [filteredRows]);
+  const rowsPorUnidad = useMemo(() => filteredRows.filter(r => r.ingrediente.unidad && !esUnidadDePeso(r.ingrediente.unidad)), [filteredRows]);
   const filteredActivos = useMemo(() => {
     if (!q) return activos;
     return activos.filter(a => a.nombre.toLowerCase().includes(q));
@@ -89,25 +97,51 @@ export default function ComprasPage({ onBack }) {
           {!loading && !error && !!rows.length && !filteredRows.length && (
             <EmptyState>Ningún ingrediente coincide con "{search.trim()}".</EmptyState>
           )}
-          {!loading && !error && !!filteredRows.length && (
-            <table className="compra-table">
-              <thead>
-                <tr><th>Ingrediente</th><th>Precio unitario</th><th>Disponible</th></tr>
-              </thead>
-              <tbody>
-                {filteredRows.map(row => (
-                  <CompraRow
-                    key={row.ingrediente.rowIndex}
-                    row={row}
-                    actionsOpen={openActionsFor === row.ingrediente.nombre}
-                    onOpenActionsChange={setOpenActionsFor}
-                    onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
-                    onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
-                    onDelete={removeCompra}
-                  />
-                ))}
-              </tbody>
-            </table>
+          {!loading && !error && !!rowsPorPeso.length && (
+            <>
+              {!!rowsPorUnidad.length && <h5 className="inventario-group-title">Por peso / volumen</h5>}
+              <table className="compra-table">
+                <thead>
+                  <tr><th>Ingrediente</th><th>Precio unitario</th><th>Disponible</th></tr>
+                </thead>
+                <tbody>
+                  {rowsPorPeso.map(row => (
+                    <CompraRow
+                      key={row.ingrediente.rowIndex}
+                      row={row}
+                      actionsOpen={openActionsFor === row.ingrediente.nombre}
+                      onOpenActionsChange={setOpenActionsFor}
+                      onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
+                      onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
+                      onDelete={removeCompra}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+          {!!rowsPorUnidad.length && (
+            <>
+              <h5 className="inventario-group-title">Por unidad</h5>
+              <table className="compra-table">
+                <thead>
+                  <tr><th>Ingrediente</th><th>Precio unitario</th><th>Disponible</th></tr>
+                </thead>
+                <tbody>
+                  {rowsPorUnidad.map(row => (
+                    <CompraRow
+                      key={row.ingrediente.rowIndex}
+                      row={row}
+                      actionsOpen={openActionsFor === row.ingrediente.nombre}
+                      onOpenActionsChange={setOpenActionsFor}
+                      onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
+                      onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
+                      onDelete={removeCompra}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </Card>
       </section>

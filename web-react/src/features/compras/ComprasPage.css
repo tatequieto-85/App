@@ -10,3 +10,12 @@
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
 }
 .inventario-section-head .btn--outline { width: auto; padding: 6px 12px; display: flex; align-items: center; gap: 5px; }
+
+/* Separa Insumos por peso/volumen vs por unidad (conteo) — mismo criterio
+   que agrupa los ingredientes de una receta en Procesos, a pedido
+   explícito del usuario. */
+.inventario-group-title {
+  font-size: 11px; font-weight: 700; color: var(--text-sub);
+  text-transform: uppercase; letter-spacing: .06em; margin: 10px 0 6px;
+}
+.compra-table + .inventario-group-title { margin-top: 16px; }
