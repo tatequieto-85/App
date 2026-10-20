@@ -40,10 +40,10 @@ function DeleteBtn({ idx, onRemove, disabled }) {
 // sin los títulos de los campos (ni "Ingrediente", ni "Peso comprado", ni
 // "Peso para receta"), con comprado y receta en la MISMA fila. Un toque la
 // vuelve a activar (y colapsa la que estuviera activa).
-function IngRowCollapsed({ fila, idx, unidad, pct, esPeso, onActivate, onRemove, disabled }) {
+function IngRowCollapsed({ fila, idx, unidad, pct, esPeso, unidadesPorLote, onActivate, onRemove, disabled }) {
   const cantidadesTxt = esPeso
     ? `${fila.compradoDraft || 0} → ${fila.recetaDraft || 0} ${unidad}`
-    : `${fila.recetaDraft || 0} ${unidad}`;
+    : `${unidadesPorLote || 0} ${unidad}`;
   return (
     <div className="receta-ing-row receta-ing-row--collapsed" onClick={() => onActivate(idx)}>
       <span className="receta-ing-row-collapsed-nombre">{fila.nombre || '(sin nombre)'}</span>
@@ -100,9 +100,12 @@ function IngRowPeso({ fila, idx, unidad, pct, onUpdate, onRemove, ingredientes, 
   );
 }
 
-// Fila ACTIVA "por unidad" (conteo, p. ej. "unidades") — una sola cantidad,
-// no hay distinción comprado/receta porque no se procesa (no hay merma).
-function IngRowUnidad({ fila, idx, unidad, onUpdate, onRemove, ingredientes, onAddNew, disabled }) {
+// Fila ACTIVA "por unidad" (conteo, p. ej. "unidades") — a pedido explícito
+// del usuario, la cantidad YA NO se tipea a mano: es siempre la misma que
+// "Unidades por lote" de la receta (si el lote rinde 5, hacen falta 5
+// frascos, 5 etiquetas, etc. — un envase por unidad final, por definición).
+// El campo queda deshabilitado, mostrando ese valor en vivo.
+function IngRowUnidad({ fila, idx, unidad, unidadesPorLote, onUpdate, onRemove, ingredientes, onAddNew, disabled }) {
   return (
     <div className="receta-ing-row">
       <div className="receta-ing-row-top">
@@ -116,11 +119,14 @@ function IngRowUnidad({ fila, idx, unidad, onUpdate, onRemove, ingredientes, onA
         <DeleteBtn idx={idx} onRemove={onRemove} disabled={disabled} />
       </div>
       <ThousandsField
-        label={`Cantidad${unidad ? ` (${unidad})` : ''}`} placeholder="0"
-        value={fila.recetaDraft}
-        onChange={v => onUpdate(idx, { recetaDraft: v, compradoDraft: v })}
-        disabled={disabled}
+        label={`Cantidad${unidad ? ` (${unidad})` : ''} — igual a Unidades por lote`}
+        placeholder="0"
+        value={unidadesPorLote ? String(unidadesPorLote) : ''}
+        disabled
       />
+      {!unidadesPorLote && (
+        <p className="receta-ing-row-aviso">Cargá "Unidades por lote" arriba para que esto se complete solo.</p>
+      )}
     </div>
   );
 }
@@ -136,7 +142,7 @@ function IngRowUnidad({ fila, idx, unidad, onUpdate, onRemove, ingredientes, onA
 // Al editar una receta ya guardada, todas arrancan colapsadas (mismo
 // estilo, pedido explícito del usuario) — es estado de UI, no de datos, así
 // que vive local acá y no en RecetaModal.
-export default function RecetaIngredientesTable({ filas, onChange, ingredientes, compras, onAddNew, disabled }) {
+export default function RecetaIngredientesTable({ filas, onChange, ingredientes, compras, onAddNew, disabled, unidadesPorLote }) {
   const [activeIdx, setActiveIdx] = useState(null);
 
   const filasConUnidad = filas.map((f, i) => ({ ...f, unidad: getUnidad(ingredientes, f.nombre), idx: i }));
@@ -153,12 +159,17 @@ export default function RecetaIngredientesTable({ filas, onChange, ingredientes,
   // Precio total estimado del lote — junto al peso, a pedido del usuario.
   // Usa el peso/cantidad COMPRADA de TODOS los ingredientes (de peso Y por
   // unidad, el usuario aclaró que el costo también tiene en cuenta estos
-  // últimos) × su precio unitario más reciente en Compras.
+  // últimos) × su precio unitario más reciente en Compras. Los "por unidad"
+  // ya no se tipean a mano — son siempre Unidades por lote (ver
+  // IngRowUnidad más arriba), así que el preview de costo usa eso mismo.
   const { total: costoTotal, incompleto } = computeCostoReceta(
     compras,
     filasConUnidad
       .filter(f => f.nombre.trim())
-      .map(f => ({ nombre: f.nombre, unidad: f.unidad, cantidadComprada: parseThousandsInput(f.compradoDraft) }))
+      .map(f => ({
+        nombre: f.nombre, unidad: f.unidad,
+        cantidadComprada: esUnidadDePeso(f.unidad) || !f.unidad ? parseThousandsInput(f.compradoDraft) : (unidadesPorLote || 0)
+      }))
   );
 
   function addRow() {
@@ -178,7 +189,7 @@ export default function RecetaIngredientesTable({ filas, onChange, ingredientes,
     if (f.idx !== activeIdx) {
       return (
         <IngRowCollapsed
-          key={f.idx} fila={f} idx={f.idx} unidad={f.unidad} pct={pct} esPeso={esPeso}
+          key={f.idx} fila={f} idx={f.idx} unidad={f.unidad} pct={pct} esPeso={esPeso} unidadesPorLote={unidadesPorLote}
           onActivate={setActiveIdx} onRemove={removeRow} disabled={disabled}
         />
       );
@@ -191,7 +202,7 @@ export default function RecetaIngredientesTable({ filas, onChange, ingredientes,
       />
     ) : (
       <IngRowUnidad
-        key={f.idx} fila={f} idx={f.idx} unidad={f.unidad}
+        key={f.idx} fila={f} idx={f.idx} unidad={f.unidad} unidadesPorLote={unidadesPorLote}
         onUpdate={updateRow} onRemove={removeRow}
         ingredientes={ingredientes} onAddNew={onAddNew} disabled={disabled}
       />

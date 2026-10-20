@@ -6,7 +6,7 @@ import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
 import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 import { parseThousandsInput, formatThousandsValue } from '../../utils/format';
-import { normalizeIngredienteMaestro } from '../../services/recetasApi';
+import { normalizeIngredienteMaestro, esUnidadDePeso } from '../../services/recetasApi';
 import { normalizeIngName } from '../../services/ingredientesApi';
 import EtapaEditor from './EtapaEditor';
 import RecetaIngredientesTable from './RecetaIngredientesTable';
@@ -67,21 +67,32 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
     const instruccionesLimpias = instrucciones.filter(i => i.text.trim());
     const middleEtapas = [{ id: crypto.randomUUID(), nombre: 'Ejecución', instrucciones: instruccionesLimpias, insumos: [], fija: false }];
 
+    const unidadesPorLoteNum = parseInt(unidadesPorLote) || 0;
     const ingredientesMaestros = ingFilas
       .filter(f => f.nombre.trim())
-      .map(f => ({
-        nombre: f.nombre.trim(),
-        cantidadComprada: parseThousandsInput(f.compradoDraft) || 0,
-        cantidadReceta: parseThousandsInput(f.recetaDraft) || 0,
-        unidad: ingredientes.find(i => normalizeIngName(i.nombre) === normalizeIngName(f.nombre))?.unidad || ''
-      }));
+      .map(f => {
+        const unidad = ingredientes.find(i => normalizeIngName(i.nombre) === normalizeIngName(f.nombre))?.unidad || '';
+        // "Por unidad" (frascos, etiquetas…) ya no se tipea a mano — a
+        // pedido explícito del usuario, siempre es la misma cantidad que
+        // "Unidades por lote" (si el lote rinde 5, hacen falta 5 de cada
+        // envase). Ver IngRowUnidad en RecetaIngredientesTable.jsx.
+        if (unidad && !esUnidadDePeso(unidad)) {
+          return { nombre: f.nombre.trim(), cantidadComprada: unidadesPorLoteNum, cantidadReceta: unidadesPorLoteNum, unidad };
+        }
+        return {
+          nombre: f.nombre.trim(),
+          cantidadComprada: parseThousandsInput(f.compradoDraft) || 0,
+          cantidadReceta: parseThousandsInput(f.recetaDraft) || 0,
+          unidad
+        };
+      });
     if (ingredientesMaestros.some(im => im.cantidadComprada < 0 || im.cantidadReceta < 0)) {
       return showFeedback('Las cantidades de ingredientes no pueden ser negativas.', 'err');
     }
 
     setBusy(true);
     try {
-      await onSave({ nombre: nombreTrim, unidadesPorLote: parseInt(unidadesPorLote) || 0, middleEtapas, ingredientesMaestros }, editingReceta?.id || null);
+      await onSave({ nombre: nombreTrim, unidadesPorLote: unidadesPorLoteNum, middleEtapas, ingredientesMaestros }, editingReceta?.id || null);
       onClose();
     } catch (err) {
       showFeedback('Error: ' + err.message, 'err');
@@ -105,6 +116,7 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
         <RecetaIngredientesTable
           filas={ingFilas} onChange={setIngFilas}
           ingredientes={ingredientes} compras={compras} onAddNew={onAddNewIngrediente} disabled={busy}
+          unidadesPorLote={parseInt(unidadesPorLote) || 0}
         />
 
         <EtapaEditor instrucciones={instrucciones} onChange={setInstrucciones} disabled={busy} />

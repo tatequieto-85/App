@@ -137,13 +137,14 @@ export default function CalculadoraPage() {
             <div className="calculadora-resultado-section">
               <h2 className="subsection-title">Costo por insumo — {fmtCOP(resultados.totalGeneral)}</h2>
               <table className="calculadora-table">
-                <thead><tr><th>Insumo</th><th>Cantidad</th><th>Costo</th></tr></thead>
+                <thead><tr><th>Insumo</th><th>Cantidad</th><th>Costo</th><th>%</th></tr></thead>
                 <tbody>
                   {resultados.filasInsumos.map(f => (
                     <tr key={f.nombre}>
                       <td>{f.nombre}</td>
                       <td>{f.cantidad.toLocaleString('es-CO', { maximumFractionDigits: 2 })} {f.unidad}</td>
                       <td>{fmtCOP(f.costo)}</td>
+                      <td>{resultados.totalGeneral ? ((f.costo / resultados.totalGeneral) * 100).toFixed(1) : '0.0'}%</td>
                     </tr>
                   ))}
                 </tbody>
