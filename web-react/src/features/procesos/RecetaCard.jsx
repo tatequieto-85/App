@@ -20,7 +20,6 @@ export default function RecetaCard({ receta, onAbrir, onEdit, onDelete, onDuplic
   });
 
   const { label } = nivelPicanteStyle(receta.nivelPicante);
-  const numEtapas = (receta.etapas || []).filter(e => !e.fija).length;
 
   async function handleDelete() {
     if (!window.confirm('¿Eliminar esta receta?')) return;
@@ -51,7 +50,7 @@ export default function RecetaCard({ receta, onAbrir, onEdit, onDelete, onDuplic
       <div className="receta-card" {...gestureProps}>
         <div className="receta-card-title">{receta.nombre}</div>
         <div className="receta-card-meta">
-          <span>{label} · {numEtapas} etapa{numEtapas !== 1 ? 's' : ''}</span>
+          <span>{label} · {receta.unidadesPorLote || 0} unidad{receta.unidadesPorLote === 1 ? '' : 'es'}</span>
         </div>
       </div>
       {actionsOpen && (
