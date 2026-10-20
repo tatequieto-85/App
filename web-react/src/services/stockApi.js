@@ -40,21 +40,64 @@ export async function ensureStockSheets() {
   if (hasT) stockTestigosSheetId    = hasT.properties.sheetId;
   if (hasM) stockMovimientosSheetId = hasM.properties.sheetId;
 
-  const td = await sheetsReq('/values/StockTestigo!A1').catch(() => ({}));
-  if (!td.values) {
-    await sheetsReq('/values/StockTestigo!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-      method: 'POST',
-      body: JSON.stringify({ values: [[
-        'ID', 'EjecucionId', 'RecetaId', 'RecetaNombre', 'LoteId', 'Cantidad', 'FechaApartado',
-        'FechaRevision', 'Ubicacion', 'Estado', 'Observaciones', 'CreadoEn'
-      ]] })
+  // Bug real reportado por el usuario ("por qué me crea productos testigo
+  // de la nada"): esta lectura usaba .catch(() => ({})) y, si fallaba por
+  // CUALQUIER motivo transitorio (hipo de red, token vencido a mitad de
+  // pedido — esto corre en CADA carga de Stock/Ventas/Calculadora), se
+  // trataba como "la hoja está vacía" y agregaba el encabezado con
+  // :append — que NO sobreescribe la fila 1, agrega una fila nueva al
+  // final como si fuera un registro real. fetchStockTestigos() la tomaba
+  // como válida porque la columna ID no venía vacía (literalmente decía
+  // "ID"), y se mostraba como una tarjeta más con "RecetaNombre — Lote
+  // LoteId" / fechas "Invalid Date" (son los nombres de columna, no
+  // datos). Ahora escribe siempre con PUT a la fila fija 1, igual que el
+  // resto de los ensure*Sheet() — reintentar de más nunca duplica nada.
+  const TESTIGO_HEADER = [
+    'ID', 'EjecucionId', 'RecetaId', 'RecetaNombre', 'LoteId', 'Cantidad',
+    'FechaApartado', 'FechaRevision', 'Ubicacion', 'Estado', 'Observaciones', 'CreadoEn'
+  ];
+  const td = await sheetsReq('/values/StockTestigo!A1:L1').catch(() => ({}));
+  if (!(td.values || [])[0]?.length) {
+    await sheetsReq('/values/StockTestigo!A1:L1?valueInputOption=RAW', {
+      method: 'PUT', body: JSON.stringify({ values: [TESTIGO_HEADER] })
     });
   }
+  const MOVIMIENTO_HEADER = ['ID', 'RecetaId', 'RecetaNombre', 'Tipo', 'Cantidad', 'Motivo', 'Fecha', 'CreadoEn', 'EjecucionId'];
   const md = await sheetsReq('/values/StockMovimientos!A1:I1').catch(() => ({}));
-  if (!md.values) {
-    await sheetsReq('/values/StockMovimientos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  if (!(md.values || [])[0]?.length) {
+    await sheetsReq('/values/StockMovimientos!A1:I1?valueInputOption=RAW', {
+      method: 'PUT', body: JSON.stringify({ values: [MOVIMIENTO_HEADER] })
+    });
+  }
+
+  // Limpia las filas "fantasma" que el bug de arriba ya haya creado antes
+  // de este fix — el encabezado reinsertado como si fuera un registro
+  // real, en cualquier fila después de la 1. Se identifica por matchear
+  // las 12/9 columnas EXACTO contra el encabezado real (no por una sola
+  // columna, para no borrar por error un registro legítimo). Idempotente:
+  // no encuentra nada para borrar en las corridas siguientes.
+  await limpiarFilasFantasma('StockTestigo', stockTestigosSheetId, TESTIGO_HEADER, 'A:L');
+  await limpiarFilasFantasma('StockMovimientos', stockMovimientosSheetId, MOVIMIENTO_HEADER, 'A:I');
+}
+
+// Borra de a UNA fila fantasma por vez, releyendo justo antes de cada
+// borrado (en vez de calcular todos los índices de una foto vieja y
+// borrarlos todos juntos) — si esta función llegara a correr dos veces
+// en paralelo (p. ej. dos pantallas que abren Stock casi al mismo tiempo),
+// cada borrado se valida contra el estado más reciente en vez de un
+// índice que ya pudo haberse corrido por un borrado anterior.
+async function limpiarFilasFantasma(sheetName, sheetId, header, range) {
+  if (!sheetId) return;
+  for (let intentos = 0; intentos < 20; intentos++) {
+    const data = await sheetsReq(`/values/${sheetName}!${range}`).catch(() => ({}));
+    const rows = data.values || [];
+    const idx = rows.findIndex((r, i) => i > 0 && header.every((h, j) => ((r || [])[j] || '') === h));
+    if (idx === -1) return;
+    await sheetsReq(':batchUpdate', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID', 'RecetaId', 'RecetaNombre', 'Tipo', 'Cantidad', 'Motivo', 'Fecha', 'CreadoEn', 'EjecucionId']] })
+      body: JSON.stringify({ requests: [{ deleteDimension: {
+        range: { sheetId, dimension: 'ROWS', startIndex: idx, endIndex: idx + 1 }
+      } }] })
     });
   }
 }
