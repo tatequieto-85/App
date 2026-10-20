@@ -36,17 +36,28 @@ export async function ensureRecetasSheets() {
     });
   }
 
-  const rd = await sheetsReq('/values/RecetasPlantillas!A1:H1').catch(() => ({}));
+  const rd = await sheetsReq('/values/RecetasPlantillas!A1:I1').catch(() => ({}));
   const rdRow = (rd.values || [])[0] || [];
   if (rdRow.length < 7) {
-    await sheetsReq('/values/RecetasPlantillas!A1:H1?valueInputOption=RAW', {
+    await sheetsReq('/values/RecetasPlantillas!A1:I1?valueInputOption=RAW', {
       method: 'PUT',
-      body: JSON.stringify({ values: [['ID', 'Nombre', 'Descripcion', 'Etapas', 'CreadoEn', 'IngredientesMaestros', 'BlockId', 'NivelPicante']] })
+      body: JSON.stringify({ values: [['ID', 'Nombre', 'Descripcion', 'Etapas', 'CreadoEn', 'IngredientesMaestros', 'BlockId', 'NivelPicante', 'UnidadesPorLote']] })
     });
   } else if (rdRow.length < 8) {
     await sheetsReq('/values/RecetasPlantillas!H1?valueInputOption=RAW', {
       method: 'PUT',
       body: JSON.stringify({ values: [['NivelPicante']] })
+    });
+  }
+  // UnidadesPorLote: cuántas unidades/frascos rinde UN lote completo de la
+  // receta (tal como está cargada hoy) — a pedido explícito del usuario,
+  // para la Calculadora de Ventas ("cada receta debe saber cuántas
+  // unidades va a sacar"), que escala el costo de insumos según cuántas
+  // unidades finales se quieran producir.
+  if (rdRow.length < 9) {
+    await sheetsReq('/values/RecetasPlantillas!I1?valueInputOption=RAW', {
+      method: 'PUT',
+      body: JSON.stringify({ values: [['UnidadesPorLote']] })
     });
   }
 
@@ -67,7 +78,7 @@ export async function ensureRecetasSheets() {
 // ── Recetas: CRUD ────────────────────────────────────────────────────────────
 
 export async function fetchRecetas() {
-  const data = await sheetsReq('/values/RecetasPlantillas!A:H');
+  const data = await sheetsReq('/values/RecetasPlantillas!A:I');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
     id: r[0] || '',
@@ -78,26 +89,27 @@ export async function fetchRecetas() {
     ingredientesMaestros: safeParseJSON(r[5], []),
     blockId: r[6] || '',
     nivelPicante: r[7] || '',
+    unidadesPorLote: parseInt(r[8]) || 0,
     rowIndex: i + 2
   }));
 }
 
 export async function appendReceta(rec) {
-  await sheetsReq('/values/RecetasPlantillas!A:H:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/RecetasPlantillas!A:I:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       rec.id, rec.nombre, rec.descripcion || '', JSON.stringify(rec.etapas || []), rec.creadoEn,
-      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || '', rec.nivelPicante || ''
+      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || '', rec.nivelPicante || '', rec.unidadesPorLote || 0
     ]] })
   });
 }
 
 export async function updateReceta(rec) {
-  await sheetsReq(`/values/RecetasPlantillas!A${rec.rowIndex}:H${rec.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/RecetasPlantillas!A${rec.rowIndex}:I${rec.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
       rec.id, rec.nombre, rec.descripcion || '', JSON.stringify(rec.etapas || []), rec.creadoEn,
-      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || '', rec.nivelPicante || ''
+      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || '', rec.nivelPicante || '', rec.unidadesPorLote || 0
     ]] })
   });
 }
@@ -315,4 +327,32 @@ export function computeCostoReceta(compras, ingredientesMaestros) {
     total += qty * price;
   });
   return { total, incompleto };
+}
+
+// Mismo cálculo que computeCostoReceta, pero escalado por un factor (p. ej.
+// "quiero sacar 60 unidades y esta receta rinde 20 por lote" → factor 3) y
+// con el DETALLE por insumo, no solo el total — lo usa la Calculadora de
+// Ventas para sumar varios sabores en una sola cuenta combinada por
+// insumo. A diferencia del escalado de RecetaEscalarSection.jsx (que deja
+// los ingredientes "por unidad" sin tocar, para que el usuario los ajuste
+// a mano porque ahí se está definiendo la receta real), acá SÍ se escalan
+// todos los ingredientes — es una estimación de costo, no una receta que
+// se vaya a guardar.
+export function computeCostoRecetaEscalado(compras, ingredientesMaestros, factor) {
+  let total = 0;
+  const incompleto = [];
+  const detalle = [];
+  (ingredientesMaestros || []).map(normalizeIngredienteMaestro).forEach(im => {
+    const qty = (im.cantidadComprada || 0) * factor;
+    if (!qty) return;
+    const price = getUnitPrice(compras, im.nombre);
+    if (price == null) {
+      if (!incompleto.includes(im.nombre)) incompleto.push(im.nombre);
+      return;
+    }
+    const costo = qty * price;
+    total += costo;
+    detalle.push({ nombre: im.nombre, unidad: im.unidad, cantidad: qty, costo });
+  });
+  return { total, incompleto, detalle };
 }

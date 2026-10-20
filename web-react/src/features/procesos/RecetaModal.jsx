@@ -24,6 +24,7 @@ import './RecetaModal.css';
 // EtapaEditor.jsx); acá solo se maneja la lista plana de instrucciones.
 export default function RecetaModal({ open, onClose, editingReceta, ingredientes, compras, onAddNewIngrediente, onSave }) {
   const [nombre, setNombre] = useState('');
+  const [unidadesPorLote, setUnidadesPorLote] = useState('');
   const [instrucciones, setInstrucciones] = useState([]);
   const [ingFilas, setIngFilas] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -34,6 +35,7 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
     if (!open) return;
     const n = editingReceta ? editingReceta.nombre : '';
     setNombre(n);
+    setUnidadesPorLote(editingReceta?.unidadesPorLote ? String(editingReceta.unidadesPorLote) : '');
     // Recetas de antes de este cambio podían tener varias etapas con
     // nombre propio — al editarlas, sus instrucciones se juntan todas acá
     // (sin perder ninguna), ya que ahora solo existe una "Ejecución".
@@ -79,7 +81,7 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
 
     setBusy(true);
     try {
-      await onSave({ nombre: nombreTrim, middleEtapas, ingredientesMaestros }, editingReceta?.id || null);
+      await onSave({ nombre: nombreTrim, unidadesPorLote: parseInt(unidadesPorLote) || 0, middleEtapas, ingredientesMaestros }, editingReceta?.id || null);
       onClose();
     } catch (err) {
       showFeedback('Error: ' + err.message, 'err');
@@ -91,7 +93,13 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
   return (
     <Modal open={open} onClose={close} showBack title={editingReceta ? 'Editar receta' : 'Nueva receta'}>
       <form onSubmit={handleSubmit}>
-        <TextField label="Nombre de la receta" placeholder="Ej: Habanero clásico" value={nombre} onChange={e => setNombre(e.target.value)} disabled={busy} autoFocus />
+        <div className="field-row">
+          <TextField label="Nombre de la receta" placeholder="Ej: Habanero clásico" value={nombre} onChange={e => setNombre(e.target.value)} disabled={busy} autoFocus />
+          <TextField
+            label="Unidades por lote" type="number" min="0" step="1" placeholder="Frascos que rinde un lote"
+            value={unidadesPorLote} onChange={e => setUnidadesPorLote(e.target.value)} disabled={busy}
+          />
+        </div>
 
         <label className="field-label receta-modal-section-label">Ingredientes</label>
         <RecetaIngredientesTable

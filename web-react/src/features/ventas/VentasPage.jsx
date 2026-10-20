@@ -10,6 +10,7 @@ import { useContactos } from '../contactos/useContactos';
 import {
   feriaEstaEnCurso, feriaEsFutura, estadoEfectivo
 } from '../../services/feriasApi';
+import CalculadoraPage from './CalculadoraPage';
 import CanalCard from './CanalCard';
 import CanalModal from './CanalModal';
 import FeriaBlock from './FeriaBlock';
@@ -48,7 +49,8 @@ export default function VentasPage({ onBack }) {
   const [openFeriaId, setOpenFeriaId] = useState(null);
   const [openView, setOpenView] = useState(null); // 'counter' | 'stock' | 'resumen'
 
-  const canal = currentCanalId ? vt.canales.find(c => c.id === currentCanalId) : null;
+  const isCalculadora = currentCanalId === 'calculadora';
+  const canal = currentCanalId && !isCalculadora ? vt.canales.find(c => c.id === currentCanalId) : null;
   const canalIds = useMemo(() => vt.canales.map(c => c.id), [vt.canales]);
 
   const feriasCanal = useMemo(
@@ -93,7 +95,10 @@ export default function VentasPage({ onBack }) {
       transition={{ duration: .18 }}
       className="app-shell"
     >
-      <PageHeader title={canal ? canal.nombre : 'Ventas'} onBack={canal ? () => setCurrentCanalId(null) : onBack} />
+      <PageHeader
+        title={isCalculadora ? 'Calculadora' : (canal ? canal.nombre : 'Ventas')}
+        onBack={(canal || isCalculadora) ? () => setCurrentCanalId(null) : onBack}
+      />
 
       {/* Sin caja blanca contenedora, a pedido del usuario — el submenú de
           canales va directo sobre el fondo de la página, igual que el grid
@@ -102,7 +107,9 @@ export default function VentasPage({ onBack }) {
         {vt.loading && <div className="loading-state">Cargando…</div>}
         {vt.error && <EmptyState>No se pudo cargar: {vt.error}</EmptyState>}
 
-        {!vt.loading && !vt.error && !canal && (
+        {!vt.loading && !vt.error && isCalculadora && <CalculadoraPage />}
+
+        {!vt.loading && !vt.error && !canal && !isCalculadora && (
           !vt.canales.length ? (
             <EmptyState>Cargando los canales de venta…</EmptyState>
           ) : (
@@ -117,6 +124,18 @@ export default function VentasPage({ onBack }) {
                   onEdit={c => setCanalModal({ editing: c })}
                   onDelete={vt.deleteCanal}
                 />
+              )}
+              // "Calculadora" no es un canal real (no vive en CanalesVenta,
+              // no se puede editar/borrar/arrastrar) — a pedido explícito
+              // del usuario: "un módulo igual que el de eventos, retail y
+              // web". Va como 4ta tarjeta fija al final de la grilla.
+              trailing={(
+                <div className="app-card" onClick={() => setCurrentCanalId('calculadora')}>
+                  <span className="app-card-icon app-card-icon--amber">
+                    <Icon name="percent" size={24} className="app-card-icon-glyph" />
+                  </span>
+                  <span className="app-card-label">Calculadora</span>
+                </div>
               )}
             />
           )
@@ -186,7 +205,7 @@ export default function VentasPage({ onBack }) {
           adentro de uno solo, donde "por canal" deja de variar. Siempre
           debajo de las subcategorías (canales) creadas, a pedido del
           usuario — no arriba. */}
-      {!canal && !vt.loading && !vt.error && <VentasResumenDiario filas={vt.resumenVentasPorDia} />}
+      {!canal && !isCalculadora && !vt.loading && !vt.error && <VentasResumenDiario filas={vt.resumenVentasPorDia} />}
 
       {/* Ya no se pueden crear canales a mano — son fijos (ver
           CANALES_POR_DEFECTO en useVentas.js), cada uno con su propia

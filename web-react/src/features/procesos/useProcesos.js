@@ -91,16 +91,16 @@ export function useProcesos(ingredientes, reloadIngredientes) {
 
   // datos: { nombre, middleEtapas, ingredientesMaestros }. El nivel de
   // picante nunca se elige a mano, se detecta solo (ver recetasApi.js).
-  const saveReceta = useCallback(async ({ nombre, middleEtapas, ingredientesMaestros }, editingId, blockId) => {
+  const saveReceta = useCallback(async ({ nombre, unidadesPorLote, middleEtapas, ingredientesMaestros }, editingId, blockId) => {
     const etapas = recetasApi.buildEtapasFull(middleEtapas);
     const nivelPicante = recetasApi.detectNivelPicante(ingredientesMaestros);
     if (editingId) {
       const rec = recetas.find(r => r.id === editingId);
-      if (rec) await recetasApi.updateReceta({ ...rec, nombre, etapas, ingredientesMaestros, nivelPicante });
+      if (rec) await recetasApi.updateReceta({ ...rec, nombre, unidadesPorLote, etapas, ingredientesMaestros, nivelPicante });
     } else {
       await recetasApi.appendReceta({
         id: crypto.randomUUID(), nombre, descripcion: '', etapas, ingredientesMaestros,
-        blockId: blockId || '', nivelPicante, creadoEn: new Date().toISOString()
+        blockId: blockId || '', nivelPicante, unidadesPorLote, creadoEn: new Date().toISOString()
       });
     }
     await reloadRecetas();
@@ -124,6 +124,7 @@ export function useProcesos(ingredientes, reloadIngredientes) {
       ingredientesMaestros: receta.ingredientesMaestros || [],
       blockId: receta.blockId || '',
       nivelPicante: receta.nivelPicante || '',
+      unidadesPorLote: receta.unidadesPorLote || 0,
       creadoEn: new Date().toISOString()
     });
     await reloadRecetas();
