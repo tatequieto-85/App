@@ -92,7 +92,7 @@ export default function ComprasPage({ onBack }) {
           {!loading && !error && !!filteredRows.length && (
             <table className="compra-table">
               <thead>
-                <tr><th>Ingrediente</th><th>Disponible</th><th>Última compra</th><th>Precio unitario</th></tr>
+                <tr><th>Ingrediente</th><th>Precio unitario</th><th>Disponible</th></tr>
               </thead>
               <tbody>
                 {filteredRows.map(row => (
