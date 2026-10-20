@@ -9,7 +9,10 @@ import './MovimientoRow.css';
 // desde acá: si hace falta sacarlos, se borra o edita la venta/compra que
 // los generó, para que la caja nunca quede desincronizada de la fuente
 // real. Solo los manuales tienen mantener-presionado para borrar.
-export default function MovimientoRow({ item, onDelete }) {
+// cajaNombre (opcional): para el resumen global de todas las cajas (ver
+// ContabilidadPage.jsx) — adentro del detalle de UNA caja no hace falta,
+// ya se sabe cuál es.
+export default function MovimientoRow({ item, cajaNombre, onDelete }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const esManual = item.origen === 'manual';
@@ -36,6 +39,7 @@ export default function MovimientoRow({ item, onDelete }) {
         <span className="movimiento-row-concepto">
           {item.concepto || (item.tipo === 'egreso' ? 'Egreso' : 'Ingreso')}
           {!esManual && ' (auto)'}
+          {cajaNombre && ` — ${cajaNombre}`}
         </span>
         <span className="movimiento-row-monto" style={{ color: item.tipo === 'egreso' ? 'var(--danger)' : '#2E7D32' }}>
           {item.tipo === 'egreso' ? '−' : '+'}{fmtCOP(item.monto)}

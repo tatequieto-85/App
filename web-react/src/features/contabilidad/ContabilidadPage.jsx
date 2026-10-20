@@ -9,6 +9,7 @@ import { useContabilidad } from './useContabilidad';
 import CajaCard from './CajaCard';
 import CajaModal from './CajaModal';
 import CajaDetailModal from './CajaDetailModal';
+import MovimientoRow from './MovimientoRow';
 import { fmtCOP } from '../../utils/format';
 import './ContabilidadPage.css';
 
@@ -28,6 +29,16 @@ export default function ContabilidadPage({ onBack }) {
   const [detailCajaId, setDetailCajaId] = useState(null);
 
   const detailCaja = detailCajaId ? ct.cajas.find(c => c.id === detailCajaId) : null;
+  const nombreCaja = cajaId => ct.cajas.find(c => c.id === cajaId)?.nombre || 'Caja borrada';
+
+  // Todos los movimientos de todas las cajas juntos, más reciente primero
+  // — a pedido explícito del usuario ("debajo de las cajas, el resumen de
+  // los movimientos"), para ver de un vistazo qué pasó sin entrar caja por
+  // caja. El concepto ya trae de dónde salió cada uno (venta de una feria,
+  // egreso de una compra, o lo que haya escrito el usuario a mano).
+  const movimientosOrdenados = ct.movimientos.slice().sort((a, b) =>
+    (b.fecha || '').localeCompare(a.fecha || '') || (b.creadoEn || '').localeCompare(a.creadoEn || '')
+  );
 
   return (
     <motion.div
@@ -45,20 +56,40 @@ export default function ContabilidadPage({ onBack }) {
         !ct.cajas.length ? (
           <EmptyState>Agregá tu primera caja con el botón de abajo.</EmptyState>
         ) : (
-          <div className="cajas-list">
-            {ct.cajas.map(caja => (
-              <CajaCard
-                key={caja.id}
-                caja={caja}
-                saldo={ct.saldoCaja(caja.id)}
-                actionsOpen={cajaActionsFor === caja.id}
-                onOpenActionsChange={setCajaActionsFor}
-                onAbrir={setDetailCajaId}
-                onEdit={c => setCajaModal({ editing: c })}
-                onDelete={ct.deleteCaja}
-              />
-            ))}
-          </div>
+          <>
+            <div className="cajas-list">
+              {ct.cajas.map(caja => (
+                <CajaCard
+                  key={caja.id}
+                  caja={caja}
+                  saldo={ct.saldoCaja(caja.id)}
+                  actionsOpen={cajaActionsFor === caja.id}
+                  onOpenActionsChange={setCajaActionsFor}
+                  onAbrir={setDetailCajaId}
+                  onEdit={c => setCajaModal({ editing: c })}
+                  onDelete={ct.deleteCaja}
+                />
+              ))}
+            </div>
+
+            <div className="movimientos-resumen-section">
+              <h2 className="subsection-title">Resumen de movimientos</h2>
+              {!movimientosOrdenados.length ? (
+                <EmptyState>Todavía no hay movimientos.</EmptyState>
+              ) : (
+                <div className="movimientos-resumen-lista">
+                  {movimientosOrdenados.map(m => (
+                    <MovimientoRow
+                      key={m.id}
+                      item={m}
+                      cajaNombre={nombreCaja(m.cajaId)}
+                      onDelete={() => ct.removeMovimiento(m.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
         )
       )}
 
