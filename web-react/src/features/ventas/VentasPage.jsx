@@ -261,7 +261,6 @@ export default function VentasPage({ onBack }) {
         feria={openFeria}
         ejecuciones={vt.ejecuciones}
         contactos={contactos}
-        cajas={vt.cajas}
         onRemoveSalida={vt.removeSalida}
         onAddObservacionDiaria={vt.addObservacionDiaria}
       />

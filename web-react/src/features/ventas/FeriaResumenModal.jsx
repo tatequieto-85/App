@@ -3,7 +3,7 @@ import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import { useRowGestures } from '../../hooks/useRowGestures';
 import { useCloseOnOutsideClick } from '../../hooks/useCloseOnOutsideClick';
-import { feriaToText, feriaTotalVendidoDinero, feriaPromedioUnidad, ventaDiariaTotal, getFeriaDefaultDay } from '../../services/feriasApi';
+import { feriaToText, feriaTotalVendidoDinero, feriaPromedioUnidad, getFeriaDefaultDay } from '../../services/feriasApi';
 import { fmtCOP, fmtDateShortEs, fmtDayMonthSlash } from '../../utils/format';
 import FeriaObsModal from './FeriaObsModal';
 import './FeriaResumenModal.css';
@@ -61,6 +61,20 @@ function SalidasLista({ titulo, items, onRemove }) {
   );
 }
 
+// Total vendido POR RECETA (sumando todas las unidades vendidas de ese
+// sabor en toda la feria) — a pedido explícito del usuario, en vez de la
+// tabla anterior desglosada por día.
+function totalesPorReceta(ventas) {
+  const map = new Map();
+  (ventas || []).forEach(v => {
+    const key = v.recetaId || v.recetaNombre;
+    const prev = map.get(key);
+    if (prev) prev.cantidad += v.cantidad;
+    else map.set(key, { nombre: v.recetaNombre || 'Sin receta', cantidad: v.cantidad });
+  });
+  return [...map.values()].sort((a, b) => b.cantidad - a.cantidad);
+}
+
 function downloadFeriaTxt(feria, ejecuciones, contactoNombre) {
   const text = feriaToText(feria, ejecuciones, fmtCOP, fmtDateShortEs, contactoNombre);
   const blob = new Blob([text], { type: 'text/plain' });
@@ -72,33 +86,28 @@ function downloadFeriaTxt(feria, ejecuciones, contactoNombre) {
   URL.revokeObjectURL(url);
 }
 
-export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, contactos, cajas, onRemoveSalida, onAddObservacionDiaria }) {
+export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, contactos, onRemoveSalida, onAddObservacionDiaria }) {
   const [obsOpen, setObsOpen] = useState(false);
   if (!feria) return null;
   const contactoNombre = contactos?.find(c => c.id === feria.contactoId)?.nombre || '';
-  const nombreCaja = cajaId => cajas?.find(c => c.id === cajaId)?.nombre || 'Caja borrada';
+  const porReceta = totalesPorReceta(feria.ventas);
 
   return (
     <Modal open={open} onClose={onClose} showBack title={feria.empresa}>
       <div className="feria-resumen-content">{feriaToText(feria, ejecuciones, fmtCOP, fmtDateShortEs, contactoNombre)}</div>
 
-      {!!(feria.ventasDiarias || []).length && (
+      {!!porReceta.length && (
         <div className="feria-section">
           <h4 className="feria-section-title">
             Total vendido — {fmtCOP(feriaTotalVendidoDinero(feria))}
           </h4>
           <table className="tasks-table">
-            <thead><tr><th>Día</th><th>Recibido</th></tr></thead>
+            <thead><tr><th>Receta</th><th>Unidades vendidas</th></tr></thead>
             <tbody>
-              {feria.ventasDiarias.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).map(vd => (
-                <tr key={vd.fecha}>
-                  <td>{fmtDateShortEs(vd.fecha)}</td>
-                  <td>
-                    {fmtCOP(ventaDiariaTotal(vd))}
-                    <div className="feria-resumen-promedio">
-                      {Object.entries(vd.porCaja || {}).map(([cajaId, monto]) => `${nombreCaja(cajaId)}: ${fmtCOP(monto)}`).join(' · ')}
-                    </div>
-                  </td>
+              {porReceta.map(r => (
+                <tr key={r.nombre}>
+                  <td>{r.nombre}</td>
+                  <td>{r.cantidad}</td>
                 </tr>
               ))}
             </tbody>

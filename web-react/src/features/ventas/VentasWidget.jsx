@@ -84,7 +84,6 @@ export default function VentasWidget({ removing, onRequestRemove, onConfirmRemov
             feria={proxima}
             ejecuciones={vt.ejecuciones}
             contactos={contactos}
-            cajas={vt.cajas}
             onAddObservacionDiaria={vt.addObservacionDiaria}
           />
         </>
