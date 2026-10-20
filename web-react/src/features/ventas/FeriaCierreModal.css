@@ -1,0 +1,5 @@
+.cierre-dia-section + .cierre-dia-section {
+  border-top: 1px solid var(--border);
+  margin-top: 18px; padding-top: 14px;
+}
+.cierre-dia-section .feria-section-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }

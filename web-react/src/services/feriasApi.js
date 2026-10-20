@@ -23,7 +23,7 @@ export async function ensureFeriasSheet() {
 
   if (hasF) {
     feriasSheetId = hasF.properties.sheetId;
-    const headerData = await sheetsReq('/values/Ferias!A1:AC1').catch(() => ({}));
+    const headerData = await sheetsReq('/values/Ferias!A1:AD1').catch(() => ({}));
     const headerRow = (headerData.values || [])[0] || [];
     if (headerRow.length < 18) {
       await sheetsReq('/values/Ferias!M1:R1?valueInputOption=RAW', {
@@ -101,15 +101,26 @@ export async function ensureFeriasSheet() {
         body: JSON.stringify({ values: [['DescuentoIds']] })
       });
     }
-    // VentaTotalRecibido: el total de dinero recibido en TODA la feria,
-    // cargado una sola vez al terminarla (ver FeriaCierreModal.jsx) — a
-    // pedido explícito del usuario, que rechazó registrar cada venta por
-    // separado. El promedio por unidad no se guarda, sale de dividir esto
+    // VentaTotalRecibido: total de dinero recibido en TODA la feria — ya no
+    // se carga directo, se recalcula siempre como la suma de VentasDiarias
+    // (abajo) al cerrar, se deja escrita para no tener que sumar en cada
+    // lectura. El promedio por unidad no se guarda, sale de dividir esto
     // entre feriaTotalVendidos(f) (ver feriaPromedioUnidad más abajo).
     if (headerRow.length < 29) {
       await sheetsReq('/values/Ferias!AC1?valueInputOption=RAW', {
         method: 'PUT',
         body: JSON.stringify({ values: [['VentaTotalRecibido']] })
+      });
+    }
+    // VentasDiarias: [{fecha, total}] — cuánto se recibió CADA DÍA de la
+    // feria, a pedido explícito del usuario ("quiero que registrar las
+    // ventas se hagan al día cuando cierre la feria"). Las unidades por
+    // lote (feria.ventas) también quedan fechadas por día desde que se
+    // carga esto, ver FeriaCierreModal.jsx.
+    if (headerRow.length < 30) {
+      await sheetsReq('/values/Ferias!AD1?valueInputOption=RAW', {
+        method: 'PUT',
+        body: JSON.stringify({ values: [['VentasDiarias']] })
       });
     }
   } else {
@@ -126,14 +137,14 @@ export async function ensureFeriasSheet() {
         'Observaciones', 'Alineacion', 'Estado', 'ConteoPersonas', 'CreadoEn',
         'HoraInicio', 'HoraFin', 'PlanStock', 'Ventas', 'ObservacionesDiarias', 'ConteoProductos',
         'ConteoMenores30', 'ConteoEntre30y55', 'ConteoMayores55', 'Cerrada', 'Muestras', 'CanalId', 'ContactoId',
-        'ComboIds', 'VentasCombo', 'DescuentoIds', 'VentaTotalRecibido'
+        'ComboIds', 'VentasCombo', 'DescuentoIds', 'VentaTotalRecibido', 'VentasDiarias'
       ]] })
     });
   }
 }
 
 export async function fetchFerias() {
-  const data = await sheetsReq('/values/Ferias!A:AC');
+  const data = await sheetsReq('/values/Ferias!A:AD');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
     id:                   r[0]  || '',
@@ -165,6 +176,7 @@ export async function fetchFerias() {
     ventasCombo:          safeParseJSON(r[26], []),
     descuentoIds:         safeParseJSON(r[27], []),
     ventaTotalRecibido:   parseFloat(r[28]) || 0,
+    ventasDiarias:        safeParseJSON(r[29], []),
     rowIndex:             i + 2
   }));
 }
@@ -179,19 +191,19 @@ function feriaRowValues(f) {
     f.conteoMenores30 || 0, f.conteoEntre30y55 || 0, f.conteoMayores55 || 0,
     f.cerrada ? 'TRUE' : 'FALSE', JSON.stringify(f.muestras || []), f.canalId || '', f.contactoId || '',
     JSON.stringify(f.comboIds || []), JSON.stringify(f.ventasCombo || []), JSON.stringify(f.descuentoIds || []),
-    f.ventaTotalRecibido || 0
+    f.ventaTotalRecibido || 0, JSON.stringify(f.ventasDiarias || [])
   ];
 }
 
 export async function appendFeria(f) {
-  await sheetsReq('/values/Ferias!A:AC:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Ferias!A:AD:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
 }
 
 export async function updateFeria(f) {
-  await sheetsReq(`/values/Ferias!A${f.rowIndex}:AC${f.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Ferias!A${f.rowIndex}:AD${f.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [feriaRowValues(f)] })
   });
@@ -228,12 +240,14 @@ export function feriaTotalMuestras(f) {
   return (f.muestras || []).reduce((sum, m) => sum + (m.cantidad || 0), 0);
 }
 
-// Plata real vendida en una feria — un solo total cargado al terminarla
-// (ver FeriaCierreModal.jsx), no la suma de ventas individuales: el usuario
-// rechazó explícitamente registrar cada venta por separado durante el
-// evento, prefiere cargar unidades por lote + un total único al cierre.
+// Plata real vendida en una feria — se carga por día al terminarla (ver
+// FeriaCierreModal.jsx), no venta por venta: el usuario rechazó
+// explícitamente registrar cada venta por separado durante el evento.
+// Suma ventasDiarias en vez de confiar en el campo ventaTotalRecibido (que
+// se escribe en paralelo solo para no tener que recalcular en cada lectura)
+// para que nunca queden desincronizados.
 export function feriaTotalVendidoDinero(f) {
-  return f.ventaTotalRecibido || 0;
+  return (f.ventasDiarias || []).reduce((sum, v) => sum + (v.total || 0), 0);
 }
 
 // Promedio de precio por unidad de TateQuieto vendida en la feria — nunca
@@ -241,7 +255,7 @@ export function feriaTotalVendidoDinero(f) {
 // unidades vendidas (que sí se cargan por lote, para el stock).
 export function feriaPromedioUnidad(f) {
   const unidades = feriaTotalVendidos(f);
-  return unidades > 0 ? (f.ventaTotalRecibido || 0) / unidades : 0;
+  return unidades > 0 ? feriaTotalVendidoDinero(f) / unidades : 0;
 }
 
 // Ventas + muestras ya entregadas, por lote — las dos salen del mismo stock
@@ -423,6 +437,8 @@ export function feriaToText(f, ejecuciones, fmtCOP, fmtDate, contactoNombre) {
       lines.push('Ventas:');
       ventasDia.forEach(v => lines.push(`  - ${v.recetaNombre}${v.loteId ? ` — Lote ${v.loteId}` : ''}: ${v.cantidad}`));
     }
+    const recibidoDia = (f.ventasDiarias || []).find(vd => vd.fecha === fecha);
+    if (recibidoDia) lines.push(`Recibido ese día: ${fmtCOP(recibidoDia.total)}`);
     const obsDia = (f.observacionesDiarias || []).filter(o => o.fecha === fecha);
     if (obsDia.length) {
       lines.push('Observaciones del día:');

@@ -192,34 +192,41 @@ export function useVentas() {
 
   // Cierre de una feria — reemplaza el registro venta-por-venta durante el
   // evento (rechazado explícitamente por el usuario: "no quiero registrar
-  // las ventas una a una"). Todo se carga junto al terminar: cuántas
-  // unidades se vendieron de cada lote (hace falta saber de qué lote salió
-  // cada una, para el stock — ver FeriaCierreModal.jsx) + un único total de
-  // dinero recibido en TODA la feria. El promedio por unidad nunca se
-  // guarda, sale de dividir esos dos (ver feriaPromedioUnidad en
-  // feriasApi.js). ventasPorLote: { ejecucionId: cantidad }.
-  const cerrarFeria = useCallback(async (feriaId, ventasPorLote, totalRecibido) => {
+  // las ventas una a una"). Todo se carga junto al terminar, pero por DÍA
+  // (a pedido explícito del usuario: "quiero que registrar las ventas se
+  // hagan al día cuando cierre la feria") — ver FeriaCierreModal.jsx.
+  // ventasPorDia: { fecha: { cantidades: {ejecucionId: cantidad}, total } }.
+  // El promedio por unidad nunca se guarda, sale de dividir el total
+  // acumulado entre las unidades vendidas (ver feriaPromedioUnidad en
+  // feriasApi.js).
+  const cerrarFeria = useCallback(async (feriaId, ventasPorDia) => {
     const f = ferias.find(x => x.id === feriaId);
     if (!f) return;
-    const fecha = feriasApi.getFeriaDefaultDay(f);
-    const ventas = Object.entries(ventasPorLote)
-      .filter(([, cantidad]) => cantidad > 0)
-      .map(([ejecucionId, cantidad]) => {
+    const ventas = [];
+    const ventasDiarias = [];
+    Object.entries(ventasPorDia).forEach(([fecha, { cantidades, total }]) => {
+      Object.entries(cantidades || {}).forEach(([ejecucionId, cantidad]) => {
+        if (!cantidad || cantidad <= 0) return;
         const ej = ejecuciones.find(x => x.id === ejecucionId);
-        return {
+        ventas.push({
           fecha, ejecucionId, loteId: ej?.loteId || '', recetaId: ej?.recetaId || '',
           recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString()
-        };
+        });
       });
-    await feriasApi.updateFeria({ ...f, ventas, ventaTotalRecibido: totalRecibido, cerrada: true });
+      if (total > 0) ventasDiarias.push({ fecha, total });
+    });
+    const totalRecibido = ventasDiarias.reduce((s, v) => s + v.total, 0);
+    await feriasApi.updateFeria({ ...f, ventas, ventasDiarias, ventaTotalRecibido: totalRecibido, cerrada: true });
     // Ingreso automático en Contabilidad, si hay una caja configurada para
     // eso (ver contabilidadApi.js) — se borra el anterior primero (por si
-    // se reabre y se vuelve a cerrar con otro total) para no duplicar.
+    // se reabre y se vuelve a cerrar con otros totales) para no duplicar.
+    // Un solo movimiento con el total de toda la feria, no uno por día —
+    // alcanza para la caja, y el detalle por día ya vive en la feria misma.
     try {
       await contabilidadApi.removeMovimientoAuto(feriaId);
       await contabilidadApi.registrarMovimientoAuto('ventas', {
         tipo: 'ingreso', monto: totalRecibido, concepto: `Venta: ${f.empresa}`,
-        fecha, origenRefId: feriaId
+        fecha: feriasApi.getFeriaDefaultDay(f), origenRefId: feriaId
       });
     } catch { /* Contabilidad es opcional — no bloquea el cierre de la feria */ }
     await reloadFerias();

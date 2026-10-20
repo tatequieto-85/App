@@ -6,52 +6,92 @@ import EmptyState from '../../components/ui/EmptyState';
 import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
 import { useDirtyGuard } from '../../hooks/useDirtyGuard';
-import { fmtCOP, formatThousandsValue, parseThousandsInput } from '../../utils/format';
+import { getFeriaDateList } from '../../services/feriasApi';
+import { fmtCOP, fmtDateShortEs, formatThousandsValue, parseThousandsInput } from '../../utils/format';
 import './FeriaStockModal.css';
+import './FeriaCierreModal.css';
 
 // Reemplaza el registro venta-por-venta durante la feria — a pedido
 // explícito del usuario ("no quiero registrar las ventas una a una"). Al
-// terminar la feria se carga todo junto: cuántas unidades se vendieron de
-// cada lote (hace falta saber de qué lote salió cada una, para el stock) y
-// el total de dinero recibido en TODA la feria. El promedio por unidad no
-// se pide — sale solo de dividir esos dos números.
+// terminar la feria se carga todo junto, pero DÍA POR DÍA (segundo pedido
+// explícito: "quiero que registrar las ventas se hagan al día cuando
+// cierre la feria") — por cada día de la feria, cuántas unidades de cada
+// lote se vendieron ESE día + cuánto se recibió ESE día. El tope por lote
+// es compartido entre todos los días (no se puede vender en total más de
+// lo que se llevó). El promedio por unidad no se pide — sale solo de
+// dividir el total acumulado entre las unidades vendidas.
 export default function FeriaCierreModal({ open, onClose, feria, ejecuciones, onSave }) {
-  const [cantidades, setCantidades] = useState({});
-  const [totalRecibido, setTotalRecibido] = useState('');
+  const [porDia, setPorDia] = useState({}); // { fecha: { cantidades: {id:qty}, total: string } }
   const [busy, setBusy] = useState(false);
   const [feedback, showFeedback] = useFeedback();
+
+  const dias = feria ? getFeriaDateList(feria) : [];
 
   useEffect(() => {
     if (!open || !feria) return;
     // Si la feria ya se había cerrado antes (reabrir y volver a cerrar), se
     // precarga lo que ya había en vez de arrancar de cero.
-    const prev = {};
-    (feria.ventas || []).forEach(v => { prev[v.ejecucionId] = (prev[v.ejecucionId] || 0) + v.cantidad; });
-    setCantidades(prev);
-    setTotalRecibido(feria.ventaTotalRecibido ? formatThousandsValue(feria.ventaTotalRecibido) : '');
-  }, [open, feria]);
+    const inicial = {};
+    dias.forEach(fecha => { inicial[fecha] = { cantidades: {}, total: '' }; });
+    (feria.ventas || []).forEach(v => {
+      if (!inicial[v.fecha]) inicial[v.fecha] = { cantidades: {}, total: '' };
+      inicial[v.fecha].cantidades[v.ejecucionId] = (inicial[v.fecha].cantidades[v.ejecucionId] || 0) + v.cantidad;
+    });
+    (feria.ventasDiarias || []).forEach(vd => {
+      if (!inicial[vd.fecha]) inicial[vd.fecha] = { cantidades: {}, total: '' };
+      inicial[vd.fecha].total = formatThousandsValue(vd.total);
+    });
+    setPorDia(inicial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, feria?.id]);
 
-  const isDirty = () => Object.values(cantidades).some(v => (v || 0) > 0) || !!totalRecibido;
+  const isDirty = () => Object.values(porDia).some(d => !!d.total || Object.values(d.cantidades || {}).some(v => v > 0));
   const close = useDirtyGuard(isDirty, onClose);
 
   if (!feria) return null;
 
   const plan = feria.planStock || {};
   const lotes = Object.keys(plan).filter(id => plan[id] > 0);
-  const totalUnidades = Object.values(cantidades).reduce((s, v) => s + (v || 0), 0);
-  const totalNum = parseThousandsInput(totalRecibido) || 0;
-  const promedio = totalUnidades > 0 ? totalNum / totalUnidades : 0;
 
-  function adjust(id, max, delta) {
-    setCantidades(c => ({ ...c, [id]: Math.max(0, Math.min(max, (c[id] || 0) + delta)) }));
+  // Total ya asignado a un lote en TODOS los días salvo el que se pasa —
+  // el tope de cada stepper tiene que descontar lo que ya se cargó en los
+  // demás días, porque el stock llevado es uno solo para toda la feria.
+  function asignadoEnOtrosDias(loteId, fechaActual) {
+    return Object.entries(porDia).reduce((sum, [fecha, d]) => {
+      if (fecha === fechaActual) return sum;
+      return sum + (d.cantidades?.[loteId] || 0);
+    }, 0);
   }
+
+  function adjust(fecha, loteId, max, delta) {
+    setPorDia(p => {
+      const dia = p[fecha] || { cantidades: {}, total: '' };
+      const actual = dia.cantidades[loteId] || 0;
+      const nuevo = Math.max(0, Math.min(max, actual + delta));
+      return { ...p, [fecha]: { ...dia, cantidades: { ...dia.cantidades, [loteId]: nuevo } } };
+    });
+  }
+
+  function setTotalDia(fecha, value) {
+    setPorDia(p => ({ ...p, [fecha]: { ...(p[fecha] || { cantidades: {} }), total: value } }));
+  }
+
+  const totalUnidades = Object.values(porDia).reduce(
+    (s, d) => s + Object.values(d.cantidades || {}).reduce((s2, v) => s2 + (v || 0), 0), 0
+  );
+  const totalRecibido = Object.values(porDia).reduce((s, d) => s + (parseThousandsInput(d.total) || 0), 0);
+  const promedio = totalUnidades > 0 ? totalRecibido / totalUnidades : 0;
 
   async function handleSave() {
     if (!totalUnidades) return showFeedback('Cargá al menos una unidad vendida.', 'err');
-    if (!totalNum || totalNum <= 0) return showFeedback('Cargá el total recibido.', 'err');
+    if (!totalRecibido) return showFeedback('Cargá el total recibido en al menos un día.', 'err');
+    const ventasPorDia = {};
+    Object.entries(porDia).forEach(([fecha, d]) => {
+      ventasPorDia[fecha] = { cantidades: d.cantidades || {}, total: parseThousandsInput(d.total) || 0 };
+    });
     setBusy(true);
     try {
-      await onSave(feria.id, cantidades, totalNum);
+      await onSave(feria.id, ventasPorDia);
       onClose();
     } catch (err) {
       showFeedback(err.message, 'err');
@@ -64,37 +104,46 @@ export default function FeriaCierreModal({ open, onClose, feria, ejecuciones, on
     <Modal open={open} onClose={close} showBack title="Terminar feria">
       {!lotes.length ? (
         <EmptyState>No hay stock planeado para esta feria.</EmptyState>
+      ) : !dias.length ? (
+        <EmptyState>Esta feria no tiene fechas válidas.</EmptyState>
       ) : (
-        <div className="feria-stock-list">
-          {lotes.map(id => {
-            const ej = ejecuciones.find(x => x.id === id);
-            const nombre = ej ? ej.nombreReceta : id;
-            const lote = ej ? (ej.loteId || id.slice(0, 8)) : '';
-            const val = cantidades[id] || 0;
-            const max = plan[id];
-            return (
-              <div key={id} className="feria-stock-item">
-                <div className="feria-stock-sabor">{nombre}</div>
-                <div className="feria-stock-lote">{lote} · Llevados {max}</div>
-                <div className="feria-venta-stepper">
-                  <button type="button" className="feria-venta-stepper-btn" disabled={busy || val <= 0} onClick={() => adjust(id, max, -1)}>−</button>
-                  <span className="feria-venta-stepper-value">{val}</span>
-                  <button type="button" className="feria-venta-stepper-btn" disabled={busy || val >= max} onClick={() => adjust(id, max, 1)}>+</button>
-                </div>
+        dias.map(fecha => {
+          const dia = porDia[fecha] || { cantidades: {}, total: '' };
+          return (
+            <section key={fecha} className="cierre-dia-section">
+              <h4 className="feria-section-title">{fmtDateShortEs(fecha)}</h4>
+              <div className="feria-stock-list">
+                {lotes.map(id => {
+                  const ej = ejecuciones.find(x => x.id === id);
+                  const nombre = ej ? ej.nombreReceta : id;
+                  const lote = ej ? (ej.loteId || id.slice(0, 8)) : '';
+                  const val = dia.cantidades[id] || 0;
+                  const max = Math.max(0, plan[id] - asignadoEnOtrosDias(id, fecha));
+                  return (
+                    <div key={id} className="feria-stock-item">
+                      <div className="feria-stock-sabor">{nombre}</div>
+                      <div className="feria-stock-lote">{lote} · Llevados {plan[id]}</div>
+                      <div className="feria-venta-stepper">
+                        <button type="button" className="feria-venta-stepper-btn" disabled={busy || val <= 0} onClick={() => adjust(fecha, id, max, -1)}>−</button>
+                        <span className="feria-venta-stepper-value">{val}</span>
+                        <button type="button" className="feria-venta-stepper-btn" disabled={busy || val >= max} onClick={() => adjust(fecha, id, max, 1)}>+</button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
+              <ThousandsField
+                label="Total recibido ese día" placeholder="0"
+                value={dia.total} onChange={v => setTotalDia(fecha, v)} disabled={busy}
+              />
+            </section>
+          );
+        })
       )}
 
-      <ThousandsField
-        label="Total recibido en toda la feria" placeholder="0"
-        value={totalRecibido} onChange={setTotalRecibido} disabled={busy}
-      />
-
       <p className="modal-contexto">
-        {totalUnidades} unidad{totalUnidades === 1 ? '' : 'es'} vendida{totalUnidades === 1 ? '' : 's'}
-        {totalUnidades > 0 && totalNum > 0 ? ` · Promedio por unidad: ${fmtCOP(promedio)}` : ''}
+        {totalUnidades} unidad{totalUnidades === 1 ? '' : 'es'} vendida{totalUnidades === 1 ? '' : 's'} en total
+        {totalUnidades > 0 && totalRecibido > 0 ? ` · Total ${fmtCOP(totalRecibido)} · Promedio por unidad: ${fmtCOP(promedio)}` : ''}
       </p>
 
       <Button variant="primary" disabled={busy} onClick={handleSave} style={{ marginTop: 16 }}>

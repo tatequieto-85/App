@@ -125,11 +125,19 @@ export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, c
         <ConteoProductos feria={feria} ejecuciones={ejecuciones} />
       </div>
 
-      {!!feria.ventaTotalRecibido && (
+      {!!(feria.ventasDiarias || []).length && (
         <div className="feria-section">
           <h4 className="feria-section-title">
             Total vendido — {fmtCOP(feriaTotalVendidoDinero(feria))}
           </h4>
+          <table className="tasks-table">
+            <thead><tr><th>Día</th><th>Recibido</th></tr></thead>
+            <tbody>
+              {feria.ventasDiarias.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).map(vd => (
+                <tr key={vd.fecha}><td>{fmtDateShortEs(vd.fecha)}</td><td>{fmtCOP(vd.total)}</td></tr>
+              ))}
+            </tbody>
+          </table>
           <p className="feria-resumen-promedio">Promedio por unidad: {fmtCOP(feriaPromedioUnidad(feria))}</p>
         </div>
       )}
