@@ -10,7 +10,9 @@ import SearchBar from '../../components/ui/SearchBar';
 import { useIngredientes } from '../ingredientes/useIngredientes';
 import { useCompras } from './useCompras';
 import { useInventarioExtra } from './useInventarioExtra';
-import { esUnidadDePeso } from '../../services/recetasApi';
+import { esUnidadDePeso, fetchRecetas, renameIngredienteEnRecetas } from '../../services/recetasApi';
+import { renameIngredienteEnCompras } from '../../services/comprasApi';
+import { normalizeIngName } from '../../services/ingredientesApi';
 import CompraRow from './CompraRow';
 import CompraModal from './CompraModal';
 import InsumoModal from './InsumoModal';
@@ -31,13 +33,13 @@ import './ComprasPage.css';
 // migrateMateriaPrima() en ingredientesApi.js para los datos que ya
 // hubiera en la hoja vieja).
 export default function ComprasPage({ onBack }) {
-  const { ingredientes, loading: loadingIng, addIngrediente, reload: reloadIngredientes } = useIngredientes();
-  const { rows, loading: loadingCompras, error, saveCompra, removeCompra } = useCompras(ingredientes, reloadIngredientes);
+  const { ingredientes, loading: loadingIng, addIngrediente, updateIngredienteInfo, reload: reloadIngredientes } = useIngredientes();
+  const { compras, rows, loading: loadingCompras, error, saveCompra, removeCompra, reload: reloadCompras } = useCompras(ingredientes, reloadIngredientes);
   const { activos, loading: loadingInv, error: errorInv, saveActivo, deleteActivo } = useInventarioExtra();
 
   const [openActionsFor, setOpenActionsFor] = useState(null);
   const [compraModal, setCompraModal] = useState(null); // { ingrediente, editRecord } | null
-  const [insumoOpen, setInsumoOpen] = useState(false);
+  const [insumoModal, setInsumoModal] = useState(null); // { editing } | null
   const [search, setSearch] = useState('');
 
   const [actActionsFor, setActActionsFor] = useState(null);
@@ -64,6 +66,33 @@ export default function ComprasPage({ onBack }) {
 
   const ingCategorias = useMemo(() => [...new Set(ingredientes.map(i => i.categoria).filter(Boolean))], [ingredientes]);
   const actCategorias = useMemo(() => [...new Set(activos.map(a => a.categoria).filter(Boolean))], [activos]);
+
+  // Corregir el nombre de un insumo (ver InsumoModal "Editar insumo") no
+  // solo renombra el catálogo: si el nombre cambió de verdad, las compras
+  // ya registradas y las recetas que ya usaban ese ingrediente quedarían
+  // huérfanas (dejan de matchear por normalizeIngName) — se migran en el
+  // mismo momento. La migración de Recetas es "mejor esfuerzo": si falla
+  // (p. ej. la hoja de recetas no existe todavía) no bloquea el renombre
+  // del insumo en sí, igual que el egreso automático de Contabilidad en
+  // useCompras.js.
+  async function handleSaveInsumo(nombre, unidad, categoria, minimo) {
+    if (insumoModal?.editing) {
+      const ing = insumoModal.editing;
+      const nombreViejo = ing.nombre;
+      const nombreNuevo = await updateIngredienteInfo(ing, { nombre, unidad, categoria, minimo });
+      if (normalizeIngName(nombreViejo) !== normalizeIngName(nombreNuevo)) {
+        await renameIngredienteEnCompras(compras, nombreViejo, nombreNuevo);
+        await reloadCompras();
+        try {
+          const recetasActuales = await fetchRecetas();
+          await renameIngredienteEnRecetas(recetasActuales, nombreViejo, nombreNuevo);
+        } catch { /* Recetas es mejor esfuerzo — no bloquea el renombre del insumo */ }
+      }
+    } else {
+      await addIngrediente(nombre, unidad, categoria, minimo);
+    }
+    setInsumoModal(null);
+  }
 
   // Tocar afuera de una fila/barra abierta la cierra — mismo comportamiento
   // que el listener global de renderComprasList() en ../../../compras.js.
@@ -112,6 +141,7 @@ export default function ComprasPage({ onBack }) {
                       actionsOpen={openActionsFor === row.ingrediente.nombre}
                       onOpenActionsChange={setOpenActionsFor}
                       onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
+                      onEditInsumo={ing => { setOpenActionsFor(null); setInsumoModal({ editing: ing }); }}
                       onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
                       onDelete={removeCompra}
                     />
@@ -135,6 +165,7 @@ export default function ComprasPage({ onBack }) {
                       actionsOpen={openActionsFor === row.ingrediente.nombre}
                       onOpenActionsChange={setOpenActionsFor}
                       onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
+                      onEditInsumo={ing => { setOpenActionsFor(null); setInsumoModal({ editing: ing }); }}
                       onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
                       onDelete={removeCompra}
                     />
@@ -182,10 +213,11 @@ export default function ComprasPage({ onBack }) {
       />
 
       <InsumoModal
-        open={insumoOpen}
-        onClose={() => setInsumoOpen(false)}
+        open={!!insumoModal}
+        onClose={() => setInsumoModal(null)}
+        editing={insumoModal?.editing || null}
         categorias={ingCategorias}
-        onSave={async (nombre, unidad, categoria, minimo) => { await addIngrediente(nombre, unidad, categoria, minimo); setInsumoOpen(false); }}
+        onSave={handleSaveInsumo}
       />
 
       <ActivoModal
@@ -196,7 +228,7 @@ export default function ComprasPage({ onBack }) {
         onSave={saveActivo}
       />
 
-      <FabButton onClick={() => setInsumoOpen(true)}>
+      <FabButton onClick={() => setInsumoModal({ editing: null })}>
         <Icon name="plus" size={16} /> Agregar ingrediente
       </FabButton>
     </motion.div>

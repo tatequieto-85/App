@@ -106,6 +106,18 @@ export async function pruneOldCompras(compras, nombre, keep = MAX_COMPRAS_POR_IN
   }
 }
 
+// Al corregir el nombre de un insumo en el catálogo (ver InsumoModal.jsx,
+// "Editar insumo"), las compras ya registradas con el nombre viejo quedan
+// huérfanas — normalizeIngName ya no las matchea contra el ingrediente
+// renombrado, y "Última compra"/"Precio unitario" se verían vacíos pese a
+// tener historial. Esto las actualiza en bloque al nombre nuevo.
+export async function renameIngredienteEnCompras(compras, nombreViejo, nombreNuevo) {
+  const afectadas = comprasForIngrediente(compras, nombreViejo);
+  for (const c of afectadas) {
+    await updateCompra({ ...c, ingrediente: nombreNuevo });
+  }
+}
+
 // Exportada: también la usa Procesos para el precio estimado de un lote a
 // partir de la receta (ver computeCostoReceta en recetasApi.js).
 export function getUnitPrice(compras, nombre) {

@@ -12,7 +12,7 @@ import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 // que un insumo de materia prima (envases, etiquetas, tapas) use la misma
 // tabla de Insumos en vez de una sección aparte (ver migrateMateriaPrima()
 // en ingredientesApi.js para lo que ya estaba guardado ahí).
-export default function InsumoModal({ open, onClose, onSave, initialNombre = '', categorias = [] }) {
+export default function InsumoModal({ open, onClose, onSave, initialNombre = '', categorias = [], editing = null }) {
   const [nombre, setNombre] = useState('');
   const [unidad, setUnidad] = useState('');
   const [categoria, setCategoria] = useState('');
@@ -21,8 +21,16 @@ export default function InsumoModal({ open, onClose, onSave, initialNombre = '',
   const [feedback, showFeedback] = useFeedback();
 
   useEffect(() => {
-    if (open) { setNombre(initialNombre); setUnidad(''); setCategoria(''); setMinimo(''); }
-  }, [open, initialNombre]);
+    if (!open) return;
+    if (editing) {
+      setNombre(editing.nombre || '');
+      setUnidad(editing.unidad || '');
+      setCategoria(editing.categoria || '');
+      setMinimo(editing.minimo != null ? String(editing.minimo) : '');
+    } else {
+      setNombre(initialNombre); setUnidad(''); setCategoria(''); setMinimo('');
+    }
+  }, [open, initialNombre, editing]);
 
   const close = useDirtyGuard(() => !!(nombre.trim() || unidad.trim() || categoria.trim() || minimo), onClose);
 
@@ -44,7 +52,7 @@ export default function InsumoModal({ open, onClose, onSave, initialNombre = '',
   }
 
   return (
-    <Modal open={open} onClose={close} title="Nuevo insumo">
+    <Modal open={open} onClose={close} showBack={!!editing} title={editing ? 'Editar insumo' : 'Nuevo insumo'}>
       <form onSubmit={handleSubmit}>
         <TextField label="Nombre" value={nombre} onChange={e => setNombre(e.target.value)} disabled={busy} />
         <TextField label="Unidad" placeholder="g, kg, L, unidades…" value={unidad} onChange={e => setUnidad(e.target.value)} disabled={busy} />
@@ -59,7 +67,7 @@ export default function InsumoModal({ open, onClose, onSave, initialNombre = '',
         <TextField label="Mínimo (opcional)" type="number" step="any" placeholder="Avisa cuando baje de acá" value={minimo} onChange={e => setMinimo(e.target.value)} disabled={busy} />
 
         <Button type="submit" variant="primary" disabled={busy}>
-          {busy ? 'Guardando…' : 'Guardar insumo'}
+          {busy ? 'Guardando…' : editing ? 'Guardar cambios' : 'Guardar insumo'}
         </Button>
         <Feedback message={feedback.message} type={feedback.type} />
       </form>

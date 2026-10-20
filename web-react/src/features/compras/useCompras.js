@@ -95,5 +95,5 @@ export function useCompras(ingredientes, reloadIngredientes) {
     await reloadIngredientes?.();
   }, [reload, compras, ingredientes, reloadIngredientes]);
 
-  return { compras, rows, loading, error, historialFor, saveCompra, removeCompra };
+  return { compras, rows, loading, error, historialFor, saveCompra, removeCompra, reload };
 }

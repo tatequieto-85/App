@@ -5,6 +5,7 @@
 import { sheetsReq } from './googleAuth';
 import { hexToRgba } from '../utils/format';
 import { getUnitPrice } from './comprasApi';
+import { normalizeIngName } from './ingredientesApi';
 
 function safeParseJSON(val, fallback) {
   if (!val) return fallback;
@@ -112,6 +113,24 @@ export async function updateReceta(rec) {
       JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || '', rec.nivelPicante || '', rec.unidadesPorLote || 0
     ]] })
   });
+}
+
+// Mismo motivo que renameIngredienteEnCompras (comprasApi.js): si una
+// receta ya tenía este ingrediente cargado con el nombre viejo, su
+// ingredientesMaestros queda huérfano del catálogo apenas se corrige el
+// nombre ahí (deja de matchear por normalizeIngName, y esa fila cae al
+// grupo "por peso" por defecto sin avisar, además de perder el precio) —
+// esto lo actualiza en bloque en las recetas que lo usan.
+export async function renameIngredienteEnRecetas(recetas, nombreViejo, nombreNuevo) {
+  const key = normalizeIngName(nombreViejo);
+  for (const r of recetas) {
+    const maestros = r.ingredientesMaestros || [];
+    if (!maestros.some(im => normalizeIngName(im.nombre) === key)) continue;
+    const actualizados = maestros.map(im =>
+      normalizeIngName(im.nombre) === key ? { ...im, nombre: nombreNuevo } : im
+    );
+    await updateReceta({ ...r, ingredientesMaestros: actualizados });
+  }
 }
 
 export async function deleteRecetaRow(rowIndex) {

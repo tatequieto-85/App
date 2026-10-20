@@ -48,6 +48,26 @@ export function useIngredientes() {
     await reload();
   }, [reload]);
 
+  // Corrige el nombre/unidad/categoría/mínimo de un insumo ya existente —
+  // a pedido explícito del usuario, para arreglar un nombre mal tipeado
+  // sin tener que borrar y recrear el ingrediente (lo que perdería el
+  // stock corriente y el historial de compras). Devuelve el nombre final
+  // guardado para que quien llama decida si hace falta la migración en
+  // cascada de Compras/Recetas (ver ComprasPage.jsx).
+  const updateIngredienteInfo = useCallback(async (ing, { nombre, unidad, categoria, minimo }) => {
+    const trimmed = nombre.trim();
+    if (!trimmed) throw new Error('Indicá el nombre.');
+    if (!unidad.trim()) throw new Error('Indicá la unidad de medida.');
+    const dup = findDuplicate(trimmed);
+    if (dup && dup.rowIndex !== ing.rowIndex) throw new Error(`Ya existe "${dup.nombre}" (similar a "${trimmed}").`);
+    await api.updateIngrediente({
+      ...ing, nombre: trimmed, unidad: unidad.trim(), categoria: (categoria || '').trim(),
+      minimo: minimo === '' || minimo == null ? null : +minimo
+    });
+    await reload();
+    return trimmed;
+  }, [findDuplicate, reload]);
+
   const removeIngrediente = useCallback(async rowIndex => {
     await api.deleteIngredienteRow(rowIndex);
     await reload();
@@ -67,6 +87,6 @@ export function useIngredientes() {
 
   return {
     ingredientes, loading, error, reload,
-    findDuplicate, addIngrediente, updateUnidad, removeIngrediente, tryAddIngrediente
+    findDuplicate, addIngrediente, updateUnidad, updateIngredienteInfo, removeIngrediente, tryAddIngrediente
   };
 }

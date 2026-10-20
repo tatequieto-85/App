@@ -9,7 +9,7 @@ import './CompraRow.css';
 // Mantener presionado abre la barra de acciones (Editar/Eliminar) al pie de
 // la fila; un toque registra una compra nueva de este ingrediente. Ver
 // ../../hooks/useRowGestures.js para el detector del gesto.
-export default function CompraRow({ row, actionsOpen, onOpenActionsChange, onEdit, onRegister, onDelete }) {
+export default function CompraRow({ row, actionsOpen, onOpenActionsChange, onEdit, onEditInsumo, onRegister, onDelete }) {
   const { ingrediente: ing, last, unitPrice } = row;
   const [deleting, setDeleting] = useState(false);
   const bajoMinimo = ing.minimo != null && ing.stock < ing.minimo;
@@ -50,8 +50,11 @@ export default function CompraRow({ row, actionsOpen, onOpenActionsChange, onEdi
           >
             <td colSpan={3}>
               <div className="row-actions-bar">
+                <button type="button" onClick={() => onEditInsumo(ing)}>
+                  <Icon name="edit" size={13} /> Editar insumo
+                </button>
                 <button type="button" disabled={!last} onClick={() => onEdit(row)}>
-                  <Icon name="edit" size={13} /> Editar
+                  <Icon name="edit" size={13} /> Editar compra
                 </button>
                 <button type="button" className="danger" disabled={!last || deleting} onClick={handleDelete}>
                   <Icon name="trash" size={13} /> Eliminar
