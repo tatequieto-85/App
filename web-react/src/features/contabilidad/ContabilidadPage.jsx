@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import Button from '../../components/ui/Button';
 import EmptyState from '../../components/ui/EmptyState';
 import FabButton from '../../components/ui/FabButton';
 import Icon from '../../components/icons/Icon';
@@ -8,7 +9,7 @@ import Tabs from '../../components/ui/Tabs';
 import { useContabilidad } from './useContabilidad';
 import CajaCard from './CajaCard';
 import CajaModal from './CajaModal';
-import CajaDetailModal from './CajaDetailModal';
+import MovimientoModal from './MovimientoModal';
 import MovimientoRow from './MovimientoRow';
 import { fmtCOP } from '../../utils/format';
 import './ContabilidadPage.css';
@@ -21,14 +22,19 @@ const TABS = [
 // Dos vistas tipo tarjeta, a pedido explícito del usuario: "Cajas" (estado
 // ingreso/egreso de cada una, creadas a mano) y "Resumen de ventas por
 // canal" (solo lectura, lee Ferias/CanalesVenta — ver useContabilidad.js).
+// Las cajas ya no abren un detalle propio al tocarlas (se sacó esa ventana
+// a pedido del usuario) — crear una es una acción secundaria (botón chico
+// junto al título), y la acción principal (el FAB) pasa a ser cargar un
+// movimiento nuevo, que ahora puede ser ingreso, egreso o transferencia
+// entre cajas (ver MovimientoModal.jsx). Todo lo que pasó se ve junto en
+// el resumen de movimientos de abajo.
 export default function ContabilidadPage({ onBack }) {
   const ct = useContabilidad();
   const [tab, setTab] = useState('cajas');
   const [cajaModal, setCajaModal] = useState(null); // { editing } | null
   const [cajaActionsFor, setCajaActionsFor] = useState(null);
-  const [detailCajaId, setDetailCajaId] = useState(null);
+  const [movimientoModalOpen, setMovimientoModalOpen] = useState(false);
 
-  const detailCaja = detailCajaId ? ct.cajas.find(c => c.id === detailCajaId) : null;
   const nombreCaja = cajaId => ct.cajas.find(c => c.id === cajaId)?.nombre || 'Caja borrada';
 
   // Todos los movimientos de todas las cajas juntos, más reciente primero
@@ -53,10 +59,17 @@ export default function ContabilidadPage({ onBack }) {
       {ct.error && <EmptyState>No se pudo cargar: {ct.error}</EmptyState>}
 
       {!ct.loading && !ct.error && tab === 'cajas' && (
-        !ct.cajas.length ? (
-          <EmptyState>Agregá tu primera caja con el botón de abajo.</EmptyState>
-        ) : (
-          <>
+        <>
+          <div className="cajas-section-head">
+            <h2 className="subsection-title">Cajas</h2>
+            <Button type="button" variant="outline" onClick={() => setCajaModal({ editing: null })}>
+              <Icon name="plus" size={13} /> Nueva caja
+            </Button>
+          </div>
+
+          {!ct.cajas.length ? (
+            <EmptyState>Agregá tu primera caja con el botón de arriba.</EmptyState>
+          ) : (
             <div className="cajas-list">
               {ct.cajas.map(caja => (
                 <CajaCard
@@ -65,32 +78,31 @@ export default function ContabilidadPage({ onBack }) {
                   saldo={ct.saldoCaja(caja.id)}
                   actionsOpen={cajaActionsFor === caja.id}
                   onOpenActionsChange={setCajaActionsFor}
-                  onAbrir={setDetailCajaId}
                   onEdit={c => setCajaModal({ editing: c })}
                   onDelete={ct.deleteCaja}
                 />
               ))}
             </div>
+          )}
 
-            <div className="movimientos-resumen-section">
-              <h2 className="subsection-title">Resumen de movimientos</h2>
-              {!movimientosOrdenados.length ? (
-                <EmptyState>Todavía no hay movimientos.</EmptyState>
-              ) : (
-                <div className="movimientos-resumen-lista">
-                  {movimientosOrdenados.map(m => (
-                    <MovimientoRow
-                      key={m.id}
-                      item={m}
-                      cajaNombre={nombreCaja(m.cajaId)}
-                      onDelete={() => ct.removeMovimiento(m.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )
+          <div className="movimientos-resumen-section">
+            <h2 className="subsection-title">Resumen de movimientos</h2>
+            {!movimientosOrdenados.length ? (
+              <EmptyState>Todavía no hay movimientos.</EmptyState>
+            ) : (
+              <div className="movimientos-resumen-lista">
+                {movimientosOrdenados.map(m => (
+                  <MovimientoRow
+                    key={m.id}
+                    item={m}
+                    cajaNombre={nombreCaja(m.cajaId)}
+                    onDelete={() => ct.removeMovimiento(m.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {!ct.loading && !ct.error && tab === 'resumen' && (
@@ -111,9 +123,9 @@ export default function ContabilidadPage({ onBack }) {
         )
       )}
 
-      {tab === 'cajas' && (
-        <FabButton onClick={() => setCajaModal({ editing: null })}>
-          <Icon name="plus" size={16} /> Nueva caja
+      {tab === 'cajas' && !!ct.cajas.length && (
+        <FabButton onClick={() => setMovimientoModalOpen(true)}>
+          <Icon name="plus" size={16} /> Nuevo movimiento
         </FabButton>
       )}
 
@@ -124,14 +136,12 @@ export default function ContabilidadPage({ onBack }) {
         onSave={ct.saveCaja}
       />
 
-      <CajaDetailModal
-        open={!!detailCaja}
-        onClose={() => setDetailCajaId(null)}
-        caja={detailCaja}
-        movimientos={ct.movimientos}
-        saldo={detailCaja ? ct.saldoCaja(detailCaja.id) : 0}
-        onAddMovimiento={ct.addMovimiento}
-        onRemoveMovimiento={ct.removeMovimiento}
+      <MovimientoModal
+        open={movimientoModalOpen}
+        onClose={() => setMovimientoModalOpen(false)}
+        cajas={ct.cajas}
+        onSaveMovimiento={ct.addMovimiento}
+        onSaveTransferencia={ct.addTransferencia}
       />
     </motion.div>
   );

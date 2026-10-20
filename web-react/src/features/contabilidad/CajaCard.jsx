@@ -11,12 +11,14 @@ const FUENTE_LABEL = { compras: 'Automático — Compras' };
 
 // Tarjeta de una caja — "allí me va a mostrar el estado de mis cajas
 // Ingreso/Egreso" (pedido explícito del usuario): saldo grande, verde si es
-// positivo y rojo si quedó en rojo. Un toque entra al detalle (movimientos);
-// mantener presionado revela Editar/Eliminar, mismo patrón que el resto.
-export default function CajaCard({ caja, saldo, actionsOpen, onOpenActionsChange, onAbrir, onEdit, onDelete }) {
+// positivo y rojo si quedó en rojo. Ya no abre un detalle propio al
+// tocarla (se sacó esa ventana a pedido del usuario — los movimientos se
+// ven todos juntos en el resumen de abajo, ver ContabilidadPage.jsx);
+// mantener presionada sigue revelando Editar/Eliminar, mismo patrón que
+// el resto de la app.
+export default function CajaCard({ caja, saldo, actionsOpen, onOpenActionsChange, onEdit, onDelete }) {
   const [busy, setBusy] = useState(false);
   const gestureProps = useRowGestures({
-    onTap: () => onAbrir(caja.id),
     onLongPress: () => onOpenActionsChange(caja.id)
   });
 

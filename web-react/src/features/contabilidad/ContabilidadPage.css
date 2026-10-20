@@ -1,4 +1,7 @@
-.cajas-list { margin-top: 14px; }
+.cajas-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.cajas-section-head .btn--outline { width: auto; padding: 6px 12px; display: flex; align-items: center; gap: 5px; }
+
+.cajas-list { margin-top: 12px; }
 
 /* Línea muy sutil entre las cajas y el resumen de movimientos, mismo
    criterio que las secciones de Inventario. */

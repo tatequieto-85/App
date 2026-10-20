@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import TextField from '../../components/ui/TextField';
+import Select from '../../components/ui/Select';
 import ThousandsField from '../../components/ui/ThousandsField';
 import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
@@ -9,13 +10,18 @@ import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 import { toISODate, parseThousandsInput } from '../../utils/format';
 import './MovimientoModal.css';
 
-// Movimiento manual de una caja (los automáticos los genera Ventas/Compras
-// solos, ver contabilidadApi.js) — ingreso o egreso, monto, concepto y
-// fecha. Tipo como cápsulas, no desplegable: son solo dos opciones, se
-// eligen de un vistazo (mismo criterio que el selector de descuento que
-// pidió el usuario en Ventas).
-export default function MovimientoModal({ open, onClose, caja, onSave }) {
+// Movimiento manual — ya no está atado a una caja puntual (antes se abría
+// desde adentro de una, ver CajaDetailModal, que se sacó a pedido del
+// usuario): acá se elige de cuál/es cajas, entre las que ya existan.
+// Ingreso/Egreso van a una sola caja; Transferencia mueve plata de una
+// caja propia a otra (genera un egreso en origen + un ingreso en destino,
+// ver addTransferencia en useContabilidad.js) — tercer tipo que pidió el
+// usuario explícitamente. Tipo como cápsulas, no desplegable: pocas
+// opciones, se eligen de un vistazo.
+export default function MovimientoModal({ open, onClose, cajas, onSaveMovimiento, onSaveTransferencia }) {
   const [tipo, setTipo] = useState('ingreso');
+  const [cajaId, setCajaId] = useState('');
+  const [cajaDestinoId, setCajaDestinoId] = useState('');
   const [monto, setMonto] = useState('');
   const [concepto, setConcepto] = useState('');
   const [fecha, setFecha] = useState('');
@@ -25,25 +31,35 @@ export default function MovimientoModal({ open, onClose, caja, onSave }) {
   useEffect(() => {
     if (!open) return;
     setTipo('ingreso');
+    setCajaId(cajas?.[0]?.id || '');
+    setCajaDestinoId(cajas?.[1]?.id || cajas?.[0]?.id || '');
     setMonto('');
     setConcepto('');
     setFecha(toISODate(new Date()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const isDirty = () => !!monto || !!concepto.trim();
   const close = useDirtyGuard(isDirty, onClose);
 
-  if (!caja) return null;
+  if (!(cajas || []).length) return null;
 
   async function handleSubmit(e) {
     e.preventDefault();
     const montoNum = parseThousandsInput(monto);
     if (!montoNum || montoNum <= 0) return showFeedback('El monto debe ser mayor a 0.', 'err');
     if (!fecha) return showFeedback('Indicá la fecha.', 'err');
+    if (tipo === 'transferencia' && cajaId === cajaDestinoId) {
+      return showFeedback('Elegí dos cajas distintas para la transferencia.', 'err');
+    }
 
     setBusy(true);
     try {
-      await onSave(caja.id, { tipo, monto: montoNum, concepto: concepto.trim(), fecha });
+      if (tipo === 'transferencia') {
+        await onSaveTransferencia(cajaId, cajaDestinoId, montoNum, concepto.trim(), fecha);
+      } else {
+        await onSaveMovimiento(cajaId, { tipo, monto: montoNum, concepto: concepto.trim(), fecha });
+      }
       onClose();
     } catch (err) {
       showFeedback('Error: ' + err.message, 'err');
@@ -52,8 +68,10 @@ export default function MovimientoModal({ open, onClose, caja, onSave }) {
     }
   }
 
+  const opcionesCaja = cajas.map(c => ({ value: c.id, label: c.nombre }));
+
   return (
-    <Modal open={open} onClose={close} showBack title={`Movimiento — ${caja.nombre}`}>
+    <Modal open={open} onClose={close} showBack title="Nuevo movimiento">
       <form onSubmit={handleSubmit}>
         <div className="field">
           <label className="field-label">Tipo</label>
@@ -72,14 +90,34 @@ export default function MovimientoModal({ open, onClose, caja, onSave }) {
             >
               Egreso
             </button>
+            <button
+              type="button" disabled={busy || cajas.length < 2}
+              className={`movimiento-tipo-pill${tipo === 'transferencia' ? ' is-selected is-transferencia' : ''}`}
+              onClick={() => setTipo('transferencia')}
+            >
+              Transferencia
+            </button>
           </div>
         </div>
+
+        {tipo === 'transferencia' ? (
+          <div className="field-row">
+            <Select label="Desde" value={cajaId} onChange={e => setCajaId(e.target.value)} disabled={busy} options={opcionesCaja} />
+            <Select label="Hacia" value={cajaDestinoId} onChange={e => setCajaDestinoId(e.target.value)} disabled={busy} options={opcionesCaja} />
+          </div>
+        ) : (
+          <Select label="Caja" value={cajaId} onChange={e => setCajaId(e.target.value)} disabled={busy} options={opcionesCaja} />
+        )}
 
         <div className="field-row">
           <ThousandsField label="Monto" placeholder="0" value={monto} onChange={setMonto} disabled={busy} />
           <TextField label="Fecha" type="date" value={fecha} onChange={e => setFecha(e.target.value)} disabled={busy} />
         </div>
-        <TextField label="Concepto" placeholder="Ej: Pago de arriendo" value={concepto} onChange={e => setConcepto(e.target.value)} disabled={busy} />
+        <TextField
+          label={`Concepto${tipo === 'transferencia' ? ' (opcional)' : ''}`}
+          placeholder={tipo === 'transferencia' ? 'Se arma solo si lo dejás vacío' : 'Ej: Pago de arriendo'}
+          value={concepto} onChange={e => setConcepto(e.target.value)} disabled={busy}
+        />
 
         <Button type="submit" variant="primary" disabled={busy}>
           {busy ? 'Guardando…' : 'Guardar movimiento'}
