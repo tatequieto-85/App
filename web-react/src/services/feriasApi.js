@@ -112,11 +112,13 @@ export async function ensureFeriasSheet() {
         body: JSON.stringify({ values: [['VentaTotalRecibido']] })
       });
     }
-    // VentasDiarias: [{fecha, total}] — cuánto se recibió CADA DÍA de la
-    // feria, a pedido explícito del usuario ("quiero que registrar las
-    // ventas se hagan al día cuando cierre la feria"). Las unidades por
-    // lote (feria.ventas) también quedan fechadas por día desde que se
-    // carga esto, ver FeriaCierreModal.jsx.
+    // VentasDiarias: [{fecha, porCaja: {cajaId: monto}}] — cuánto se
+    // recibió CADA DÍA de la feria, repartido por caja (efectivo, Nequi,
+    // etc. — dos pedidos explícitos del usuario: "quiero que registrar las
+    // ventas se hagan al día cuando cierre la feria" y después "indicar
+    // cuánto recibió en efectivo y cuánto en las otras cajas"). Las
+    // unidades por lote (feria.ventas) también quedan fechadas por día
+    // desde que se carga esto, ver FeriaCierreModal.jsx.
     if (headerRow.length < 30) {
       await sheetsReq('/values/Ferias!AD1?valueInputOption=RAW', {
         method: 'PUT',
@@ -240,6 +242,12 @@ export function feriaTotalMuestras(f) {
   return (f.muestras || []).reduce((sum, m) => sum + (m.cantidad || 0), 0);
 }
 
+// Cuánto se recibió un día puntual, sumado entre todas las cajas en las
+// que se cobró ese día (efectivo, Nequi, etc. — ver FeriaCierreModal.jsx).
+export function ventaDiariaTotal(vd) {
+  return Object.values(vd?.porCaja || {}).reduce((s, m) => s + (m || 0), 0);
+}
+
 // Plata real vendida en una feria — se carga por día al terminarla (ver
 // FeriaCierreModal.jsx), no venta por venta: el usuario rechazó
 // explícitamente registrar cada venta por separado durante el evento.
@@ -247,7 +255,7 @@ export function feriaTotalMuestras(f) {
 // se escribe en paralelo solo para no tener que recalcular en cada lectura)
 // para que nunca queden desincronizados.
 export function feriaTotalVendidoDinero(f) {
-  return (f.ventasDiarias || []).reduce((sum, v) => sum + (v.total || 0), 0);
+  return (f.ventasDiarias || []).reduce((sum, v) => sum + ventaDiariaTotal(v), 0);
 }
 
 // Promedio de precio por unidad de TateQuieto vendida en la feria — nunca
@@ -438,7 +446,7 @@ export function feriaToText(f, ejecuciones, fmtCOP, fmtDate, contactoNombre) {
       ventasDia.forEach(v => lines.push(`  - ${v.recetaNombre}${v.loteId ? ` — Lote ${v.loteId}` : ''}: ${v.cantidad}`));
     }
     const recibidoDia = (f.ventasDiarias || []).find(vd => vd.fecha === fecha);
-    if (recibidoDia) lines.push(`Recibido ese día: ${fmtCOP(recibidoDia.total)}`);
+    if (recibidoDia) lines.push(`Recibido ese día: ${fmtCOP(ventaDiariaTotal(recibidoDia))}`);
     const obsDia = (f.observacionesDiarias || []).filter(o => o.fecha === fecha);
     if (obsDia.length) {
       lines.push('Observaciones del día:');

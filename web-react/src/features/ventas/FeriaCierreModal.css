@@ -3,3 +3,8 @@
   margin-top: 18px; padding-top: 14px;
 }
 .cierre-dia-section .feria-section-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+
+/* Un monto por caja (efectivo, Nequi, etc.) — en fila si entran, si no
+   pasan a la siguiente línea (puede haber más de dos cajas). */
+.cierre-cajas-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.cierre-cajas-row .field { flex: 1 1 120px; min-width: 120px; }

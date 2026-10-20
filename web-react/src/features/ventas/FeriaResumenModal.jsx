@@ -4,7 +4,7 @@ import Button from '../../components/ui/Button';
 import Icon from '../../components/icons/Icon';
 import { useRowGestures } from '../../hooks/useRowGestures';
 import { useCloseOnOutsideClick } from '../../hooks/useCloseOnOutsideClick';
-import { feriaToText, feriaTotalVendidoDinero, feriaPromedioUnidad } from '../../services/feriasApi';
+import { feriaToText, feriaTotalVendidoDinero, feriaPromedioUnidad, ventaDiariaTotal } from '../../services/feriasApi';
 import { fmtCOP, fmtDateShortEs, fmtDayMonthSlash } from '../../utils/format';
 import './FeriaResumenModal.css';
 
@@ -112,9 +112,10 @@ function downloadFeriaTxt(feria, ejecuciones, contactoNombre) {
   URL.revokeObjectURL(url);
 }
 
-export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, contactos, onRemoveSalida }) {
+export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, contactos, cajas, onRemoveSalida }) {
   if (!feria) return null;
   const contactoNombre = contactos?.find(c => c.id === feria.contactoId)?.nombre || '';
+  const nombreCaja = cajaId => cajas?.find(c => c.id === cajaId)?.nombre || 'Caja borrada';
 
   return (
     <Modal open={open} onClose={onClose} showBack title={feria.empresa}>
@@ -134,7 +135,15 @@ export default function FeriaResumenModal({ open, onClose, feria, ejecuciones, c
             <thead><tr><th>Día</th><th>Recibido</th></tr></thead>
             <tbody>
               {feria.ventasDiarias.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).map(vd => (
-                <tr key={vd.fecha}><td>{fmtDateShortEs(vd.fecha)}</td><td>{fmtCOP(vd.total)}</td></tr>
+                <tr key={vd.fecha}>
+                  <td>{fmtDateShortEs(vd.fecha)}</td>
+                  <td>
+                    {fmtCOP(ventaDiariaTotal(vd))}
+                    <div className="feria-resumen-promedio">
+                      {Object.entries(vd.porCaja || {}).map(([cajaId, monto]) => `${nombreCaja(cajaId)}: ${fmtCOP(monto)}`).join(' · ')}
+                    </div>
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>

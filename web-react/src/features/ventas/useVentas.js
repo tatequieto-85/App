@@ -33,6 +33,10 @@ export function useVentas() {
   const [ejecuciones, setEjecuciones] = useState([]);
   const [stockTestigos, setStockTestigos] = useState([]);
   const [stockMovimientos, setStockMovimientos] = useState([]);
+  // Cajas de Contabilidad (efectivo, Nequi, etc.) — Ventas las necesita
+  // para repartir el ingreso de cada venta entre ellas al cerrar una feria
+  // (ver cerrarFeria más abajo y FeriaCierreModal.jsx).
+  const [cajas, setCajas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -49,11 +53,11 @@ export function useVentas() {
         setLoading(true);
         await Promise.all([
           canalesApi.ensureCanalesVentaSheet(), feriasApi.ensureFeriasSheet(),
-          stockApi.ensureStockSheets()
+          stockApi.ensureStockSheets(), contabilidadApi.ensureContabilidadSheets()
         ]);
-        const [c, f, ej, testigos, movimientos] = await Promise.all([
+        const [c, f, ej, testigos, movimientos, cajasList] = await Promise.all([
           canalesApi.fetchCanales(), feriasApi.fetchFerias(), fetchEjecuciones(),
-          stockApi.fetchStockTestigos(), stockApi.fetchStockMovimientos()
+          stockApi.fetchStockTestigos(), stockApi.fetchStockMovimientos(), contabilidadApi.fetchCajas()
         ]);
         if (cancelled) return;
         // Los canales ya no los crea el usuario (ver CANALES_POR_DEFECTO) —
@@ -92,6 +96,7 @@ export function useVentas() {
         setEjecuciones(ej);
         setStockTestigos(testigos);
         setStockMovimientos(movimientos);
+        setCajas(cajasList);
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -193,18 +198,20 @@ export function useVentas() {
   // Cierre de una feria — reemplaza el registro venta-por-venta durante el
   // evento (rechazado explícitamente por el usuario: "no quiero registrar
   // las ventas una a una"). Todo se carga junto al terminar, pero por DÍA
-  // (a pedido explícito del usuario: "quiero que registrar las ventas se
-  // hagan al día cuando cierre la feria") — ver FeriaCierreModal.jsx.
-  // ventasPorDia: { fecha: { cantidades: {ejecucionId: cantidad}, total } }.
-  // El promedio por unidad nunca se guarda, sale de dividir el total
-  // acumulado entre las unidades vendidas (ver feriaPromedioUnidad en
-  // feriasApi.js).
+  // ("quiero que registrar las ventas se hagan al día cuando cierre la
+  // feria") y repartido por CAJA — efectivo, Nequi, etc. ("indicar cuánto
+  // recibió en efectivo y cuánto en las otras cajas") — ver
+  // FeriaCierreModal.jsx. ventasPorDia: { fecha: { cantidades:
+  // {ejecucionId: cantidad}, porCaja: {cajaId: monto} } }. El promedio por
+  // unidad nunca se guarda, sale de dividir el total acumulado entre las
+  // unidades vendidas (ver feriaPromedioUnidad en feriasApi.js).
   const cerrarFeria = useCallback(async (feriaId, ventasPorDia) => {
     const f = ferias.find(x => x.id === feriaId);
     if (!f) return;
     const ventas = [];
     const ventasDiarias = [];
-    Object.entries(ventasPorDia).forEach(([fecha, { cantidades, total }]) => {
+    const porCajaTotal = {};
+    Object.entries(ventasPorDia).forEach(([fecha, { cantidades, porCaja }]) => {
       Object.entries(cantidades || {}).forEach(([ejecucionId, cantidad]) => {
         if (!cantidad || cantidad <= 0) return;
         const ej = ejecuciones.find(x => x.id === ejecucionId);
@@ -213,20 +220,24 @@ export function useVentas() {
           recetaNombre: ej?.nombreReceta || '', cantidad, createdAt: new Date().toISOString()
         });
       });
-      if (total > 0) ventasDiarias.push({ fecha, total });
+      const porCajaDia = {};
+      Object.entries(porCaja || {}).forEach(([cajaId, monto]) => {
+        if (!monto || monto <= 0) return;
+        porCajaDia[cajaId] = monto;
+        porCajaTotal[cajaId] = (porCajaTotal[cajaId] || 0) + monto;
+      });
+      if (Object.keys(porCajaDia).length) ventasDiarias.push({ fecha, porCaja: porCajaDia });
     });
-    const totalRecibido = ventasDiarias.reduce((s, v) => s + v.total, 0);
+    const totalRecibido = Object.values(porCajaTotal).reduce((s, m) => s + m, 0);
     await feriasApi.updateFeria({ ...f, ventas, ventasDiarias, ventaTotalRecibido: totalRecibido, cerrada: true });
-    // Ingreso automático en Contabilidad, si hay una caja configurada para
-    // eso (ver contabilidadApi.js) — se borra el anterior primero (por si
-    // se reabre y se vuelve a cerrar con otros totales) para no duplicar.
-    // Un solo movimiento con el total de toda la feria, no uno por día —
-    // alcanza para la caja, y el detalle por día ya vive en la feria misma.
+    // Un ingreso por caja en Contabilidad con lo que le tocó a cada una en
+    // TODA la feria (no uno por día — alcanza, y el detalle por día ya
+    // vive en la feria misma) — se borran los anteriores primero (por si
+    // se reabre y se vuelve a cerrar con otro reparto) para no duplicar.
     try {
-      await contabilidadApi.removeMovimientoAuto(feriaId);
-      await contabilidadApi.registrarMovimientoAuto('ventas', {
-        tipo: 'ingreso', monto: totalRecibido, concepto: `Venta: ${f.empresa}`,
-        fecha: feriasApi.getFeriaDefaultDay(f), origenRefId: feriaId
+      await contabilidadApi.removeMovimientosVenta(feriaId);
+      await contabilidadApi.registrarMovimientosVenta(feriaId, porCajaTotal, {
+        concepto: `Venta: ${f.empresa}`, fecha: feriasApi.getFeriaDefaultDay(f)
       });
     } catch { /* Contabilidad es opcional — no bloquea el cierre de la feria */ }
     await reloadFerias();
@@ -323,7 +334,7 @@ export function useVentas() {
   }, [ferias, reloadFerias]);
 
   return {
-    canales, ferias, ejecuciones, stockTestigos, stockMovimientos, ctx, loading, error,
+    canales, ferias, ejecuciones, stockTestigos, stockMovimientos, cajas, ctx, loading, error,
     resumenVentasPorDia,
     saveCanal, deleteCanal, reorderCanales,
     saveFeria, deleteFeria, reabrirFeria, cerrarFeria, cambiarEstadoFeria,

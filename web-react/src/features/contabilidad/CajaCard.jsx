@@ -4,7 +4,10 @@ import { useRowGestures } from '../../hooks/useRowGestures';
 import { fmtCOP } from '../../utils/format';
 import './CajaCard.css';
 
-const FUENTE_LABEL = { ventas: 'Automático — Ventas', compras: 'Automático — Compras' };
+// "ventas" ya no es una fuente automática (ver FUENTE_AUTOMATICA_OPCIONES
+// en contabilidadApi.js) — el ingreso de cada venta se reparte directo
+// entre las cajas al cerrar la feria, no hace falta elegir una caja fija.
+const FUENTE_LABEL = { compras: 'Automático — Compras' };
 
 // Tarjeta de una caja — "allí me va a mostrar el estado de mis cajas
 // Ingreso/Egreso" (pedido explícito del usuario): saldo grande, verde si es

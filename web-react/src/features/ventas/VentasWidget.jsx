@@ -63,6 +63,7 @@ export default function VentasWidget({ removing, onRequestRemove, onConfirmRemov
             onClose={() => setOpenView(null)}
             feria={proxima}
             ejecuciones={vt.ejecuciones}
+            cajas={vt.cajas}
             onRegistrarSalida={vt.registrarSalida}
             onCerrarFeria={vt.cerrarFeria}
             onAddObservacionDiaria={vt.addObservacionDiaria}
@@ -83,6 +84,7 @@ export default function VentasWidget({ removing, onRequestRemove, onConfirmRemov
             feria={proxima}
             ejecuciones={vt.ejecuciones}
             contactos={contactos}
+            cajas={vt.cajas}
           />
         </>
       )}

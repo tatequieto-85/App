@@ -228,6 +228,7 @@ export default function VentasPage({ onBack }) {
         onClose={closeOpenFeria}
         feria={openFeria}
         ejecuciones={vt.ejecuciones}
+        cajas={vt.cajas}
         onRegistrarSalida={vt.registrarSalida}
         onCerrarFeria={vt.cerrarFeria}
         onAddObservacionDiaria={vt.addObservacionDiaria}
@@ -241,6 +242,7 @@ export default function VentasPage({ onBack }) {
         feria={openFeria}
         ejecuciones={vt.ejecuciones}
         contactos={contactos}
+        cajas={vt.cajas}
         onRemoveSalida={vt.removeSalida}
       />
     </motion.div>

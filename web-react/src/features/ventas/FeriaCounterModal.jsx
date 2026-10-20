@@ -33,7 +33,7 @@ function clearDraft(feriaId) {
 // vuelca al total recién al cerrar (onCommitSession). Si la ventana se
 // cierra de cualquier otra forma sin pasar por ahí, el borrador en
 // localStorage se ofrece recuperar la próxima vez que se abra.
-export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, onRegistrarSalida, onCerrarFeria, onAddObservacionDiaria, onTerminar, onCommitSession }) {
+export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, cajas, onRegistrarSalida, onCerrarFeria, onAddObservacionDiaria, onTerminar, onCommitSession }) {
   const [session, setSession] = useState({ menores30: 0, entre30y55: 0, mayores55: 0 });
   const [salidaModal, setSalidaModal] = useState(null); // 'muestras' | null
   const [cierreOpen, setCierreOpen] = useState(false);
@@ -131,6 +131,7 @@ export default function FeriaCounterModal({ open, onClose, feria, ejecuciones, o
         onClose={() => setCierreOpen(false)}
         feria={feria}
         ejecuciones={ejecuciones}
+        cajas={cajas}
         onSave={handleCerrar}
       />
       <FeriaSalidaModal
