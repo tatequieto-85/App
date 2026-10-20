@@ -24,7 +24,7 @@ function nuevaFila() {
 // una receta sin eso configurado no se puede escalar, queda afuera de la
 // cuenta con un aviso. No guarda nada — es una calculadora de verdad.
 export default function CalculadoraPage() {
-  const { recetas, compras, loading, error } = useCalculadora();
+  const { recetas, compras, ingredientes, loading, error } = useCalculadora();
   const [filas, setFilas] = useState([nuevaFila()]);
 
   function addFila() {
@@ -69,14 +69,33 @@ export default function CalculadoraPage() {
       });
     });
 
+    // "Falta comprar" — a pedido explícito del usuario: de lo que necesitan
+    // las recetas elegidas, lo que ya hay en stock (ver columna "Stock" de
+    // Ingredientes/Inventario) no hace falta comprarlo. El precio unitario
+    // sale del mismo costo ya calculado (costo/cantidad) — ningún insumo
+    // sin precio registrado llega hasta acá (computeCostoRecetaEscalado ya
+    // lo deja afuera y lo manda a `incompletos`), así que no hace falta
+    // volver a resolverlo contra Compras.
+    let totalFaltante = 0;
+    const filasInsumos = [...porInsumo.values()].map(f => {
+      const ing = ingredientes.find(i => normalizeIngName(i.nombre) === normalizeIngName(f.nombre));
+      const stockActual = ing?.stock ?? 0;
+      const faltante = Math.max(0, f.cantidad - stockActual);
+      const unitPrice = f.cantidad ? f.costo / f.cantidad : 0;
+      const costoFaltante = faltante * unitPrice;
+      totalFaltante += costoFaltante;
+      return { ...f, stockActual, faltante, costoFaltante };
+    }).sort((a, b) => b.costo - a.costo);
+
     return {
-      filasInsumos: [...porInsumo.values()].sort((a, b) => b.costo - a.costo),
+      filasInsumos,
       incompletos: [...incompletos],
       sinConfigurar,
       totalGeneral,
+      totalFaltante,
       porFila
     };
-  }, [filas, recetas, compras]);
+  }, [filas, recetas, compras, ingredientes]);
 
   const recetaOpciones = recetas.map(r => ({
     value: r.id,
@@ -136,19 +155,25 @@ export default function CalculadoraPage() {
           {!!resultados.filasInsumos.length && (
             <div className="calculadora-resultado-section">
               <h2 className="subsection-title">Costo por insumo — {fmtCOP(resultados.totalGeneral)}</h2>
-              <table className="calculadora-table">
-                <thead><tr><th>Insumo</th><th>Cantidad</th><th>Costo</th><th>%</th></tr></thead>
-                <tbody>
-                  {resultados.filasInsumos.map(f => (
-                    <tr key={f.nombre}>
-                      <td>{f.nombre}</td>
-                      <td>{f.cantidad.toLocaleString('es-CO', { maximumFractionDigits: 2 })} {f.unidad}</td>
-                      <td>{fmtCOP(f.costo)}</td>
-                      <td>{resultados.totalGeneral ? ((f.costo / resultados.totalGeneral) * 100).toFixed(1) : '0.0'}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <p className="calculadora-falta-total">
+                Falta comprar (según stock actual): <strong>{fmtCOP(resultados.totalFaltante)}</strong>
+              </p>
+              <div className="calculadora-table-wrap">
+                <table className="calculadora-table">
+                  <thead><tr><th>Insumo</th><th>Cantidad</th><th>Costo</th><th>%</th><th>Falta comprar</th></tr></thead>
+                  <tbody>
+                    {resultados.filasInsumos.map(f => (
+                      <tr key={f.nombre}>
+                        <td>{f.nombre}</td>
+                        <td>{f.cantidad.toLocaleString('es-CO', { maximumFractionDigits: 2 })} {f.unidad}</td>
+                        <td>{fmtCOP(f.costo)}</td>
+                        <td>{resultados.totalGeneral ? ((f.costo / resultados.totalGeneral) * 100).toFixed(1) : '0.0'}%</td>
+                        <td>{f.faltante > 0 ? fmtCOP(f.costoFaltante) : '— ya hay stock'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               {!!resultados.incompletos.length && (
                 <div className="calculadora-aviso">
                   <Icon name="alertTriangle" size={13} />
