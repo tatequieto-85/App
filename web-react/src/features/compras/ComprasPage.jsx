@@ -16,6 +16,7 @@ import { normalizeIngName } from '../../services/ingredientesApi';
 import CompraRow from './CompraRow';
 import CompraModal from './CompraModal';
 import InsumoModal from './InsumoModal';
+import AjustarStockModal from './AjustarStockModal';
 import ActivoCard from './ActivoCard';
 import ActivoModal from './ActivoModal';
 import './CompraRow.css';
@@ -33,13 +34,14 @@ import './ComprasPage.css';
 // migrateMateriaPrima() en ingredientesApi.js para los datos que ya
 // hubiera en la hoja vieja).
 export default function ComprasPage({ onBack }) {
-  const { ingredientes, loading: loadingIng, addIngrediente, updateIngredienteInfo, reload: reloadIngredientes } = useIngredientes();
+  const { ingredientes, loading: loadingIng, addIngrediente, updateIngredienteInfo, ajustarStock, reload: reloadIngredientes } = useIngredientes();
   const { compras, rows, loading: loadingCompras, error, saveCompra, removeCompra, reload: reloadCompras } = useCompras(ingredientes, reloadIngredientes);
   const { activos, loading: loadingInv, error: errorInv, saveActivo, deleteActivo } = useInventarioExtra();
 
   const [openActionsFor, setOpenActionsFor] = useState(null);
   const [compraModal, setCompraModal] = useState(null); // { ingrediente, editRecord } | null
   const [insumoModal, setInsumoModal] = useState(null); // { editing } | null
+  const [ajusteStockFor, setAjusteStockFor] = useState(null); // ingrediente | null
   const [search, setSearch] = useState('');
 
   const [actActionsFor, setActActionsFor] = useState(null);
@@ -142,6 +144,7 @@ export default function ComprasPage({ onBack }) {
                       onOpenActionsChange={setOpenActionsFor}
                       onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
                       onEditInsumo={ing => { setOpenActionsFor(null); setInsumoModal({ editing: ing }); }}
+                      onAjustarStock={ing => { setOpenActionsFor(null); setAjusteStockFor(ing); }}
                       onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
                       onDelete={removeCompra}
                     />
@@ -166,6 +169,7 @@ export default function ComprasPage({ onBack }) {
                       onOpenActionsChange={setOpenActionsFor}
                       onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
                       onEditInsumo={ing => { setOpenActionsFor(null); setInsumoModal({ editing: ing }); }}
+                      onAjustarStock={ing => { setOpenActionsFor(null); setAjusteStockFor(ing); }}
                       onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
                       onDelete={removeCompra}
                     />
@@ -218,6 +222,13 @@ export default function ComprasPage({ onBack }) {
         editing={insumoModal?.editing || null}
         categorias={ingCategorias}
         onSave={handleSaveInsumo}
+      />
+
+      <AjustarStockModal
+        open={!!ajusteStockFor}
+        onClose={() => setAjusteStockFor(null)}
+        ingrediente={ajusteStockFor}
+        onSave={ajustarStock}
       />
 
       <ActivoModal

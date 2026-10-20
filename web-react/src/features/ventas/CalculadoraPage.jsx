@@ -7,6 +7,7 @@ import TextField from '../../components/ui/TextField';
 import { useCalculadora } from './useCalculadora';
 import { computeCostoRecetaEscalado } from '../../services/recetasApi';
 import { normalizeIngName } from '../../services/ingredientesApi';
+import { getStockDisponibleGeneral } from '../../services/stockApi';
 import { fmtCOP } from '../../utils/format';
 import './CalculadoraPage.css';
 
@@ -24,7 +25,7 @@ function nuevaFila() {
 // una receta sin eso configurado no se puede escalar, queda afuera de la
 // cuenta con un aviso. No guarda nada — es una calculadora de verdad.
 export default function CalculadoraPage() {
-  const { recetas, compras, ingredientes, loading, error } = useCalculadora();
+  const { recetas, compras, ingredientes, ejecuciones, ferias, stockMovimientos, loading, error } = useCalculadora();
   const [filas, setFilas] = useState([nuevaFila()]);
 
   function addFila() {
@@ -43,15 +44,26 @@ export default function CalculadoraPage() {
     const sinConfigurar = [];
     let totalGeneral = 0;
     const porFila = {};
+    const stockPorFila = {};
+    const stockCtx = { ejecuciones, ferias, stockMovimientos };
 
     filas.forEach(f => {
       const receta = recetas.find(r => r.id === f.recetaId);
-      const cantidadNum = parseInt(f.cantidad, 10) || 0;
-      if (!receta || !cantidadNum) return;
+      const cantidadPedida = parseInt(f.cantidad, 10) || 0;
+      if (!receta || !cantidadPedida) return;
       if (!receta.unidadesPorLote) {
         if (!sinConfigurar.includes(receta.nombre)) sinConfigurar.push(receta.nombre);
         return;
       }
+      // Si ya hay unidades de este sabor hechas y sin vender (ver Stock),
+      // no hace falta producirlas de nuevo — a pedido explícito del
+      // usuario ("si pongo 10 y hay tres debe aclararlo"): la cuenta de
+      // insumos/costo se hace sobre lo que REALMENTE falta producir, no
+      // sobre el total pedido.
+      const stockDisponible = Math.max(0, getStockDisponibleGeneral(stockCtx, receta.id));
+      const cantidadNum = Math.max(0, cantidadPedida - stockDisponible);
+      stockPorFila[f.id] = { cantidadPedida, stockDisponible, aProducir: cantidadNum };
+      if (!cantidadNum) return;
       const factor = cantidadNum / receta.unidadesPorLote;
       const { total, incompleto, detalle } = computeCostoRecetaEscalado(compras, receta.ingredientesMaestros, factor);
       porFila[f.id] = total;
@@ -93,14 +105,23 @@ export default function CalculadoraPage() {
       sinConfigurar,
       totalGeneral,
       totalFaltante,
-      porFila
+      porFila,
+      stockPorFila
     };
-  }, [filas, recetas, compras, ingredientes]);
+  }, [filas, recetas, compras, ingredientes, ejecuciones, ferias, stockMovimientos]);
 
-  const recetaOpciones = recetas.map(r => ({
-    value: r.id,
-    label: r.unidadesPorLote ? `${r.nombre} (${r.unidadesPorLote}/lote)` : `${r.nombre} (sin configurar)`
-  }));
+  function recetaLabel(r) {
+    return r.unidadesPorLote ? `${r.nombre} (${r.unidadesPorLote}/lote)` : `${r.nombre} (sin configurar)`;
+  }
+
+  // Una receta ya elegida en OTRA fila no vuelve a aparecer en el
+  // desplegable — a pedido explícito del usuario, para no repetir el
+  // mismo sabor dos veces por error. La fila que ya la tiene elegida sigue
+  // viéndola (si no, el Select quedaría sin poder mostrar su propio valor).
+  function opcionesPara(filaId) {
+    const elegidasEnOtras = new Set(filas.filter(x => x.id !== filaId && x.recetaId).map(x => x.recetaId));
+    return recetas.filter(r => !elegidasEnOtras.has(r.id)).map(r => ({ value: r.id, label: recetaLabel(r) }));
+  }
 
   return (
     <div>
@@ -119,13 +140,20 @@ export default function CalculadoraPage() {
                     <Select
                       label="Sabor" value={f.recetaId}
                       onChange={e => updateFila(f.id, 'recetaId', e.target.value)}
-                      options={[{ value: '', label: 'Elegí una receta' }, ...recetaOpciones]}
+                      options={[{ value: '', label: 'Elegí una receta' }, ...opcionesPara(f.id)]}
                     />
                     <TextField
                       label="Unidades" type="number" min="0" step="1" placeholder="0"
                       value={f.cantidad} onChange={e => updateFila(f.id, 'cantidad', e.target.value)}
                     />
                   </div>
+                  {resultados.stockPorFila[f.id]?.stockDisponible > 0 && (
+                    <p className="calculadora-fila-stock-aviso">
+                      {resultados.stockPorFila[f.id].aProducir > 0
+                        ? `Ya tenés ${resultados.stockPorFila[f.id].stockDisponible} en stock sin vender — hace falta producir ${resultados.stockPorFila[f.id].aProducir} más.`
+                        : `Ya tenés ${resultados.stockPorFila[f.id].stockDisponible} en stock sin vender — no hace falta producir más.`}
+                    </p>
+                  )}
                   <div className="calculadora-fila-footer">
                     {resultados.porFila[f.id] != null && (
                       <span className="calculadora-fila-subtotal">{fmtCOP(resultados.porFila[f.id])}</span>

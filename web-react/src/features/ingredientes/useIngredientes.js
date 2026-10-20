@@ -68,6 +68,14 @@ export function useIngredientes() {
     return trimmed;
   }, [findDuplicate, reload]);
 
+  // Corrección manual del stock — a pedido explícito del usuario ("cómo
+  // puedo descontar del inventario manualmente"): hasta ahora solo se
+  // movía solo con compras/ejecuciones (ver AjustarStockModal.jsx).
+  const ajustarStock = useCallback(async (ing, delta) => {
+    await api.applyStockDelta(ingredientes, ing.nombre, delta);
+    await reload();
+  }, [ingredientes, reload]);
+
   const removeIngrediente = useCallback(async rowIndex => {
     await api.deleteIngredienteRow(rowIndex);
     await reload();
@@ -87,6 +95,6 @@ export function useIngredientes() {
 
   return {
     ingredientes, loading, error, reload,
-    findDuplicate, addIngrediente, updateUnidad, updateIngredienteInfo, removeIngrediente, tryAddIngrediente
+    findDuplicate, addIngrediente, updateUnidad, updateIngredienteInfo, ajustarStock, removeIngrediente, tryAddIngrediente
   };
 }
