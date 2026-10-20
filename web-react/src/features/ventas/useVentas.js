@@ -83,6 +83,24 @@ export function useVentas() {
             canalesActuales = [...canalesActuales, nuevo];
           }
         }
+        // Caso real reportado por el usuario: en cuentas donde "Eventos" ya
+        // se había auto-creado en una sesión ANTERIOR a que existiera el
+        // renombre de arriba, "Ferias" se quedó como canal separado para
+        // siempre (el renombre de la línea 71 solo corre si "Eventos"
+        // todavía no existe). Acá se detecta el duplicado, se pasan sus
+        // ferias al canal nuevo y se borra el viejo — una sola vez, después
+        // no hay más "Ferias"/"Mercado Libre" que encontrar.
+        for (const [viejo, nuevo] of Object.entries(RENOMBRES_CANAL)) {
+          const canalViejo = canalesActuales.find(x => x.nombre === viejo);
+          const canalNuevo = canalesActuales.find(x => x.nombre === nuevo);
+          if (!canalViejo || !canalNuevo || canalViejo.id === canalNuevo.id) continue;
+          for (const feria of f.filter(x => x.canalId === canalViejo.id)) {
+            feria.canalId = canalNuevo.id;
+            await feriasApi.updateFeria(feria).catch(() => {});
+          }
+          await canalesApi.deleteCanalRow(canalViejo.rowIndex).catch(() => {});
+          canalesActuales = canalesActuales.filter(x => x.id !== canalViejo.id);
+        }
         setCanales(canalesActuales);
         // Ahí van a parar las ferias cargadas antes de que existieran los
         // canales (backfill idempotente: solo toca las filas sin CanalId).
