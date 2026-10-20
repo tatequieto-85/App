@@ -158,17 +158,28 @@ function getStockVendidoGeneral(ferias, recetaId) {
   , 0);
 }
 
+// Bug real reportado por el usuario ("en Stock no me descuenta las
+// muestras"): el Resumen solo restaba lo VENDIDO, nunca lo entregado como
+// muestra — una muestra sale del mismo stock físico que una venta, así que
+// también tiene que bajar el disponible.
+function getStockMuestrasGeneral(ferias, recetaId) {
+  return ferias.reduce((sum, f) =>
+    sum + (f.muestras || []).filter(m => m.recetaId === recetaId).reduce((s, m) => s + m.cantidad, 0)
+  , 0);
+}
+
 function getStockAjustesNetos(stockMovimientos, recetaId) {
   return stockMovimientos
     .filter(m => m.recetaId === recetaId)
     .reduce((sum, m) => sum + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad), 0);
 }
 
-// Disponible = todo lo producido, menos lo vendido, más/menos los ajustes
-// manuales.
+// Disponible = todo lo producido, menos lo vendido y lo entregado como
+// muestra, más/menos los ajustes manuales.
 export function getStockDisponibleGeneral({ ejecuciones, ferias, stockMovimientos }, recetaId) {
   return getStockProducido(ejecuciones, recetaId)
     - getStockVendidoGeneral(ferias, recetaId)
+    - getStockMuestrasGeneral(ferias, recetaId)
     + getStockAjustesNetos(stockMovimientos, recetaId);
 }
 
@@ -207,14 +218,21 @@ export function getLoteResumen({ ejecuciones, ferias, stockMovimientos, stockTes
 // el costo y subestimaba el valor total del stock). Usado para costear
 // el stock lote por lote (ver resumenStockTotal/trazabilidadRows en
 // useStock.js).
+function getStockMuestrasLote(ferias, ejecucionId) {
+  return ferias.reduce((sum, f) =>
+    sum + (f.muestras || []).filter(m => m.ejecucionId === ejecucionId).reduce((s, m) => s + m.cantidad, 0)
+  , 0);
+}
+
 export function getStockDisponibleLoteReal({ ejecuciones, ferias, stockMovimientos }, ejecucionId) {
   const ej = ejecuciones.find(e => e.id === ejecucionId);
   if (!ej) return 0;
   const ev = ej.evaluacion || {};
   const producido = (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascos130 || 0) + (ev.frascosProducidos || 0);
   const vendido = getStockVendidoLote(ferias, ejecucionId);
+  const muestras = getStockMuestrasLote(ferias, ejecucionId);
   const ajustes = getStockAjustesNetosLote(stockMovimientos, ejecucionId);
-  return producido - vendido + ajustes;
+  return producido - vendido - muestras + ajustes;
 }
 
 // 1 ml ≈ 1 g (misma convención que el resto de la app, ver
