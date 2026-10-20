@@ -53,6 +53,16 @@ export default function FeriaCierreModal({ open, onClose, feria, ejecuciones, on
   const plan = feria.planStock || {};
   const lotes = Object.keys(plan).filter(id => plan[id] > 0);
 
+  // Cuánto de cada lote ya salió como muestra (gratis) — sale del mismo
+  // stock llevado, así que también hay que descontarlo del tope de
+  // unidades VENDIDAS. Bug real reportado por el usuario: el tope dejaba
+  // marcar como vendido hasta lo llevado entero, ignorando las muestras ya
+  // entregadas (podía quedar "vendidos + muestras" por encima de lo
+  // llevado).
+  function muestrasDelLote(loteId) {
+    return (feria.muestras || []).filter(m => m.ejecucionId === loteId).reduce((s, m) => s + (m.cantidad || 0), 0);
+  }
+
   // Total ya asignado a un lote en TODOS los días salvo el que se pasa —
   // el tope de cada stepper tiene que descontar lo que ya se cargó en los
   // demás días, porque el stock llevado es uno solo para toda la feria.
@@ -118,11 +128,14 @@ export default function FeriaCierreModal({ open, onClose, feria, ejecuciones, on
                   const nombre = ej ? ej.nombreReceta : id;
                   const lote = ej ? (ej.loteId || id.slice(0, 8)) : '';
                   const val = dia.cantidades[id] || 0;
-                  const max = Math.max(0, plan[id] - asignadoEnOtrosDias(id, fecha));
+                  const muestras = muestrasDelLote(id);
+                  const max = Math.max(0, plan[id] - muestras - asignadoEnOtrosDias(id, fecha));
                   return (
                     <div key={id} className="feria-stock-item">
                       <div className="feria-stock-sabor">{nombre}</div>
-                      <div className="feria-stock-lote">{lote} · Llevados {plan[id]}</div>
+                      <div className="feria-stock-lote">
+                        {lote} · Llevados {plan[id]}{muestras > 0 ? ` · Muestras ${muestras}` : ''}
+                      </div>
                       <div className="feria-venta-stepper">
                         <button type="button" className="feria-venta-stepper-btn" disabled={busy || val <= 0} onClick={() => adjust(fecha, id, max, -1)}>−</button>
                         <span className="feria-venta-stepper-value">{val}</span>
