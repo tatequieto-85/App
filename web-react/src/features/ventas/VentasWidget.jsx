@@ -85,6 +85,7 @@ export default function VentasWidget({ removing, onRequestRemove, onConfirmRemov
             ejecuciones={vt.ejecuciones}
             contactos={contactos}
             cajas={vt.cajas}
+            onAddObservacionDiaria={vt.addObservacionDiaria}
           />
         </>
       )}

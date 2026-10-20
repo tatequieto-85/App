@@ -425,19 +425,6 @@ export function feriaToText(f, ejecuciones, fmtCOP, fmtDate, contactoNombre) {
   } else {
     lines.push('  Sin stock planeado.');
   }
-  if (idsPlan.length) {
-    lines.push('', 'Conteo de productos (llevados - vendidos - muestras):');
-    idsPlan.forEach(id => {
-      const ej = ejecuciones.find(e => e.id === id);
-      const label = ej ? `${ej.nombreReceta} — Lote ${ej.loteId || id.slice(0, 8)}` : id;
-      const llevados = plan[id];
-      const vendidos = (f.ventas || []).filter(v => v.ejecucionId === id).reduce((s, v) => s + v.cantidad, 0);
-      const muestras = (f.muestras || []).filter(m => m.ejecucionId === id).reduce((s, m) => s + m.cantidad, 0);
-      const sobrantes = llevados - vendidos - muestras;
-      lines.push(`  - ${label}: llevados ${llevados}, vendidos ${vendidos}, muestras ${muestras}, sobrantes ${sobrantes}${sobrantes < 0 ? ' (!)' : ''}`);
-    });
-  }
-
   getFeriaDateList(f).forEach(fecha => {
     lines.push('', `── DÍA ${fecha} ─────────────────────────────────────────`);
     const ventasDia = (f.ventas || []).filter(v => v.fecha === fecha);

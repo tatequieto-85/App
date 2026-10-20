@@ -263,6 +263,7 @@ export default function VentasPage({ onBack }) {
         contactos={contactos}
         cajas={vt.cajas}
         onRemoveSalida={vt.removeSalida}
+        onAddObservacionDiaria={vt.addObservacionDiaria}
       />
     </motion.div>
   );
