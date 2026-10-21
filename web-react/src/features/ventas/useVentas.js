@@ -126,26 +126,46 @@ export function useVentas() {
 
   const ctx = { ejecuciones, ferias, stockMovimientos, stockTestigos };
 
-  // Una fila por día/canal/producto — junta las ventas de TODAS las ferias
-  // de TODOS los canales (a diferencia de la lista de ferias, que ya está
-  // filtrada a un solo canal), para el cuadro de "Resumen de ventas por
-  // día" en la galería de canales. Ferias sin canal (dato viejo, no debería
-  // pasar tras el backfill) caen en "—".
-  const resumenVentasPorDia = useMemo(() => {
-    const porClave = new Map();
+  // Ventas de TODAS las ferias de TODOS los canales juntas (a diferencia
+  // de la lista de ferias, que ya está filtrada a un solo canal) — para la
+  // galería de canales (pantalla principal de Ventas). A pedido explícito
+  // del usuario, reemplaza el cuadro plano "Resumen de ventas por día"
+  // (fecha/canal/producto/cantidad) por dos agrupaciones: el % de venta
+  // de cada receta (sobre el total general) y las unidades vendidas por
+  // canal y receta. Ferias sin canal (dato viejo) caen en "—".
+  const resumenVentasPorCanal = useMemo(() => {
+    const porCanal = new Map(); // canalNombre -> Map(recetaNombre -> cantidad)
     ferias.forEach(f => {
       const canalNombre = canales.find(c => c.id === f.canalId)?.nombre || '—';
       (f.ventas || []).forEach(v => {
-        const clave = `${v.fecha}|${f.canalId}|${v.recetaNombre}`;
-        const fila = porClave.get(clave);
-        if (fila) fila.cantidad += v.cantidad;
-        else porClave.set(clave, { fecha: v.fecha, canalNombre, recetaNombre: v.recetaNombre, cantidad: v.cantidad });
+        if (!porCanal.has(canalNombre)) porCanal.set(canalNombre, new Map());
+        const porReceta = porCanal.get(canalNombre);
+        porReceta.set(v.recetaNombre, (porReceta.get(v.recetaNombre) || 0) + v.cantidad);
       });
     });
-    return [...porClave.values()].sort((a, b) =>
-      b.fecha.localeCompare(a.fecha) || a.canalNombre.localeCompare(b.canalNombre) || a.recetaNombre.localeCompare(b.recetaNombre)
-    );
+    return [...porCanal.entries()]
+      .map(([canalNombre, porReceta]) => {
+        const recetas = [...porReceta.entries()]
+          .map(([recetaNombre, cantidad]) => ({ recetaNombre, cantidad }))
+          .sort((a, b) => b.cantidad - a.cantidad);
+        return { canalNombre, recetas, total: recetas.reduce((s, r) => s + r.cantidad, 0) };
+      })
+      .sort((a, b) => b.total - a.total);
   }, [ferias, canales]);
+
+  const resumenVentasPorReceta = useMemo(() => {
+    const porReceta = new Map();
+    let totalGeneral = 0;
+    ferias.forEach(f => {
+      (f.ventas || []).forEach(v => {
+        porReceta.set(v.recetaNombre, (porReceta.get(v.recetaNombre) || 0) + v.cantidad);
+        totalGeneral += v.cantidad;
+      });
+    });
+    return [...porReceta.entries()]
+      .map(([recetaNombre, cantidad]) => ({ recetaNombre, cantidad, pct: totalGeneral ? (cantidad / totalGeneral) * 100 : 0 }))
+      .sort((a, b) => b.cantidad - a.cantidad);
+  }, [ferias]);
 
   // ── Canales ────────────────────────────────────────────────────────────
 
@@ -353,7 +373,7 @@ export function useVentas() {
 
   return {
     canales, ferias, ejecuciones, stockTestigos, stockMovimientos, cajas, ctx, loading, error,
-    resumenVentasPorDia,
+    resumenVentasPorCanal, resumenVentasPorReceta,
     saveCanal, deleteCanal, reorderCanales,
     saveFeria, deleteFeria, reabrirFeria, cerrarFeria, cambiarEstadoFeria,
     saveStockPlan, registrarSalida, removeSalida, addObservacionDiaria, commitConteoSession

@@ -19,7 +19,7 @@ import FeriaModal from './FeriaModal';
 import FeriaStockModal from './FeriaStockModal';
 import FeriaCounterModal from './FeriaCounterModal';
 import FeriaResumenModal from './FeriaResumenModal';
-import VentasResumenDiario from './VentasResumenDiario';
+import VentasResumen from './VentasResumen';
 import './VentasPage.css';
 
 // Punto de entrada único de "abrir feria" (un toque en su tarjeta) — ahora
@@ -205,7 +205,9 @@ export default function VentasPage({ onBack }) {
           adentro de uno solo, donde "por canal" deja de variar. Siempre
           debajo de las subcategorías (canales) creadas, a pedido del
           usuario — no arriba. */}
-      {!canal && !isCalculadora && !vt.loading && !vt.error && <VentasResumenDiario filas={vt.resumenVentasPorDia} />}
+      {!canal && !isCalculadora && !vt.loading && !vt.error && (
+        <VentasResumen porReceta={vt.resumenVentasPorReceta} porCanal={vt.resumenVentasPorCanal} />
+      )}
 
       {/* Ya no se pueden crear canales a mano — son fijos (ver
           CANALES_POR_DEFECTO en useVentas.js), cada uno con su propia

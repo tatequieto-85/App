@@ -1,0 +1,8 @@
+.ventas-resumen {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--space-5); margin-bottom: var(--space-5);
+}
+.ventas-resumen-canal-title { margin-top: var(--space-5); }
+
+.ventas-resumen-canal-block { margin-top: var(--space-5); }
+.ventas-resumen-canal-nombre { font-size: 13px; font-weight: 700; margin-bottom: 8px; }

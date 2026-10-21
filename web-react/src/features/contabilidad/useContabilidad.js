@@ -1,19 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import * as api from '../../services/contabilidadApi';
-import * as canalesApi from '../../services/canalesVentaApi';
-import * as feriasApi from '../../services/feriasApi';
 
 // Toda la lógica de negocio de Contabilidad vive acá: "Cajas" (ingresos/
 // egresos manuales + los automáticos que generan Ventas/Compras, ver
-// contabilidadApi.js) y el "Resumen de ventas por canal", que no tiene
-// hoja propia — se arma leyendo CanalesVenta/Ferias directo, mismo patrón
-// que Stock lee datos de Procesos/Ferias sin tener que migrar esos módulos
-// enteros.
+// contabilidadApi.js). El "Resumen de ventas por canal" que vivía acá se
+// sacó a pedido explícito del usuario — ese tipo de agrupación pasó a
+// vivir en Ventas mismo (ver VentasResumen.jsx/useVentas.js), no tiene
+// sentido duplicarla en los dos módulos.
 export function useContabilidad() {
   const [cajas, setCajas] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
-  const [canales, setCanales] = useState([]);
-  const [ferias, setFerias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -30,14 +26,7 @@ export function useContabilidad() {
       try {
         setLoading(true);
         await api.ensureContabilidadSheets();
-        const [c, m, canalesList, feriasList] = await Promise.all([
-          api.fetchCajas(), api.fetchMovimientos(), canalesApi.fetchCanales(), feriasApi.fetchFerias()
-        ]);
-        if (cancelled) return;
-        setCajas(c);
-        setMovimientos(m);
-        setCanales(canalesList);
-        setFerias(feriasList);
+        if (!cancelled) await reload();
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -45,19 +34,7 @@ export function useContabilidad() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
-
-  // Un total por canal (todas sus ferias, "Total vendido" = lo cargado al
-  // cerrar cada una, ver feriaTotalVendidoDinero) — nada por calcular acá
-  // más que sumar, los números reales ya viven en Ferias.
-  const resumenPorCanal = useMemo(() => {
-    return canales.map(canal => ({
-      canal,
-      total: ferias
-        .filter(f => f.canalId === canal.id)
-        .reduce((s, f) => s + feriasApi.feriaTotalVendidoDinero(f), 0)
-    }));
-  }, [canales, ferias]);
+  }, [reload]);
 
   const saveCaja = useCallback(async ({ nombre, fuenteAutomatica }, editingId) => {
     if (fuenteAutomatica !== 'ninguna' && cajas.some(c => c.fuenteAutomatica === fuenteAutomatica && c.id !== editingId)) {
@@ -126,7 +103,7 @@ export function useContabilidad() {
   }, [movimientos, reload]);
 
   return {
-    cajas, movimientos, resumenPorCanal, loading, error,
+    cajas, movimientos, loading, error,
     saveCaja, deleteCaja, addMovimiento, addTransferencia, removeMovimiento,
     saldoCaja: cajaId => api.cajaSaldo(movimientos, cajaId)
   };
