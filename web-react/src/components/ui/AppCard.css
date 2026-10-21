@@ -1,10 +1,10 @@
-/* 4 por fila (a pedido del usuario, con referencia visual) — ya no
+/* 3 por fila (a pedido explícito del usuario — antes eran 4) — ya no
    comparte tamaño/columnas con .widgets-grid, es su propio formato:
    caja blanca + ícono de color, como el home de tarjetas de la app
    vanilla (.app-card en style.css), no un cuadrado relleno como widget. */
 .home-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   /* % en vez de px: CSS Grid resuelve el gap contra el ancho del propio
      contenedor, así que el espacio entre tarjetas escala con la pantalla
      en vez de quedar fijo. */
