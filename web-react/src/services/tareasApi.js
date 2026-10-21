@@ -86,10 +86,13 @@ export async function ensureKanbanSheets() {
     });
   }
 
-  const hd = await sheetsReq('/values/TareasHistorial!A1').catch(() => ({}));
-  if (!hd.values) {
-    await sheetsReq('/values/TareasHistorial!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-      method: 'POST',
+  // Bug real (ver stockApi.js): un fallo transitorio acá se disfrazaba de
+  // "la hoja está vacía" y :append agregaba el encabezado como fila de
+  // datos nueva. Siempre PUT a la fila fija 1.
+  const hd = await sheetsReq('/values/TareasHistorial!A1:L1').catch(() => ({}));
+  if (!((hd.values || [])[0] || []).length) {
+    await sheetsReq('/values/TareasHistorial!A1:L1?valueInputOption=RAW', {
+      method: 'PUT',
       body: JSON.stringify({ values: [[
         'ID', 'NombrePersonalizado', 'Area', 'Title', 'Status', 'DueDate', 'StartDate',
         'Observations', 'TimeSessions', 'Subtasks', 'CreatedAt', 'CompletadoEn'

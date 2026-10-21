@@ -33,10 +33,13 @@ export async function ensureStoriesSheet() {
     });
   }
 
-  const sd = await sheetsReq('/values/Stories!A1').catch(() => ({}));
-  if (!sd.values) {
-    await sheetsReq('/values/Stories!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-      method: 'POST',
+  // Bug real (ver stockApi.js): un fallo transitorio acá se disfrazaba de
+  // "la hoja está vacía" y :append agregaba el encabezado como fila de
+  // datos nueva. Siempre PUT a la fila fija 1.
+  const sd = await sheetsReq('/values/Stories!A1:K1').catch(() => ({}));
+  if (!((sd.values || [])[0] || []).length) {
+    await sheetsReq('/values/Stories!A1:K1?valueInputOption=RAW', {
+      method: 'PUT',
       body: JSON.stringify({ values: [['ID', 'Title', 'Actions', 'ScheduledAt', 'DriveFileId', 'OriginalName', 'MimeType', 'ThumbUrl', 'Sent', 'SentAt', 'CreatedAt']] })
     });
   }

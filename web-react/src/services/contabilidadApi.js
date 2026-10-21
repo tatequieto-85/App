@@ -53,18 +53,53 @@ export async function ensureContabilidadSheets() {
   if (hasC) cajasSheetId = hasC.properties.sheetId;
   if (hasM) movimientosSheetId = hasM.properties.sheetId;
 
-  const cd = await sheetsReq('/values/ContabilidadCajas!A1').catch(() => ({}));
-  if (!cd.values) {
-    await sheetsReq('/values/ContabilidadCajas!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-      method: 'POST',
-      body: JSON.stringify({ values: [['ID', 'Nombre', 'FuenteAutomatica', 'CreadoEn']] })
+  // Bug real reportado por el usuario ("me creas cajas en blanco", con
+  // Nombre="Nombre" y $0): esta lectura usaba .catch(() => ({})) y, si
+  // fallaba por cualquier motivo transitorio (hipo de red, token vencido a
+  // mitad de pedido), se trataba como "la hoja está vacía" y agregaba el
+  // encabezado con :append — que NO sobreescribe la fila 1, agrega una
+  // fila nueva al final como si fuera una caja real (fetchCajas() la
+  // tomaba como válida porque la columna ID no venía vacía: decía
+  // literalmente "ID"). Mismo bug ya encontrado y corregido en
+  // stockApi.js ("por qué me crea productos testigo de la nada") — ahora
+  // escribe siempre con PUT a la fila fija 1 y limpia las filas fantasma
+  // que el bug ya haya creado.
+  const CAJA_HEADER = ['ID', 'Nombre', 'FuenteAutomatica', 'CreadoEn'];
+  const cd = await sheetsReq('/values/ContabilidadCajas!A1:D1').catch(() => ({}));
+  if (!((cd.values || [])[0] || []).length) {
+    await sheetsReq('/values/ContabilidadCajas!A1:D1?valueInputOption=RAW', {
+      method: 'PUT', body: JSON.stringify({ values: [CAJA_HEADER] })
     });
   }
-  const md = await sheetsReq('/values/ContabilidadMovimientos!A1').catch(() => ({}));
-  if (!md.values) {
-    await sheetsReq('/values/ContabilidadMovimientos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  const MOVIMIENTO_HEADER = ['ID', 'CajaId', 'Tipo', 'Monto', 'Concepto', 'Fecha', 'CreadoEn', 'Origen', 'OrigenRefId'];
+  const md = await sheetsReq('/values/ContabilidadMovimientos!A1:I1').catch(() => ({}));
+  if (!((md.values || [])[0] || []).length) {
+    await sheetsReq('/values/ContabilidadMovimientos!A1:I1?valueInputOption=RAW', {
+      method: 'PUT', body: JSON.stringify({ values: [MOVIMIENTO_HEADER] })
+    });
+  }
+
+  await limpiarFilasFantasma('ContabilidadCajas', cajasSheetId, CAJA_HEADER, 'A:D');
+  await limpiarFilasFantasma('ContabilidadMovimientos', movimientosSheetId, MOVIMIENTO_HEADER, 'A:I');
+}
+
+// Borra de a UNA fila fantasma por vez, releyendo justo antes de cada
+// borrado — mismo criterio que stockApi.js (ver ahí el porqué: así se
+// mantiene seguro incluso si esto llegara a correr dos veces casi en
+// paralelo). Se identifica por matchear TODAS las columnas exacto contra
+// el encabezado real, para no borrar por error una fila legítima.
+async function limpiarFilasFantasma(sheetName, sheetId, header, range) {
+  if (!sheetId) return;
+  for (let intentos = 0; intentos < 20; intentos++) {
+    const data = await sheetsReq(`/values/${sheetName}!${range}`).catch(() => ({}));
+    const rows = data.values || [];
+    const idx = rows.findIndex((r, i) => i > 0 && header.every((h, j) => ((r || [])[j] || '') === h));
+    if (idx === -1) return;
+    await sheetsReq(':batchUpdate', {
       method: 'POST',
-      body: JSON.stringify({ values: [['ID', 'CajaId', 'Tipo', 'Monto', 'Concepto', 'Fecha', 'CreadoEn', 'Origen', 'OrigenRefId']] })
+      body: JSON.stringify({ requests: [{ deleteDimension: {
+        range: { sheetId, dimension: 'ROWS', startIndex: idx, endIndex: idx + 1 }
+      } }] })
     });
   }
 }
@@ -171,6 +206,20 @@ export async function removeMovimientoAuto(origenRefId) {
   const movimientos = await fetchMovimientos();
   const mov = movimientos.find(m => m.origenRefId === origenRefId);
   if (mov) await deleteMovimientoRow(mov.rowIndex);
+}
+
+// Llamado desde useCompras.js — a diferencia de registrarMovimientoAuto
+// (una sola caja fija configurada de antemano con fuenteAutomatica=
+// 'compras'), acá la caja se elige en cada compra (ver CompraModal.jsx,
+// a pedido explícito del usuario: "no me pide la caja a descontar").
+// removeMovimientoAuto sigue sirviendo para borrarlo (busca por
+// origenRefId sin importar la caja).
+export async function registrarMovimientoCompra(cajaId, { tipo, monto, concepto, fecha, origenRefId }) {
+  if (!cajaId || !monto || monto <= 0) return;
+  await appendMovimiento({
+    id: crypto.randomUUID(), cajaId, tipo, monto, concepto, fecha,
+    origen: 'auto', origenRefId
+  });
 }
 
 // Llamado desde useVentas.js al cerrar una feria — a diferencia de

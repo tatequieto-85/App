@@ -30,11 +30,17 @@ export async function ensureContactosSheets() {
     await sheetsReq(':batchUpdate', { method: 'POST', body: JSON.stringify({ requests: reqs }) });
   }
 
+  // Bug real (ver stockApi.js/contabilidadApi.js): esta lectura puede
+  // fallar por un hipo de red transitorio, y .catch(() => ({})) lo
+  // disfrazaba de "la hoja está vacía" — con :append eso agregaba el
+  // encabezado como si fuera una fila de datos nueva (quedaba un
+  // "contacto" fantasma con ID="ID", Nombre="Nombre"). Ahora siempre PUT a
+  // la fila fija 1, nunca :append — reintentar de más nunca duplica nada.
   const cd = await sheetsReq('/values/Contactos!A1:L1').catch(() => ({}));
   const headerRow = (cd.values || [])[0] || [];
   if (!headerRow.length) {
-    await sheetsReq('/values/Contactos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-      method: 'POST',
+    await sheetsReq('/values/Contactos!A1:L1?valueInputOption=RAW', {
+      method: 'PUT',
       body: JSON.stringify({ values: [['ID', 'Nombre', 'Cumpleanos', 'EdadIngreso', 'FechaIngreso', 'Observaciones', 'CreadoEn', 'Empresa', 'Posicion', 'Telefono', 'Ciudad', 'Sector']] })
     });
   } else if (headerRow.length < 12) {
@@ -46,9 +52,9 @@ export async function ensureContactosSheets() {
   }
 
   const rd = await sheetsReq('/values/ContactosRelaciones!A1:F1').catch(() => ({}));
-  if (!rd.values) {
-    await sheetsReq('/values/ContactosRelaciones!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-      method: 'POST',
+  if (!((rd.values || [])[0] || []).length) {
+    await sheetsReq('/values/ContactosRelaciones!A1:F1?valueInputOption=RAW', {
+      method: 'PUT',
       body: JSON.stringify({ values: [['ID', 'ContactoAId', 'ContactoBId', 'Categoria', 'CreadoEn', 'Tipo']] })
     });
   }

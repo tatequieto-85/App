@@ -28,10 +28,13 @@ export async function ensureInventarioSheets() {
     activosSheetId = hasAct.properties.sheetId;
   }
 
-  const actd = await sheetsReq('/values/InventarioActivos!A1').catch(() => ({}));
-  if (!actd.values) {
-    await sheetsReq('/values/InventarioActivos!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-      method: 'POST',
+  // Bug real (ver stockApi.js): un fallo transitorio acá se disfrazaba de
+  // "la hoja está vacía" y :append agregaba el encabezado como fila de
+  // datos nueva. Siempre PUT a la fila fija 1.
+  const actd = await sheetsReq('/values/InventarioActivos!A1:H1').catch(() => ({}));
+  if (!((actd.values || [])[0] || []).length) {
+    await sheetsReq('/values/InventarioActivos!A1:H1?valueInputOption=RAW', {
+      method: 'PUT',
       body: JSON.stringify({ values: [[
         'ID', 'Nombre', 'Categoria', 'Estado', 'Responsable', 'Observaciones', 'CreatedAt', 'UpdatedAt'
       ]] })

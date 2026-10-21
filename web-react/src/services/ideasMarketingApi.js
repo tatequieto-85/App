@@ -31,16 +31,20 @@ export async function ensureIdeasMarketingSheet() {
     });
   }
 
+  // Bug real (ver stockApi.js): un fallo transitorio acá se disfrazaba de
+  // "la hoja está vacía" y :append agregaba el encabezado como fila de
+  // datos nueva. Siempre PUT a la fila fija 1.
   const sd = await sheetsReq('/values/IdeasMarketing!A1:L1').catch(() => ({}));
-  if (!sd.values) {
-    await sheetsReq('/values/IdeasMarketing!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-      method: 'POST',
+  const sdHeader = (sd.values || [])[0] || [];
+  if (!sdHeader.length) {
+    await sheetsReq('/values/IdeasMarketing!A1:L1?valueInputOption=RAW', {
+      method: 'PUT',
       body: JSON.stringify({ values: [[
         'ID', 'Descripcion', 'PhotoFileIds', 'PhotoNames', 'PhotoMimeTypes', 'PhotoThumbUrls',
         'AudioFileIds', 'AudioNames', 'AudioMimeTypes', 'AudioDurations', 'CreatedAt', 'Categoria'
       ]] })
     });
-  } else if ((sd.values[0] || []).length < 12) {
+  } else if (sdHeader.length < 12) {
     await sheetsReq('/values/IdeasMarketing!L1?valueInputOption=RAW', {
       method: 'PUT',
       body: JSON.stringify({ values: [['Categoria']] })

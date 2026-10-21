@@ -35,7 +35,7 @@ import './ComprasPage.css';
 // hubiera en la hoja vieja).
 export default function ComprasPage({ onBack }) {
   const { ingredientes, loading: loadingIng, addIngrediente, updateIngredienteInfo, ajustarStock, reload: reloadIngredientes } = useIngredientes();
-  const { compras, rows, loading: loadingCompras, error, saveCompra, removeCompra, reload: reloadCompras } = useCompras(ingredientes, reloadIngredientes);
+  const { compras, cajas, rows, loading: loadingCompras, error, saveCompra, removeCompra, reload: reloadCompras } = useCompras(ingredientes, reloadIngredientes);
   const { activos, loading: loadingInv, error: errorInv, saveActivo, deleteActivo } = useInventarioExtra();
 
   const [openActionsFor, setOpenActionsFor] = useState(null);
@@ -213,6 +213,7 @@ export default function ComprasPage({ onBack }) {
         ingrediente={compraModal?.ingrediente}
         editRecord={compraModal?.editRecord || null}
         lastUnitPrice={compraModal?.lastUnitPrice ?? null}
+        cajas={cajas}
         onSave={saveCompra}
       />
 

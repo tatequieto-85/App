@@ -1,5 +1,5 @@
 // Portado de ../../compras.js — mismo layout de columnas en la hoja "Compras"
-// (ID, Ingrediente, Cantidad, PrecioTotal, Fecha, CreadoEn).
+// (ID, Ingrediente, Cantidad, PrecioTotal, Fecha, CreadoEn, CajaId).
 import { sheetsReq } from './googleAuth';
 import { normalizeIngName } from './ingredientesApi';
 
@@ -12,22 +12,35 @@ export async function ensureComprasSheet() {
 
   if (hasC) {
     comprasSheetId = hasC.properties.sheetId;
+  } else {
+    const res = await sheetsReq(':batchUpdate', {
+      method: 'POST',
+      body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'Compras' } } }] })
+    });
+    const added = res.replies?.[0]?.addSheet?.properties;
+    if (added) comprasSheetId = added.sheetId;
+    await sheetsReq('/values/Compras!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+      method: 'POST',
+      body: JSON.stringify({ values: [['ID', 'Ingrediente', 'Cantidad', 'PrecioTotal', 'Fecha', 'CreadoEn', 'CajaId']] })
+    });
     return;
   }
-  const res = await sheetsReq(':batchUpdate', {
-    method: 'POST',
-    body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'Compras' } } }] })
-  });
-  const added = res.replies?.[0]?.addSheet?.properties;
-  if (added) comprasSheetId = added.sheetId;
-  await sheetsReq('/values/Compras!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-    method: 'POST',
-    body: JSON.stringify({ values: [['ID', 'Ingrediente', 'Cantidad', 'PrecioTotal', 'Fecha', 'CreadoEn']] })
-  });
+
+  // CajaId (G) — de qué caja de Contabilidad salió la plata de esta
+  // compra, a pedido explícito del usuario ("no me pide la caja a
+  // descontar") — antes era una caja fija configurada una sola vez
+  // (fuenteAutomatica='compras'), ahora se elige en cada compra (ver
+  // CompraModal.jsx), igual que Ventas pregunta por caja al cerrar una feria.
+  const hd = await sheetsReq('/values/Compras!A1:G1').catch(() => ({}));
+  if (((hd.values || [])[0] || []).length < 7) {
+    await sheetsReq('/values/Compras!G1?valueInputOption=RAW', {
+      method: 'PUT', body: JSON.stringify({ values: [['CajaId']] })
+    });
+  }
 }
 
 export async function fetchCompras() {
-  const data = await sheetsReq('/values/Compras!A:F');
+  const data = await sheetsReq('/values/Compras!A:G');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
     id:          r[0] || '',
@@ -36,6 +49,7 @@ export async function fetchCompras() {
     precioTotal: parseFloat(r[3]) || 0,
     fecha:       r[4] || '',
     creadoEn:    r[5] || '',
+    cajaId:      r[6] || '',
     rowIndex:    i + 2
   }));
 }
@@ -44,18 +58,18 @@ export async function fetchCompras() {
 // enlazar su movimiento automático a esta compra desde el mismo momento en
 // que se crea, sin tener que releer la hoja para saber qué id le tocó.
 export async function appendCompra(c) {
-  await sheetsReq('/values/Compras!A:F:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/Compras!A:G:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
-      c.id || crypto.randomUUID(), c.ingrediente, c.cantidad, c.precioTotal, c.fecha, new Date().toISOString()
+      c.id || crypto.randomUUID(), c.ingrediente, c.cantidad, c.precioTotal, c.fecha, new Date().toISOString(), c.cajaId || ''
     ]] })
   });
 }
 
 export async function updateCompra(c) {
-  await sheetsReq(`/values/Compras!A${c.rowIndex}:F${c.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/Compras!A${c.rowIndex}:G${c.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
-    body: JSON.stringify({ values: [[c.id, c.ingrediente, c.cantidad, c.precioTotal, c.fecha, c.creadoEn]] })
+    body: JSON.stringify({ values: [[c.id, c.ingrediente, c.cantidad, c.precioTotal, c.fecha, c.creadoEn, c.cajaId || '']] })
   });
 }
 

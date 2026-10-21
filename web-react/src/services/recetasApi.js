@@ -62,13 +62,17 @@ export async function ensureRecetasSheets() {
     });
   }
 
+  // Bug real (ver stockApi.js): un fallo transitorio acá se disfrazaba de
+  // "la hoja está vacía" y :append agregaba el encabezado como fila de
+  // datos nueva. Siempre PUT a la fila fija 1.
   const bd = await sheetsReq('/values/RecetaBlocks!A1:F1').catch(() => ({}));
-  if (!bd.values) {
-    await sheetsReq('/values/RecetaBlocks!A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-      method: 'POST',
+  const bdHeader = (bd.values || [])[0] || [];
+  if (!bdHeader.length) {
+    await sheetsReq('/values/RecetaBlocks!A1:F1?valueInputOption=RAW', {
+      method: 'PUT',
       body: JSON.stringify({ values: [['ID', 'Nombre', 'CreadoEn', 'SortOrder', 'Color', 'Icono']] })
     });
-  } else if ((bd.values[0] || []).length < 6) {
+  } else if (bdHeader.length < 6) {
     await sheetsReq('/values/RecetaBlocks!F1?valueInputOption=RAW', {
       method: 'PUT',
       body: JSON.stringify({ values: [['Icono']] })

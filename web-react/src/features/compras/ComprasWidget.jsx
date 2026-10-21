@@ -12,7 +12,7 @@ import { useCompras } from './useCompras';
 // formulario completo de insumo nuevo (InsumoModal) antes de continuar.
 export default function ComprasWidget({ removing, onRequestRemove, onConfirmRemove }) {
   const { ingredientes, addIngrediente } = useIngredientes();
-  const { saveCompra } = useCompras(ingredientes);
+  const { saveCompra, cajas } = useCompras(ingredientes);
 
   const [step, setStep] = useState(null); // null | 'buscar' | 'insumo' | 'compra'
   const [nuevoNombre, setNuevoNombre] = useState('');
@@ -58,6 +58,7 @@ export default function ComprasWidget({ removing, onRequestRemove, onConfirmRemo
         onClose={close}
         ingrediente={compraIngrediente}
         editRecord={null}
+        cajas={cajas}
         onSave={saveCompra}
       />
     </>
