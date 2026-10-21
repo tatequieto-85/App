@@ -35,7 +35,7 @@ Build de producción publicado en `home/` (raíz del repo) y servido por GitHub 
 |---|---|
 | `web-react/src/App.jsx` | Enrutado entre Home y cada módulo (`PAGES`), pantalla de login |
 | `web-react/src/services/googleAuth.js` | Login con Google (authorization-code + Worker en producción, implícito en local), `sheetsReq` (todas las llamadas a Sheets pasan por acá, con caché + reintento), subida/borrado/descarga de archivos a Drive |
-| `web-react/src/features/home/` | Home: grid de widgets (opt-in) + grid de módulos, `moduleRegistry.js`/`widgetRegistry.js` |
+| `web-react/src/features/home/` | Home: grid de widgets (opt-in) + grid de módulos (3 por fila, 1x1 cada uno — `.home-grid` en `components/ui/AppCard.css`), `moduleRegistry.js`/`widgetRegistry.js` |
 | `web-react/src/components/ui/` | Design system compartido: `Modal`, `TextField`, `Select`, `FabButton`, `SearchBar`, `Tabs`, `AppCard`, `SortableGrid`, etc. |
 | `web-react/src/hooks/` | `useRowGestures` (long-press/tap), `useDirtyGuard`, `useCloseOnOutsideClick`, `useSwipeBack`, etc. |
 | `worker/` | Cloudflare Worker — guarda el refresh_token en KV y lo renueva sin depender de cookies de Google (necesario para que la PWA instalada en iPhone no pida reingresar) |
