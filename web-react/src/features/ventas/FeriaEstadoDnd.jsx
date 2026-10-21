@@ -3,11 +3,12 @@ import { CSS } from '@dnd-kit/utilities';
 
 // Arrastrar una feria del bloque "Participar" al de "Publicado" (o al
 // revés) cambia su estado — las terminadas quedan afuera de esto (no se
-// renderizan acá). `distance: 8` como umbral, mismo criterio que
-// SortableGrid, para convivir con el toque/mantener-presionado de
+// renderizan acá). `distance: 24` como umbral, mismo criterio que
+// SortableGrid (subido de 8 — demasiado sensible, se desorganizaba con
+// toques involuntarios), para convivir con el toque/mantener-presionado de
 // FeriaBlock sin que un simple tap dispare un "arrastre" accidental.
 export function FeriaEstadoDndContext({ onCambiarEstado, children }) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 24 } }));
 
   function handleDragEnd(event) {
     const { active, over } = event;

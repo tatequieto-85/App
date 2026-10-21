@@ -21,13 +21,17 @@ function SortableItem({ id, span, children }) {
 
 // Grid arrastrable genérica — la usan tanto los widgets como el grid de
 // módulos de Home, a pedido del usuario ("se deben dejar arrastrar y
-// posicionar donde el usuario quiera"). `distance: 8` como umbral de arrastre
+// posicionar donde el usuario quiera"). `distance` como umbral de arrastre
 // (no delay) es lo que permite que conviva con mantener presionado sin
 // arrastrar (long-press para "Quitar", ver Widget.jsx) y con el doble
 // clic/toque de la acción principal — si no hay movimiento, no es un
-// arrastre y esos otros gestos siguen actuando normal.
+// arrastre y esos otros gestos siguen actuando normal. Subido de 8 a 24px
+// — bug real reportado por el usuario ("muy sensible, con toques
+// involuntarios se desorganiza"): 8px es casi cualquier toque con el dedo
+// en una pantalla táctil, arrancaba un arrastre sin que el usuario
+// quisiera mover nada.
 export default function SortableGrid({ ids, onReorder, renderItem, getSpan, className, trailing }) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 24 } }));
 
   function handleDragEnd(event) {
     const { active, over } = event;
