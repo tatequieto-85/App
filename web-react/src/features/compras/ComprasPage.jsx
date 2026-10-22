@@ -10,6 +10,8 @@ import SearchBar from '../../components/ui/SearchBar';
 import { useIngredientes } from '../ingredientes/useIngredientes';
 import { useCompras } from './useCompras';
 import { useInventarioExtra } from './useInventarioExtra';
+import { useOrderedIds } from '../../hooks/useOrderedIds';
+import { SortableRows } from '../../components/ui/SortableTableRows';
 import { esUnidadDePeso, fetchRecetas, renameIngredienteEnRecetas } from '../../services/recetasApi';
 import { renameIngredienteEnCompras } from '../../services/comprasApi';
 import { normalizeIngName } from '../../services/ingredientesApi';
@@ -50,17 +52,36 @@ export default function ComprasPage({ onBack }) {
   const loading = loadingIng || loadingCompras;
 
   const q = search.trim().toLowerCase();
-  const filteredRows = useMemo(() => {
-    if (!q) return rows;
-    return rows.filter(r => r.ingrediente.nombre.toLowerCase().includes(q) || r.ingrediente.categoria?.toLowerCase().includes(q));
-  }, [rows, q]);
+  const matchesSearch = r => !q || r.ingrediente.nombre.toLowerCase().includes(q) || r.ingrediente.categoria?.toLowerCase().includes(q);
+  const filteredRows = useMemo(() => rows.filter(matchesSearch), [rows, q]);
   // Mismo criterio que agrupa los ingredientes de una receta en Procesos
   // (ver RecetaIngredientesTable.jsx) — por peso/volumen (g/kg/ml/L) vs por
   // unidad (conteo, p. ej. frascos/etiquetas), a pedido explícito del
   // usuario. Sin unidad cargada todavía, cae al grupo "por peso" por
-  // defecto, mismo comportamiento que en Procesos.
-  const rowsPorPeso = useMemo(() => filteredRows.filter(r => !r.ingrediente.unidad || esUnidadDePeso(r.ingrediente.unidad)), [filteredRows]);
-  const rowsPorUnidad = useMemo(() => filteredRows.filter(r => r.ingrediente.unidad && !esUnidadDePeso(r.ingrediente.unidad)), [filteredRows]);
+  // defecto, mismo comportamiento que en Procesos. Sobre TODOS los
+  // ingredientes (sin filtrar por búsqueda) — el orden de arrastre (ver
+  // más abajo) tiene que operar sobre la lista completa, no sobre lo que
+  // esté filtrado en este momento.
+  const allRowsPorPeso = useMemo(() => rows.filter(r => !r.ingrediente.unidad || esUnidadDePeso(r.ingrediente.unidad)), [rows]);
+  const allRowsPorUnidad = useMemo(() => rows.filter(r => r.ingrediente.unidad && !esUnidadDePeso(r.ingrediente.unidad)), [rows]);
+
+  // Orden a mano, persistido — a pedido explícito del usuario ("organizar
+  // los insumos a voluntad, manteniéndolo presionado y después
+  // desplazándolo"), mismo mecanismo que ya usa el grid de Módulos de
+  // Home (ver useOrderedIds.js, SortableTableRows.jsx). Un grupo de orden
+  // por cada tabla (por peso / por unidad) — no tendría sentido un orden
+  // compartido entre dos tablas separadas.
+  const [ordenPeso, reorderPeso] = useOrderedIds('ss_insumos_orden_peso', useMemo(() => allRowsPorPeso.map(r => r.ingrediente.id), [allRowsPorPeso]));
+  const [ordenUnidad, reorderUnidad] = useOrderedIds('ss_insumos_orden_unidad', useMemo(() => allRowsPorUnidad.map(r => r.ingrediente.id), [allRowsPorUnidad]));
+
+  const rowsPorPeso = useMemo(() => {
+    const byId = new Map(allRowsPorPeso.map(r => [r.ingrediente.id, r]));
+    return ordenPeso.map(id => byId.get(id)).filter(Boolean).filter(matchesSearch);
+  }, [allRowsPorPeso, ordenPeso, q]);
+  const rowsPorUnidad = useMemo(() => {
+    const byId = new Map(allRowsPorUnidad.map(r => [r.ingrediente.id, r]));
+    return ordenUnidad.map(id => byId.get(id)).filter(Boolean).filter(matchesSearch);
+  }, [allRowsPorUnidad, ordenUnidad, q]);
   const filteredActivos = useMemo(() => {
     if (!q) return activos;
     return activos.filter(a => a.nombre.toLowerCase().includes(q));
@@ -131,51 +152,55 @@ export default function ComprasPage({ onBack }) {
           {!loading && !error && !!rowsPorPeso.length && (
             <>
               {!!rowsPorUnidad.length && <h5 className="inventario-group-title">Por peso / volumen</h5>}
-              <table className="compra-table">
-                <thead>
-                  <tr><th>Ingrediente</th><th>Precio unitario</th><th>Disponible</th></tr>
-                </thead>
-                <tbody>
-                  {rowsPorPeso.map(row => (
-                    <CompraRow
-                      key={row.ingrediente.rowIndex}
-                      row={row}
-                      actionsOpen={openActionsFor === row.ingrediente.nombre}
-                      onOpenActionsChange={setOpenActionsFor}
-                      onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
-                      onEditInsumo={ing => { setOpenActionsFor(null); setInsumoModal({ editing: ing }); }}
-                      onAjustarStock={ing => { setOpenActionsFor(null); setAjusteStockFor(ing); }}
-                      onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
-                      onDelete={removeCompra}
-                    />
-                  ))}
-                </tbody>
-              </table>
+              <SortableRows ids={ordenPeso} onReorder={reorderPeso}>
+                <table className="compra-table">
+                  <thead>
+                    <tr><th className="compra-table-th-handle"></th><th>Ingrediente</th><th>Precio unitario</th><th>Disponible</th></tr>
+                  </thead>
+                  <tbody>
+                    {rowsPorPeso.map(row => (
+                      <CompraRow
+                        key={row.ingrediente.id}
+                        row={row}
+                        actionsOpen={openActionsFor === row.ingrediente.nombre}
+                        onOpenActionsChange={setOpenActionsFor}
+                        onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
+                        onEditInsumo={ing => { setOpenActionsFor(null); setInsumoModal({ editing: ing }); }}
+                        onAjustarStock={ing => { setOpenActionsFor(null); setAjusteStockFor(ing); }}
+                        onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
+                        onDelete={removeCompra}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </SortableRows>
             </>
           )}
           {!!rowsPorUnidad.length && (
             <>
               <h5 className="inventario-group-title">Por unidad</h5>
-              <table className="compra-table">
-                <thead>
-                  <tr><th>Ingrediente</th><th>Precio unitario</th><th>Disponible</th></tr>
-                </thead>
-                <tbody>
-                  {rowsPorUnidad.map(row => (
-                    <CompraRow
-                      key={row.ingrediente.rowIndex}
-                      row={row}
-                      actionsOpen={openActionsFor === row.ingrediente.nombre}
-                      onOpenActionsChange={setOpenActionsFor}
-                      onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
-                      onEditInsumo={ing => { setOpenActionsFor(null); setInsumoModal({ editing: ing }); }}
-                      onAjustarStock={ing => { setOpenActionsFor(null); setAjusteStockFor(ing); }}
-                      onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
-                      onDelete={removeCompra}
-                    />
-                  ))}
-                </tbody>
-              </table>
+              <SortableRows ids={ordenUnidad} onReorder={reorderUnidad}>
+                <table className="compra-table">
+                  <thead>
+                    <tr><th className="compra-table-th-handle"></th><th>Ingrediente</th><th>Precio unitario</th><th>Disponible</th></tr>
+                  </thead>
+                  <tbody>
+                    {rowsPorUnidad.map(row => (
+                      <CompraRow
+                        key={row.ingrediente.id}
+                        row={row}
+                        actionsOpen={openActionsFor === row.ingrediente.nombre}
+                        onOpenActionsChange={setOpenActionsFor}
+                        onEdit={r => { setOpenActionsFor(null); setCompraModal({ ingrediente: r.ingrediente, editRecord: r.last, lastUnitPrice: r.unitPrice }); }}
+                        onEditInsumo={ing => { setOpenActionsFor(null); setInsumoModal({ editing: ing }); }}
+                        onAjustarStock={ing => { setOpenActionsFor(null); setAjusteStockFor(ing); }}
+                        onRegister={r => setCompraModal({ ingrediente: r.ingrediente, editRecord: null, lastUnitPrice: r.unitPrice })}
+                        onDelete={removeCompra}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </SortableRows>
             </>
           )}
         </Card>

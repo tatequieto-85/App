@@ -329,6 +329,19 @@ const PATHS = {
       <line x1="12" y1="19" x2="12" y2="23" />
       <line x1="8" y1="23" x2="16" y2="23" />
     </>
+  ),
+  // Agarradera de arrastre (6 puntos, 2 columnas) — para filas de lista/
+  // tabla reordenables (ver components/ui/SortableTableRows.jsx), mismo
+  // glifo estándar que usan la mayoría de las apps para esto.
+  gripVertical: (
+    <>
+      <circle cx="9" cy="5" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="19" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="5" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="19" r="1.4" fill="currentColor" stroke="none" />
+    </>
   )
 };
 

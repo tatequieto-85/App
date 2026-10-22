@@ -17,3 +17,16 @@
 
 .compra-row-stock--negativo { color: var(--danger); font-weight: 700; }
 .compra-row-categoria { display: block; font-size: 11px; color: var(--text-sub); font-weight: 400; }
+
+/* Agarradera de arrastre — a pedido explícito del usuario ("organizar los
+   insumos a voluntad, manteniéndolo presionado y después desplazándolo"),
+   columna angosta aparte para no pisar el toque/mantener-presionado que
+   ya usa el resto de la fila (ver CompraRow.jsx, useSortableRow). */
+.compra-table th.compra-table-th-handle { width: 28px; padding-right: 0; }
+.compra-row-handle-cell { width: 28px; padding: 10px 0 10px 4px; }
+.compra-row-handle {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; color: var(--text-sub);
+  cursor: grab; touch-action: none;
+}
+.compra-row-handle:active { cursor: grabbing; }
