@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchRecetas, computeCostoReceta, computePesoTotal } from '../../services/recetasApi';
 import { fetchEjecuciones } from '../../services/ejecucionesApi';
 import { fetchFerias } from '../../services/feriasApi';
-import { fetchCompras } from '../../services/comprasApi';
+import { fetchCompras, getUnitPrice } from '../../services/comprasApi';
+import { ensureIngredientesSheet, fetchIngredientes } from '../../services/ingredientesApi';
 import * as stockApi from '../../services/stockApi';
 
 // Costo de un lote: preferir el congelado al cerrarlo (evaluacion.
@@ -39,6 +40,7 @@ export function useStock() {
   const [ejecuciones, setEjecuciones] = useState([]);
   const [ferias, setFerias] = useState([]);
   const [compras, setCompras] = useState([]);
+  const [ingredientes, setIngredientes] = useState([]);
   const [stockTestigos, setStockTestigos] = useState([]);
   const [stockMovimientos, setStockMovimientos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -59,13 +61,16 @@ export function useStock() {
     (async () => {
       try {
         setLoading(true);
-        await stockApi.ensureStockSheets();
-        const [r, e, f, c] = await Promise.all([fetchRecetas(), fetchEjecuciones(), fetchFerias(), fetchCompras()]);
+        await Promise.all([stockApi.ensureStockSheets(), ensureIngredientesSheet()]);
+        const [r, e, f, c, i] = await Promise.all([
+          fetchRecetas(), fetchEjecuciones(), fetchFerias(), fetchCompras(), fetchIngredientes()
+        ]);
         if (cancelled) return;
         setRecetas(r);
         setEjecuciones(e);
         setFerias(f);
         setCompras(c);
+        setIngredientes(i);
         await reloadStockData();
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -176,6 +181,21 @@ export function useStock() {
     return { valor, disponible230: Math.round(disponible230), disponible130: Math.round(disponible130) };
   }, [ejecuciones, ferias, stockMovimientos, stockTestigos, recetas, compras]);
 
+  // Valor total de los INSUMOS disponibles (materia prima — Inventario),
+  // no del producto terminado — a pedido explícito del usuario, para el
+  // widget de Home. Stock corriente de cada ingrediente (ver
+  // ingredientesApi.js, lo suman las compras y lo descuentan las
+  // ejecuciones) × su precio unitario más reciente en Compras; un
+  // ingrediente sin ninguna compra registrada no se puede costear, no
+  // suma (mismo criterio que computeCostoReceta).
+  const valorInsumos = useMemo(() => {
+    return ingredientes.reduce((sum, ing) => {
+      const precio = getUnitPrice(compras, ing.nombre);
+      if (precio == null || !ing.stock) return sum;
+      return sum + ing.stock * precio;
+    }, 0);
+  }, [ingredientes, compras]);
+
   // Lotes con stock disponible — para el selector de "Apartar testigo".
   const lotesConStock = useMemo(() => {
     return ejecuciones
@@ -221,7 +241,7 @@ export function useStock() {
 
   return {
     loading, error,
-    resumenRows, resumenStockTotal, trazabilidadRows, lotesConStock, testigoRows,
+    resumenRows, resumenStockTotal, valorInsumos, trazabilidadRows, lotesConStock, testigoRows,
     saveAjuste, apartarTestigo, updateTestigoEstado, deleteTestigo
   };
 }

@@ -8,9 +8,12 @@ import './StockWidget.css';
 // tamaño (230 ml / 130 ml, sin título, solo el número — sale del
 // registro de producción de cada lote); tercera fila, el valor total del
 // stock actual (costo por lote / frascos obtenidos, ver resumenStockTotal
-// en useStock.js). Un toque lleva a la pantalla de Stock.
+// en useStock.js); cuarta fila, el valor total de los INSUMOS disponibles
+// (materia prima de Inventario, no producto terminado — ver valorInsumos
+// en useStock.js, otro pedido explícito del usuario). Un toque lleva a la
+// pantalla de Stock.
 export default function StockWidget({ onNavigate, removing, onRequestRemove, onConfirmRemove }) {
-  const { loading, resumenStockTotal } = useStock();
+  const { loading, resumenStockTotal, valorInsumos } = useStock();
 
   return (
     <Widget
@@ -27,6 +30,7 @@ export default function StockWidget({ onNavigate, removing, onRequestRemove, onC
             <div className="stock-widget-frasco-num">{resumenStockTotal.disponible130}</div>
           </div>
           <div className="stock-widget-valor">{fmtCOP(resumenStockTotal.valor)}</div>
+          <div className="stock-widget-valor stock-widget-valor--insumos">{fmtCOP(valorInsumos)}</div>
         </>
       )}
     </Widget>
