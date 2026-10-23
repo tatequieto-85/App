@@ -83,6 +83,20 @@ export function useContabilidad() {
     await reload();
   }, [cajas, reload]);
 
+  // Editar un movimiento manual — a pedido explícito del usuario ("que
+  // salga editar y borrar al mantener presionado"). Solo movimientos NO
+  // automáticos y que NO sean la mitad de una transferencia (quien llama
+  // a esto ya filtra eso, ver MovimientoRow.jsx): una transferencia
+  // cambia los dos lados a la vez con sus propios montos atados, editar
+  // solo uno la desbalancearía — para esos casos solo queda borrar y
+  // volver a cargar.
+  const editMovimiento = useCallback(async (movimientoId, { cajaId, tipo, monto, concepto, fecha }) => {
+    const mov = movimientos.find(m => m.id === movimientoId);
+    if (!mov) return;
+    await api.updateMovimiento({ ...mov, cajaId, tipo, monto, concepto, fecha });
+    await reload();
+  }, [movimientos, reload]);
+
   // Los movimientos automáticos no se borran a mano desde acá — se van
   // solos si se borra la compra/venta que los generó (ver useCompras.js/
   // useVentas.js). Quien llama a esto ya filtra por origen==='manual'. Si
@@ -104,7 +118,7 @@ export function useContabilidad() {
 
   return {
     cajas, movimientos, loading, error,
-    saveCaja, deleteCaja, addMovimiento, addTransferencia, removeMovimiento,
+    saveCaja, deleteCaja, addMovimiento, addTransferencia, editMovimiento, removeMovimiento,
     saldoCaja: cajaId => api.cajaSaldo(movimientos, cajaId)
   };
 }

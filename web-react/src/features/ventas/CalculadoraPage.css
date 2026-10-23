@@ -45,3 +45,14 @@
   border-bottom: 1px solid var(--border);
 }
 .calculadora-table tr:last-child td { border-bottom: none; }
+
+/* Selección de insumos puntuales para ir sumando un total aparte — a
+   pedido explícito del usuario. La fila entera es clicable (no solo el
+   checkbox), igual que elegir una receta en una lista; el checkbox en sí
+   corta la propagación para no togglear dos veces con un solo click. */
+.calculadora-table tbody tr { cursor: pointer; }
+.calculadora-table tbody tr:hover td { background: var(--bg); }
+.calculadora-row-seleccionada td { background: var(--brand-light, rgba(113,75,103,.08)); }
+.calculadora-td-check { width: 28px; padding-right: 0 !important; }
+.calculadora-td-check input { cursor: pointer; }
+.calculadora-seleccion-total strong { color: var(--brand); }

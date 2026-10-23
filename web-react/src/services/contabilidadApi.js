@@ -188,6 +188,16 @@ export async function appendMovimiento(mov) {
   });
 }
 
+export async function updateMovimiento(mov) {
+  await sheetsReq(`/values/ContabilidadMovimientos!A${mov.rowIndex}:I${mov.rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[
+      mov.id, mov.cajaId, mov.tipo, mov.monto, mov.concepto || '', mov.fecha,
+      mov.creadoEn, mov.origen || 'manual', mov.origenRefId || ''
+    ]] })
+  });
+}
+
 export async function deleteMovimientoRow(rowIndex) {
   if (!movimientosSheetId) await ensureContabilidadSheets();
   await sheetsReq(':batchUpdate', {

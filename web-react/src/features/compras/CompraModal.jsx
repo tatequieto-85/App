@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
-import Select from '../../components/ui/Select';
 import ThousandsField from '../../components/ui/ThousandsField';
 import Feedback from '../../components/ui/Feedback';
 import { useFeedback } from '../../hooks/useFeedback';
@@ -18,8 +17,10 @@ import './CompraModal.css';
 // cajas: de qué caja de Contabilidad salió la plata — a pedido explícito
 // del usuario ("no me pide la caja a descontar"), ya no es una caja fija
 // configurada una sola vez (fuenteAutomatica='compras'), se elige acá cada
-// vez. Esa caja automática, si existe, sigue sirviendo como sugerencia por
-// defecto para no repetir la elección en cada compra.
+// vez. Sin preseleccionar ninguna por defecto y obligatoria como el resto
+// de los campos — a pedido explícito del usuario, para que la elección
+// sea siempre a propósito. Cápsulas en vez de desplegable, mismo criterio
+// que el Tipo de MovimientoModal.jsx en Contabilidad.
 export default function CompraModal({ open, onClose, ingrediente, editRecord, lastUnitPrice, cajas, onSave }) {
   const [cantidad, setCantidad] = useState('');
   const [precioTotal, setPrecioTotal] = useState('');
@@ -39,8 +40,10 @@ export default function CompraModal({ open, onClose, ingrediente, editRecord, la
     const c = editRecord ? formatThousandsValue(editRecord.cantidad) : '';
     const p = editRecord ? formatThousandsValue(editRecord.precioTotal) : '';
     const f = editRecord ? editRecord.fecha : toISODate(new Date());
-    const cajaAutomatica = cajas?.find(c => c.fuenteAutomatica === 'compras');
-    const cj = editRecord ? (editRecord.cajaId || '') : (cajaAutomatica?.id || cajas?.[0]?.id || '');
+    // Nunca preseleccionada — el usuario tiene que elegirla a propósito
+    // cada vez, salvo que esté editando una compra que ya tenía una caja
+    // guardada (eso no es un "default", es el valor real guardado).
+    const cj = editRecord ? (editRecord.cajaId || '') : '';
     setCantidad(c);
     setPrecioTotal(p);
     setFecha(f);
@@ -127,13 +130,20 @@ export default function CompraModal({ open, onClose, ingrediente, editRecord, la
           {enteredUnitPrice != null ? `${fmtCOP(enteredUnitPrice)}/${unidad}` : '—'}
         </p>
         {!!cajas?.length && (
-          <Select
-            label="Caja de la que salió la plata"
-            value={cajaId}
-            onChange={e => setCajaId(e.target.value)}
-            disabled={busy}
-            options={cajas.map(c => ({ value: c.id, label: c.nombre }))}
-          />
+          <div className="field">
+            <label className="field-label">Caja de la que salió la plata</label>
+            <div className="compra-caja-picker">
+              {cajas.map(c => (
+                <button
+                  key={c.id} type="button" disabled={busy}
+                  className={`compra-caja-pill${cajaId === c.id ? ' is-selected' : ''}`}
+                  onClick={() => setCajaId(c.id)}
+                >
+                  {c.nombre}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
         <Button type="submit" variant="primary" disabled={busy}>
           {busy ? 'Guardando…' : (editRecord ? 'Guardar cambios' : 'Guardar compra')}

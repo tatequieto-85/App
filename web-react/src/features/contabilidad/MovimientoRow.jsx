@@ -1,21 +1,26 @@
 import { useState } from 'react';
+import Icon from '../../components/icons/Icon';
 import { useRowGestures } from '../../hooks/useRowGestures';
 import { useCloseOnOutsideClick } from '../../hooks/useCloseOnOutsideClick';
 import { fmtCOP, fmtDayMonthSlash } from '../../utils/format';
 import './MovimientoRow.css';
 
 // Fila de un movimiento — los automáticos (generados solos al cerrar una
-// feria o registrar una compra, ver contabilidadApi.js) no se pueden borrar
-// desde acá: si hace falta sacarlos, se borra o edita la venta/compra que
-// los generó, para que la caja nunca quede desincronizada de la fuente
-// real. Solo los manuales tienen mantener-presionado para borrar.
-// cajaNombre (opcional): para el resumen global de todas las cajas (ver
+// feria o registrar una compra, ver contabilidadApi.js) no se pueden
+// editar ni borrar desde acá: si hace falta corregirlos, se edita/borra
+// la venta/compra que los generó, para que la caja nunca quede
+// desincronizada de la fuente real. De los manuales, mantener presionado
+// revela Editar y Borrar — a pedido explícito del usuario — salvo que sea
+// la mitad de una transferencia (comparte `origenRefId` con otra fila),
+// que solo se puede borrar entera (ver MovimientoModal.jsx). cajaNombre
+// (opcional): para el resumen global de todas las cajas (ver
 // ContabilidadPage.jsx) — adentro del detalle de UNA caja no hace falta,
 // ya se sabe cuál es.
-export default function MovimientoRow({ item, cajaNombre, onDelete }) {
+export default function MovimientoRow({ item, cajaNombre, onEdit, onDelete }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const esManual = item.origen === 'manual';
+  const esTransferencia = esManual && !!item.origenRefId;
   const wrapRef = useCloseOnOutsideClick(actionsOpen, () => setActionsOpen(false));
   const gestureProps = useRowGestures({ onLongPress: esManual ? () => setActionsOpen(true) : undefined });
 
@@ -47,7 +52,14 @@ export default function MovimientoRow({ item, cajaNombre, onDelete }) {
       </div>
       {esManual && actionsOpen && (
         <div className="row-actions-bar movimiento-row-actions">
-          <button type="button" className="danger" disabled={busy} onClick={handleDelete}>{busy ? 'Borrando…' : 'Borrar'}</button>
+          {!esTransferencia && (
+            <button type="button" disabled={busy} onClick={() => { setActionsOpen(false); onEdit(item); }}>
+              <Icon name="edit" size={13} /> Editar
+            </button>
+          )}
+          <button type="button" className="danger" disabled={busy} onClick={handleDelete}>
+            <Icon name="trash" size={13} /> {busy ? 'Borrando…' : 'Borrar'}
+          </button>
         </div>
       )}
     </div>

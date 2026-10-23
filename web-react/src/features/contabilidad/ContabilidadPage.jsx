@@ -25,7 +25,7 @@ export default function ContabilidadPage({ onBack }) {
   const ct = useContabilidad();
   const [cajaModal, setCajaModal] = useState(null); // { editing } | null
   const [cajaActionsFor, setCajaActionsFor] = useState(null);
-  const [movimientoModalOpen, setMovimientoModalOpen] = useState(false);
+  const [movimientoModal, setMovimientoModal] = useState(null); // { editing } | null
 
   const nombreCaja = cajaId => ct.cajas.find(c => c.id === cajaId)?.nombre || 'Caja borrada';
 
@@ -87,6 +87,7 @@ export default function ContabilidadPage({ onBack }) {
                     key={m.id}
                     item={m}
                     cajaNombre={nombreCaja(m.cajaId)}
+                    onEdit={item => setMovimientoModal({ editing: item })}
                     onDelete={() => ct.removeMovimiento(m.id)}
                   />
                 ))}
@@ -97,7 +98,7 @@ export default function ContabilidadPage({ onBack }) {
       )}
 
       {!ct.loading && !ct.error && !!ct.cajas.length && (
-        <FabButton onClick={() => setMovimientoModalOpen(true)}>
+        <FabButton onClick={() => setMovimientoModal({ editing: null })}>
           <Icon name="plus" size={16} /> Nuevo movimiento
         </FabButton>
       )}
@@ -110,11 +111,13 @@ export default function ContabilidadPage({ onBack }) {
       />
 
       <MovimientoModal
-        open={movimientoModalOpen}
-        onClose={() => setMovimientoModalOpen(false)}
+        open={!!movimientoModal}
+        onClose={() => setMovimientoModal(null)}
         cajas={ct.cajas}
+        editing={movimientoModal?.editing || null}
         onSaveMovimiento={ct.addMovimiento}
         onSaveTransferencia={ct.addTransferencia}
+        onSaveEdit={ct.editMovimiento}
       />
     </motion.div>
   );

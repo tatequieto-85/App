@@ -14,3 +14,15 @@
   margin-top: 10px;
 }
 
+/* Cápsulas para elegir la caja — a pedido explícito del usuario, en vez
+   de un desplegable (mismo criterio que .movimiento-tipo-picker en
+   Contabilidad). Envuelve a varias líneas si hay muchas cajas. */
+.compra-caja-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.compra-caja-pill {
+  padding: 9px 14px; border-radius: 999px; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+}
+.compra-caja-pill.is-selected { background: var(--brand); border-color: var(--brand); color: #fff; }
+.compra-caja-pill:disabled { opacity: .5; cursor: not-allowed; }
+

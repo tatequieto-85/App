@@ -27,6 +27,20 @@ function nuevaFila() {
 export default function CalculadoraPage() {
   const { recetas, compras, ingredientes, ejecuciones, ferias, stockMovimientos, loading, error } = useCalculadora();
   const [filas, setFilas] = useState([nuevaFila()]);
+  // Selección de insumos puntuales en la tabla de abajo, para ir sumando
+  // un total aparte — a pedido explícito del usuario ("que se deje
+  // seleccionar algunos insumos calculados y vayan sumando el total"), p.
+  // ej. para armar la lista de lo que se va a comprar HOY nada más. Por
+  // nombre de insumo (clave estable de esa tabla, ver filasInsumos).
+  const [seleccionados, setSeleccionados] = useState(new Set());
+
+  function toggleSeleccionado(nombre) {
+    setSeleccionados(prev => {
+      const next = new Set(prev);
+      if (next.has(nombre)) next.delete(nombre); else next.add(nombre);
+      return next;
+    });
+  }
 
   function addFila() {
     setFilas(fs => [...fs, nuevaFila()]);
@@ -110,6 +124,10 @@ export default function CalculadoraPage() {
     };
   }, [filas, recetas, compras, ingredientes, ejecuciones, ferias, stockMovimientos]);
 
+  const totalSeleccionado = resultados.filasInsumos
+    .filter(f => seleccionados.has(f.nombre) && f.faltante > 0)
+    .reduce((s, f) => s + f.costoFaltante, 0);
+
   function recetaLabel(r) {
     return r.unidadesPorLote ? `${r.nombre} (${r.unidadesPorLote}/lote)` : `${r.nombre} (sin configurar)`;
   }
@@ -186,12 +204,28 @@ export default function CalculadoraPage() {
               <p className="calculadora-falta-total">
                 Falta comprar (según stock actual): <strong>{fmtCOP(resultados.totalFaltante)}</strong>
               </p>
+              {!!seleccionados.size && (
+                <p className="calculadora-falta-total calculadora-seleccion-total">
+                  Seleccionado ({seleccionados.size}): <strong>{fmtCOP(totalSeleccionado)}</strong>
+                </p>
+              )}
               <div className="calculadora-table-wrap">
                 <table className="calculadora-table">
-                  <thead><tr><th>Insumo</th><th>Costo de faltante</th><th>Cantidad faltante</th></tr></thead>
+                  <thead><tr><th></th><th>Insumo</th><th>Costo de faltante</th><th>Cantidad faltante</th></tr></thead>
                   <tbody>
                     {resultados.filasInsumos.map(f => (
-                      <tr key={f.nombre}>
+                      <tr
+                        key={f.nombre}
+                        className={seleccionados.has(f.nombre) ? 'calculadora-row-seleccionada' : ''}
+                        onClick={() => toggleSeleccionado(f.nombre)}
+                      >
+                        <td className="calculadora-td-check">
+                          <input
+                            type="checkbox" checked={seleccionados.has(f.nombre)}
+                            onChange={() => toggleSeleccionado(f.nombre)}
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </td>
                         <td>{f.nombre}</td>
                         <td>{f.faltante > 0 ? fmtCOP(f.costoFaltante) : '— ya hay stock'}</td>
                         <td>{f.faltante > 0 ? `${f.faltante.toLocaleString('es-CO', { maximumFractionDigits: 2 })} ${f.unidad}` : '—'}</td>
