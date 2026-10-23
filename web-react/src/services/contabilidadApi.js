@@ -33,7 +33,28 @@ export const FUENTE_AUTOMATICA_OPCIONES = [
   { value: 'compras', label: 'Automático — egresos de Compras' }
 ];
 
+// Bug real encontrado probando esto: con varios widgets de Home montados
+// juntos (p. ej. Ventas + Insumos), cada uno llama a
+// ensureContabilidadSheets() por su cuenta al mismo tiempo — dos
+// corridas de limpiarFilasFantasma() en paralelo contra la MISMA hoja se
+// pisan entre sí (cada una calcula sus índices de borrado sobre una foto
+// que la otra ya corrió), y en vez de borrar solo las filas fantasma
+// terminaron borrando TAMBIÉN las cajas reales. Esta promesa compartida
+// hace que, si ya hay una corrida en curso, cualquier otro llamado
+// simplemente espere ESA MISMA, en vez de arrancar una paralela.
+let ensurePromise = null;
+
 export async function ensureContabilidadSheets() {
+  if (ensurePromise) return ensurePromise;
+  ensurePromise = ensureContabilidadSheetsInner();
+  try {
+    await ensurePromise;
+  } finally {
+    ensurePromise = null;
+  }
+}
+
+async function ensureContabilidadSheetsInner() {
   const info = await sheetsReq('');
   const tabs = info.sheets || [];
   const hasC = tabs.find(s => s.properties.title === 'ContabilidadCajas');

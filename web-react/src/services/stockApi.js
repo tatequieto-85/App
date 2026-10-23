@@ -20,7 +20,27 @@ export function getFechaVencimientoLote(ejecucion) {
 let stockTestigosSheetId = null;
 let stockMovimientosSheetId = null;
 
+// Bug real encontrado probando esto en Contabilidad (mismo patrón acá):
+// con varios widgets de Home montados juntos (p. ej. Stock + Ventas),
+// cada uno llama a ensureStockSheets() por su cuenta al mismo tiempo —
+// dos corridas de limpiarFilasFantasma() en paralelo contra la MISMA hoja
+// se pisan entre sí y pueden borrar filas que no son fantasma. Esta
+// promesa compartida hace que, si ya hay una corrida en curso, cualquier
+// otro llamado simplemente espere ESA MISMA, en vez de arrancar una
+// paralela.
+let ensurePromise = null;
+
 export async function ensureStockSheets() {
+  if (ensurePromise) return ensurePromise;
+  ensurePromise = ensureStockSheetsInner();
+  try {
+    await ensurePromise;
+  } finally {
+    ensurePromise = null;
+  }
+}
+
+async function ensureStockSheetsInner() {
   const info = await sheetsReq('');
   const tabs = info.sheets || [];
   const hasT = tabs.find(s => s.properties.title === 'StockTestigo');
