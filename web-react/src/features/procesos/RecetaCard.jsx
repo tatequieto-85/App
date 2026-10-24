@@ -50,7 +50,10 @@ export default function RecetaCard({ receta, onAbrir, onEdit, onDelete, onDuplic
       <div className="receta-card" {...gestureProps}>
         <div className="receta-card-title">{receta.nombre}</div>
         <div className="receta-card-meta">
-          <span>{label} · {receta.unidadesPorLote || 0} unidad{receta.unidadesPorLote === 1 ? '' : 'es'}</span>
+          <span>
+            {label}
+            {!!receta.medidas?.length && ` · ${receta.medidas.length} medida${receta.medidas.length === 1 ? '' : 's'}`}
+          </span>
         </div>
       </div>
       {actionsOpen && (

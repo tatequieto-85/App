@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import * as recetasApi from '../../services/recetasApi';
 import { fetchCompras } from '../../services/comprasApi';
 import * as ejecucionesApi from '../../services/ejecucionesApi';
+import * as medidasApi from '../../services/medidasApi';
 import { applyStockDeltas } from '../../services/ingredientesApi';
 import { todayISOBogota } from '../../utils/format';
 
@@ -18,6 +19,7 @@ export function useProcesos(ingredientes, reloadIngredientes) {
   const [recetaBlocks, setRecetaBlocks] = useState([]);
   const [recetas, setRecetas] = useState([]);
   const [compras, setCompras] = useState([]);
+  const [medidas, setMedidas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -32,12 +34,17 @@ export function useProcesos(ingredientes, reloadIngredientes) {
     (async () => {
       try {
         setLoading(true);
-        await Promise.all([recetasApi.ensureRecetasSheets(), ejecucionesApi.ensureEjecucionesSheet()]);
-        const [blocks, recs, comprs] = await Promise.all([recetasApi.fetchRecetaBlocks(), recetasApi.fetchRecetas(), fetchCompras()]);
+        await Promise.all([
+          recetasApi.ensureRecetasSheets(), ejecucionesApi.ensureEjecucionesSheet(), medidasApi.ensureMedidasSheet()
+        ]);
+        const [blocks, recs, comprs, meds] = await Promise.all([
+          recetasApi.fetchRecetaBlocks(), recetasApi.fetchRecetas(), fetchCompras(), medidasApi.fetchMedidas()
+        ]);
         if (cancelled) return;
         setRecetaBlocks(blocks);
         setRecetas(recs);
         setCompras(comprs);
+        setMedidas(meds);
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -45,6 +52,16 @@ export function useProcesos(ingredientes, reloadIngredientes) {
       }
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  // Catálogo de medidas (ver medidasApi.js) — nombre + peso en ml
+  // reutilizables entre recetas; los insumos exactos de cada combinación
+  // receta+medida se configuran en la receta misma (ver RecetaMedidasSection.jsx).
+  const createMedida = useCallback(async (nombre, pesoMl) => {
+    const id = await medidasApi.appendMedida(nombre, pesoMl);
+    const lista = await medidasApi.fetchMedidas();
+    setMedidas(lista);
+    return lista.find(m => m.id === id) || { id, nombre, pesoMl };
   }, []);
 
   // ── Grupos ─────────────────────────────────────────────────────────────
@@ -91,16 +108,16 @@ export function useProcesos(ingredientes, reloadIngredientes) {
 
   // datos: { nombre, middleEtapas, ingredientesMaestros }. El nivel de
   // picante nunca se elige a mano, se detecta solo (ver recetasApi.js).
-  const saveReceta = useCallback(async ({ nombre, unidadesPorLote, middleEtapas, ingredientesMaestros }, editingId, blockId) => {
+  const saveReceta = useCallback(async ({ nombre, middleEtapas, ingredientesMaestros, medidas: recetaMedidas }, editingId, blockId) => {
     const etapas = recetasApi.buildEtapasFull(middleEtapas);
     const nivelPicante = recetasApi.detectNivelPicante(ingredientesMaestros);
     if (editingId) {
       const rec = recetas.find(r => r.id === editingId);
-      if (rec) await recetasApi.updateReceta({ ...rec, nombre, unidadesPorLote, etapas, ingredientesMaestros, nivelPicante });
+      if (rec) await recetasApi.updateReceta({ ...rec, nombre, etapas, ingredientesMaestros, medidas: recetaMedidas, nivelPicante });
     } else {
       await recetasApi.appendReceta({
-        id: crypto.randomUUID(), nombre, descripcion: '', etapas, ingredientesMaestros,
-        blockId: blockId || '', nivelPicante, unidadesPorLote, creadoEn: new Date().toISOString()
+        id: crypto.randomUUID(), nombre, descripcion: '', etapas, ingredientesMaestros, medidas: recetaMedidas,
+        blockId: blockId || '', nivelPicante, creadoEn: new Date().toISOString()
       });
     }
     await reloadRecetas();
@@ -122,9 +139,9 @@ export function useProcesos(ingredientes, reloadIngredientes) {
       descripcion: receta.descripcion || '',
       etapas: (receta.etapas || []).map(et => ({ ...et, id: crypto.randomUUID() })),
       ingredientesMaestros: receta.ingredientesMaestros || [],
+      medidas: receta.medidas || [],
       blockId: receta.blockId || '',
       nivelPicante: receta.nivelPicante || '',
-      unidadesPorLote: receta.unidadesPorLote || 0,
       creadoEn: new Date().toISOString()
     });
     await reloadRecetas();
@@ -216,6 +233,42 @@ export function useProcesos(ingredientes, reloadIngredientes) {
     return updated;
   }, []);
 
+  // Equivalente a updateFrascosEjecucion, pero para recetas con medidas
+  // configuradas (ver RecetaMedidasSection.jsx) en vez de los dos tamaños
+  // fijos 230/130 — a pedido explícito del usuario: "salgan todas las
+  // medidas atadas a esa receta y uno escoja cuántas salieron de cada
+  // una". Vive en evaluacion.produccionPorMedida (upsert por medidaId).
+  // Puente de compatibilidad: Stock (stockApi.js) sigue leyendo
+  // evaluacion.frascos230/frascos130/frascosProducidos tal cual — en vez
+  // de reescribir ese código ya varias veces debuggeado para N medidas
+  // arbitrarias, se recalculan esos mismos campos legacy a partir de
+  // produccionPorMedida en cada guardado: una medida de 230/130 ml
+  // alimenta su campo dedicado (precio por frasco exacto en Stock);
+  // cualquier otro tamaño cae en frascosProducidos (el mismo balde
+  // genérico que ya usa hoy el dato "sin tamaño conocido" — precio
+  // promedio ahí, pero el descuento de insumos siempre es exacto sin
+  // importar el tamaño, ver EjecucionProduccionBox.jsx).
+  const updateProduccionMedidaEjecucion = useCallback(async (ejecucion, medidaId, cantidad, medidasReceta) => {
+    const prevLista = ejecucion.evaluacion?.produccionPorMedida || [];
+    const medidaInfo = (medidasReceta || []).find(m => m.medidaId === medidaId);
+    const nuevaLista = [
+      ...prevLista.filter(p => p.medidaId !== medidaId),
+      { medidaId, nombre: medidaInfo?.nombre || '', pesoMl: medidaInfo?.pesoMl || 0, cantidad }
+    ];
+    let frascos230 = 0, frascos130 = 0, frascosProducidos = 0;
+    nuevaLista.forEach(p => {
+      if (p.pesoMl === 230) frascos230 += p.cantidad || 0;
+      else if (p.pesoMl === 130) frascos130 += p.cantidad || 0;
+      else frascosProducidos += p.cantidad || 0;
+    });
+    const updated = {
+      ...ejecucion,
+      evaluacion: { ...(ejecucion.evaluacion || {}), produccionPorMedida: nuevaLista, frascos230, frascos130, frascosProducidos }
+    };
+    await ejecucionesApi.updateEjecucion(updated);
+    return updated;
+  }, []);
+
   // "Guardar ejecución" — cierra el lote: fecha de fin = hoy, estado
   // "Completada" (mismo string que ya esperaba la app vanilla para
   // pintarlo en verde, ver estado-ok en procesos.js). El pH ya es
@@ -260,11 +313,12 @@ export function useProcesos(ingredientes, reloadIngredientes) {
   }, [ingredientes, reloadIngredientes]);
 
   return {
-    recetaBlocks, recetas, compras, loading, error,
-    saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups,
+    recetaBlocks, recetas, compras, medidas, loading, error,
+    saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups, createMedida,
     saveReceta, deleteReceta, duplicateReceta, escalarReceta,
     empezarProduccion, addObservacionEjecucion,
     addInsumoEjecucion, removeInsumoEjecucion, updatePHEjecucion, updateFrascosEjecucion,
+    updateProduccionMedidaEjecucion,
     finalizarEjecucion
   };
 }

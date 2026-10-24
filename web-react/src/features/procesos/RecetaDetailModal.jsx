@@ -59,8 +59,8 @@ function IngRow({ ing, mostrarPct }) {
 // cargar los ingredientes usados dentro del cuadro.
 export default function RecetaDetailModal({
   open, onClose, receta, compras, ingredientes, onAddNewIngrediente,
-  onEmpezarProduccion, onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos, onGuardarEjecucion,
-  onEscalarReceta
+  onEmpezarProduccion, onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos,
+  onChangeProduccionMedida, onGuardarEjecucion, onEscalarReceta
 }) {
   const [busy, setBusy] = useState(false);
   const [ejecucion, setEjecucion] = useState(null);
@@ -124,6 +124,8 @@ export default function RecetaDetailModal({
   const handleRemoveInsumo = (ej, idx) => queueUpdate(current => onRemoveInsumo(current, idx));
   const handleChangePH = (ej, ph) => queueUpdate(current => onChangePH(current, ph));
   const handleChangeFrascos = (ej, campo, cantidad) => queueUpdate(current => onChangeFrascos(current, campo, cantidad));
+  const handleChangeProduccionMedida = (ej, medidaId, cantidad, medidasReceta) =>
+    queueUpdate(current => onChangeProduccionMedida(current, medidaId, cantidad, medidasReceta));
   const handleGuardarEjecucion = (ej, costoTotal, pesoTotalReceta, ingredientesConsumidos) =>
     queueUpdate(current => onGuardarEjecucion(current, costoTotal, pesoTotalReceta, ingredientesConsumidos));
 
@@ -157,10 +159,24 @@ export default function RecetaDetailModal({
           {porPeso.map((ing, i) => <IngRow key={`p${i}`} ing={ing} mostrarPct />)}
           {!!porUnidad.length && (
             <>
-              <p className="receta-detail-subtitle">Por unidad</p>
+              <p className="receta-detail-subtitle">Por unidad (insumos viejos, migrar a una medida)</p>
               {porUnidad.map((ing, i) => <IngRow key={`u${i}`} ing={ing} mostrarPct={false} />)}
             </>
           )}
+        </div>
+      )}
+
+      {!!(receta.medidas || []).length && (
+        <div className="receta-detail-section">
+          <h4 className="receta-detail-section-title">Medidas</h4>
+          {receta.medidas.map(medida => (
+            <div key={medida.medidaId} className="receta-detail-ing-row">
+              <span className="receta-detail-ing-nombre">{medida.nombre}{medida.pesoMl ? ` (${medida.pesoMl} ml)` : ''}</span>
+              <span className="receta-detail-ing-cantidad">
+                {(medida.insumos || []).map(ins => `${ins.cantidad} ${ins.nombre}`).join(', ') || 'sin insumos'}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -174,10 +190,11 @@ export default function RecetaDetailModal({
       {ejecucion ? (
         <EjecucionProduccionBox
           ejecucion={ejecucion} ingredientes={ingredientes} onAddNewIngrediente={onAddNewIngrediente}
-          recetaIngredientes={maestros} compras={compras}
+          recetaIngredientes={maestros} recetaMedidas={receta.medidas || []} compras={compras}
           onAddObservacion={handleAddObservacion}
           onAddInsumo={handleAddInsumo} onRemoveInsumo={handleRemoveInsumo}
           onChangePH={handleChangePH} onChangeFrascos={handleChangeFrascos}
+          onChangeProduccionMedida={handleChangeProduccionMedida}
           onGuardarEjecucion={handleGuardarEjecucion}
           onClose={onClose}
         />

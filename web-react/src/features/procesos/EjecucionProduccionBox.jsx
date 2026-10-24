@@ -11,21 +11,35 @@ import './EjecucionProduccionBox.css';
 
 // Un solo cuadro, debajo de Etapas, apenas se toca "Empezar producción" (ver
 // RecetaDetailModal.jsx) — a pedido explícito del usuario: no es una
-// ventana aparte. Junta pH (obligatorio) + frascos producidos por tamaño
-// (230 ml / 130 ml, misma fila que el pH), ingredientes usados (con su
-// peso) y observaciones — campos/filas agregados a voluntad — y un botón
-// final "Guardar ejecución" que cierra el lote (requiere pH cargado, ver
-// finalizarEjecucion en useProcesos.js).
+// ventana aparte. Junta pH (obligatorio) + frascos producidos (misma fila
+// que el pH), ingredientes usados (con su peso) y observaciones — campos/
+// filas agregados a voluntad — y un botón final "Guardar ejecución" que
+// cierra el lote (requiere pH cargado, ver finalizarEjecucion en
+// useProcesos.js). `recetaMedidas` (receta.medidas, ver RecetaMedidasSection.
+// jsx): si la receta tiene medidas configuradas, se pregunta cuánto salió
+// de CADA UNA (en vez de los dos campos fijos "Frasco 230 ml"/"Frasco 130
+// ml" de antes) — a pedido explícito del usuario: "salgan todas las medidas
+// atadas a esa receta y uno escoja cuántas salieron de cada una". Una
+// receta vieja sin medidas configuradas sigue viendo el par fijo de siempre,
+// sin ningún cambio de comportamiento.
 export default function EjecucionProduccionBox({
-  ejecucion, ingredientes, onAddNewIngrediente, recetaIngredientes, compras,
-  onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos, onGuardarEjecucion, onClose
+  ejecucion, ingredientes, onAddNewIngrediente, recetaIngredientes, recetaMedidas, compras,
+  onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos, onChangeProduccionMedida, onGuardarEjecucion, onClose
 }) {
   const [phDraft, setPhDraft] = useState(ejecucion.evaluacion?.ph != null ? String(ejecucion.evaluacion.ph) : '');
   const [phTouched, setPhTouched] = useState(false);
   const [frascos230Draft, setFrascos230Draft] = useState(ejecucion.evaluacion?.frascos230 != null ? String(ejecucion.evaluacion.frascos230) : '');
   const [frascos130Draft, setFrascos130Draft] = useState(ejecucion.evaluacion?.frascos130 != null ? String(ejecucion.evaluacion.frascos130) : '');
+  const produccionPorMedida = ejecucion.evaluacion?.produccionPorMedida || [];
+  const [medidaDrafts, setMedidaDrafts] = useState(() => {
+    const init = {};
+    produccionPorMedida.forEach(p => { init[p.medidaId] = String(p.cantidad); });
+    return init;
+  });
   const [guardando, setGuardando] = useState(false);
   const [feedback, showFeedback] = useFeedback();
+
+  const usaMedidas = !!(recetaMedidas || []).length;
 
   async function handlePhBlur() {
     setPhTouched(true);
@@ -43,13 +57,35 @@ export default function EjecucionProduccionBox({
     if (!isNaN(n)) await onChangeFrascos(ejecucion, 'frascos130', n);
   }
 
+  async function handleMedidaBlur(medidaId) {
+    const n = parseInt(medidaDrafts[medidaId], 10);
+    if (!isNaN(n)) await onChangeProduccionMedida(ejecucion, medidaId, n, recetaMedidas);
+  }
+
   const phVacio = phTouched && !phDraft.trim();
   const yaGuardada = ejecucion.estado === 'Completada';
+
+  // Insumos unitarios de las medidas efectivamente producidas en ESTE lote
+  // — el grupo de insumos de cada medida (frasco/etiqueta/tapa) multiplicado
+  // por la cantidad ingresada para esa medida, a pedido explícito del
+  // usuario ("al poner la cantidad de cada tamaño me descuente el grupo de
+  // insumos multiplicado por los que salieron").
+  const medidaInsumosExpandidos = usaMedidas
+    ? (recetaMedidas || []).flatMap(medida => {
+        const cantidad = parseInt(medidaDrafts[medida.medidaId], 10) || 0;
+        if (!cantidad) return [];
+        return (medida.insumos || []).filter(ins => ins.nombre).map(ins => ({
+          nombre: ins.nombre, unidad: ins.unidad,
+          cantidadComprada: (ins.cantidad || 0) * cantidad,
+          cantidadReceta: (ins.cantidad || 0) * cantidad
+        }));
+      })
+    : [];
 
   // Precio total del lote, en vivo — a pedido explícito del usuario: si se
   // agregan ingredientes acá (no planeados en la receta), el precio del
   // lote tiene que sumarlos también, no solo los de la receta original.
-  const todosLosInsumos = [...(recetaIngredientes || []), ...(ejecucion.insumos || [])];
+  const todosLosInsumos = [...(recetaIngredientes || []), ...(ejecucion.insumos || []), ...medidaInsumosExpandidos];
   const { total: costoLote, incompleto: costoIncompleto } = computeCostoReceta(compras, todosLosInsumos);
   // Peso total del lote (g) — se congela junto con el costo al guardar la
   // ejecución, base para calcular la merma y el precio por frasco según
@@ -100,16 +136,29 @@ export default function EjecucionProduccionBox({
           onBlur={handlePhBlur}
           error={phVacio ? 'El pH es obligatorio.' : ''}
         />
-        <TextField
-          label="Frasco 230 ml" placeholder="0" inputMode="numeric"
-          value={frascos230Draft} onChange={e => setFrascos230Draft(e.target.value)}
-          onBlur={handleFrascos230Blur}
-        />
-        <TextField
-          label="Frasco 130 ml" placeholder="0" inputMode="numeric"
-          value={frascos130Draft} onChange={e => setFrascos130Draft(e.target.value)}
-          onBlur={handleFrascos130Blur}
-        />
+        {!usaMedidas && (
+          <>
+            <TextField
+              label="Frasco 230 ml" placeholder="0" inputMode="numeric"
+              value={frascos230Draft} onChange={e => setFrascos230Draft(e.target.value)}
+              onBlur={handleFrascos230Blur}
+            />
+            <TextField
+              label="Frasco 130 ml" placeholder="0" inputMode="numeric"
+              value={frascos130Draft} onChange={e => setFrascos130Draft(e.target.value)}
+              onBlur={handleFrascos130Blur}
+            />
+          </>
+        )}
+        {usaMedidas && recetaMedidas.map(medida => (
+          <TextField
+            key={medida.medidaId}
+            label={`Cantidad — ${medida.nombre}`} placeholder="0" inputMode="numeric"
+            value={medidaDrafts[medida.medidaId] ?? ''}
+            onChange={e => setMedidaDrafts(prev => ({ ...prev, [medida.medidaId]: e.target.value }))}
+            onBlur={() => handleMedidaBlur(medida.medidaId)}
+          />
+        ))}
       </div>
 
       <p className="ejecucion-produccion-subtitle">Ingredientes adicionales</p>

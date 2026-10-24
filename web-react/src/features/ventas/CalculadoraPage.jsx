@@ -5,7 +5,7 @@ import Icon from '../../components/icons/Icon';
 import Select from '../../components/ui/Select';
 import TextField from '../../components/ui/TextField';
 import { useCalculadora } from './useCalculadora';
-import { computeCostoRecetaEscalado } from '../../services/recetasApi';
+import { computeCostoRecetaMedida } from '../../services/recetasApi';
 import { normalizeIngName } from '../../services/ingredientesApi';
 import { getStockDisponibleGeneral } from '../../services/stockApi';
 import { fmtCOP } from '../../utils/format';
@@ -13,16 +13,18 @@ import './CalculadoraPage.css';
 
 let nextRowId = 1;
 function nuevaFila() {
-  return { id: nextRowId++, recetaId: '', cantidad: '' };
+  return { id: nextRowId++, recetaId: '', medidaId: '', cantidad: '' };
 }
 
 // "Necesito hacer 5 de este sabor, 29 de este sabor" — a pedido explícito
-// del usuario: elegís varias recetas con cuántas UNIDADES finales querés
-// sacar de cada una, y acá se calcula cuánto cuesta en insumos, según los
-// últimos precios de Compras (mismo criterio que el costo estimado de una
-// receta en Procesos). Cada receta escala según su `unidadesPorLote` (lo
-// que rinde un lote completo tal como está cargada — ver RecetaModal.jsx);
-// una receta sin eso configurado no se puede escalar, queda afuera de la
+// del usuario: elegís varias recetas, con QUÉ MEDIDA (tamaño de empaque, ver
+// RecetaMedidasSection.jsx) y cuántas UNIDADES finales de esa medida querés
+// sacar, y acá se calcula cuánto cuesta en insumos, según los últimos
+// precios de Compras (mismo criterio que el costo estimado de una receta en
+// Procesos). Cada receta escala sus insumos de peso según el peso de esa
+// medida (ver computeCostoRecetaMedida en recetasApi.js) y le suma los
+// insumos unitarios (frasco/etiqueta/tapa) de esa medida puntual — una
+// receta sin medidas configuradas no se puede calcular, queda afuera de la
 // cuenta con un aviso. No guarda nada — es una calculadora de verdad.
 export default function CalculadoraPage() {
   const { recetas, compras, ingredientes, ejecuciones, ferias, stockMovimientos, loading, error } = useCalculadora();
@@ -65,10 +67,11 @@ export default function CalculadoraPage() {
       const receta = recetas.find(r => r.id === f.recetaId);
       const cantidadPedida = parseInt(f.cantidad, 10) || 0;
       if (!receta || !cantidadPedida) return;
-      if (!receta.unidadesPorLote) {
+      if (!receta.medidas?.length) {
         if (!sinConfigurar.includes(receta.nombre)) sinConfigurar.push(receta.nombre);
         return;
       }
+      if (!f.medidaId) return;
       // Si ya hay unidades de este sabor hechas y sin vender (ver Stock),
       // no hace falta producirlas de nuevo — a pedido explícito del
       // usuario ("si pongo 10 y hay tres debe aclararlo"): la cuenta de
@@ -78,8 +81,7 @@ export default function CalculadoraPage() {
       const cantidadNum = Math.max(0, cantidadPedida - stockDisponible);
       stockPorFila[f.id] = { cantidadPedida, stockDisponible, aProducir: cantidadNum };
       if (!cantidadNum) return;
-      const factor = cantidadNum / receta.unidadesPorLote;
-      const { total, incompleto, detalle } = computeCostoRecetaEscalado(compras, receta.ingredientesMaestros, factor);
+      const { total, incompleto, detalle } = computeCostoRecetaMedida(compras, receta, f.medidaId, cantidadNum);
       porFila[f.id] = total;
       totalGeneral += total;
       incompleto.forEach(n => incompletos.add(n));
@@ -129,7 +131,7 @@ export default function CalculadoraPage() {
     .reduce((s, f) => s + f.costoFaltante, 0);
 
   function recetaLabel(r) {
-    return r.unidadesPorLote ? `${r.nombre} (${r.unidadesPorLote}/lote)` : `${r.nombre} (sin configurar)`;
+    return r.medidas?.length ? r.nombre : `${r.nombre} (sin medidas)`;
   }
 
   // Una receta ya elegida en OTRA fila no vuelve a aparecer en el
@@ -160,6 +162,16 @@ export default function CalculadoraPage() {
                       onChange={e => updateFila(f.id, 'recetaId', e.target.value)}
                       options={[{ value: '', label: 'Elegí una receta' }, ...opcionesPara(f.id)]}
                     />
+                    {!!recetas.find(r => r.id === f.recetaId)?.medidas?.length && (
+                      <Select
+                        label="Medida" value={f.medidaId}
+                        onChange={e => updateFila(f.id, 'medidaId', e.target.value)}
+                        options={[
+                          { value: '', label: 'Elegí…' },
+                          ...recetas.find(r => r.id === f.recetaId).medidas.map(m => ({ value: m.medidaId, label: m.nombre }))
+                        ]}
+                      />
+                    )}
                     <TextField
                       label="Unidades" type="number" min="0" step="1" placeholder="0"
                       value={f.cantidad} onChange={e => updateFila(f.id, 'cantidad', e.target.value)}
@@ -194,7 +206,7 @@ export default function CalculadoraPage() {
           {!!resultados.sinConfigurar.length && (
             <div className="calculadora-aviso">
               <Icon name="alertTriangle" size={13} />
-              Sin "unidades por lote" configuradas, no se pueden calcular: {resultados.sinConfigurar.join(', ')} — editalas en Procesos.
+              Sin medidas configuradas, no se pueden calcular: {resultados.sinConfigurar.join(', ')} — editalas en Procesos.
             </div>
           )}
 

@@ -108,7 +108,9 @@ export default function ProcesosPage({ onBack }) {
         editingReceta={recetaModal?.editing || null}
         ingredientes={ingredientes}
         compras={pr.compras}
+        medidasCatalogo={pr.medidas}
         onAddNewIngrediente={tryAddIngrediente}
+        onAddNewMedida={pr.createMedida}
         onSave={(datos, editingId) => pr.saveReceta(datos, editingId, recetaModal?.groupId)}
       />
 
@@ -125,6 +127,7 @@ export default function ProcesosPage({ onBack }) {
         onRemoveInsumo={pr.removeInsumoEjecucion}
         onChangePH={pr.updatePHEjecucion}
         onChangeFrascos={pr.updateFrascosEjecucion}
+        onChangeProduccionMedida={pr.updateProduccionMedidaEjecucion}
         onGuardarEjecucion={pr.finalizarEjecucion}
         onEscalarReceta={pr.escalarReceta}
       />

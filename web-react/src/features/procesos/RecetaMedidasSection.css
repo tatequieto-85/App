@@ -1,0 +1,22 @@
+.receta-medidas-section { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+
+.receta-medida-card {
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; background: var(--bg); display: flex; flex-direction: column; gap: 8px;
+}
+.receta-medida-card-header { display: flex; align-items: center; gap: 8px; }
+.receta-medida-card-nombre { font-size: 13px; font-weight: 700; color: var(--text); }
+.receta-medida-card-peso {
+  font-size: 11px; color: var(--text-sub); background: var(--brand-light, rgba(113,75,103,.08));
+  border-radius: 999px; padding: 2px 8px;
+}
+.receta-medida-card-header .receta-ing-row-del { margin-left: auto; }
+
+.receta-medida-insumo-row { display: flex; align-items: flex-end; gap: 6px; }
+.receta-medida-insumo-row .autocomplete-wrap { flex: 2; }
+.receta-medida-insumo-row > div:nth-child(2) { flex: 1; }
+
+.receta-medida-add-form {
+  border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+}

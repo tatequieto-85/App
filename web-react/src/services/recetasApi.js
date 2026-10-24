@@ -37,7 +37,7 @@ export async function ensureRecetasSheets() {
     });
   }
 
-  const rd = await sheetsReq('/values/RecetasPlantillas!A1:I1').catch(() => ({}));
+  const rd = await sheetsReq('/values/RecetasPlantillas!A1:J1').catch(() => ({}));
   const rdRow = (rd.values || [])[0] || [];
   if (rdRow.length < 7) {
     await sheetsReq('/values/RecetasPlantillas!A1:I1?valueInputOption=RAW', {
@@ -59,6 +59,19 @@ export async function ensureRecetasSheets() {
     await sheetsReq('/values/RecetasPlantillas!I1?valueInputOption=RAW', {
       method: 'PUT',
       body: JSON.stringify({ values: [['UnidadesPorLote']] })
+    });
+  }
+  // Medidas (J) — tamaños de empaque atados a la receta, cada uno con su
+  // propio grupo de insumos unitarios (frasco/etiqueta/tapa de ESE tamaño),
+  // a pedido explícito del usuario. Reemplaza los insumos "por unidad" que
+  // antes vivían en IngredientesMaestros forzados a UnidadesPorLote (esa
+  // columna queda viva en hojas viejas pero deja de escribirse con un
+  // valor real — ver RecetaModal.jsx). Ver medidasApi.js para el catálogo
+  // de nombres reutilizables.
+  if (rdRow.length < 10) {
+    await sheetsReq('/values/RecetasPlantillas!J1?valueInputOption=RAW', {
+      method: 'PUT',
+      body: JSON.stringify({ values: [['Medidas']] })
     });
   }
 
@@ -83,7 +96,7 @@ export async function ensureRecetasSheets() {
 // ── Recetas: CRUD ────────────────────────────────────────────────────────────
 
 export async function fetchRecetas() {
-  const data = await sheetsReq('/values/RecetasPlantillas!A:I');
+  const data = await sheetsReq('/values/RecetasPlantillas!A:J');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
     id: r[0] || '',
@@ -95,26 +108,29 @@ export async function fetchRecetas() {
     blockId: r[6] || '',
     nivelPicante: r[7] || '',
     unidadesPorLote: parseInt(r[8]) || 0,
+    medidas: safeParseJSON(r[9], []),
     rowIndex: i + 2
   }));
 }
 
 export async function appendReceta(rec) {
-  await sheetsReq('/values/RecetasPlantillas!A:I:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/RecetasPlantillas!A:J:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       rec.id, rec.nombre, rec.descripcion || '', JSON.stringify(rec.etapas || []), rec.creadoEn,
-      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || '', rec.nivelPicante || '', rec.unidadesPorLote || 0
+      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || '', rec.nivelPicante || '', rec.unidadesPorLote || 0,
+      JSON.stringify(rec.medidas || [])
     ]] })
   });
 }
 
 export async function updateReceta(rec) {
-  await sheetsReq(`/values/RecetasPlantillas!A${rec.rowIndex}:I${rec.rowIndex}?valueInputOption=RAW`, {
+  await sheetsReq(`/values/RecetasPlantillas!A${rec.rowIndex}:J${rec.rowIndex}?valueInputOption=RAW`, {
     method: 'PUT',
     body: JSON.stringify({ values: [[
       rec.id, rec.nombre, rec.descripcion || '', JSON.stringify(rec.etapas || []), rec.creadoEn,
-      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || '', rec.nivelPicante || '', rec.unidadesPorLote || 0
+      JSON.stringify(rec.ingredientesMaestros || []), rec.blockId || '', rec.nivelPicante || '', rec.unidadesPorLote || 0,
+      JSON.stringify(rec.medidas || [])
     ]] })
   });
 }
@@ -377,5 +393,45 @@ export function computeCostoRecetaEscalado(compras, ingredientesMaestros, factor
     total += costo;
     detalle.push({ nombre: im.nombre, unidad: im.unidad, cantidad: qty, costo });
   });
+  return { total, incompleto, detalle };
+}
+
+// Costo de producir `cantidadFinal` unidades de UNA medida puntual de la
+// receta — lo usa la Calculadora de Ventas (reemplaza el escalado por
+// `unidadesPorLote`, a pedido explícito del usuario: "en la Calculadora
+// también se elige una medida específica"). Dos partes:
+// - Insumos de peso/volumen (maní, cayena, aceite…): se escalan con el mismo
+//   criterio que la sugerencia de frascos de RecetaEscalarSection.jsx
+//   (floor(pesoTotal / pesoMl) ≈ unidades que rinde un lote completo de ESE
+//   tamaño) — factor = cantidadFinal * medida.pesoMl / pesoTotalReceta.
+// - Insumos unitarios de esa medida (frasco/etiqueta/tapa — ver
+//   receta.medidas): no se escalan por lote, son directamente "por unidad
+//   final" × cantidadFinal.
+// Sin peso total o sin la medida en la receta, no hay base para escalar —
+// devuelve todo en incompleto en vez de inventar un costo.
+export function computeCostoRecetaMedida(compras, receta, medidaId, cantidadFinal) {
+  const medida = (receta.medidas || []).find(m => m.medidaId === medidaId);
+  if (!medida || !cantidadFinal) return { total: 0, incompleto: [], detalle: [] };
+
+  const pesoTotal = computePesoTotal(receta.ingredientesMaestros);
+  const factor = pesoTotal > 0 && medida.pesoMl > 0 ? (cantidadFinal * medida.pesoMl) / pesoTotal : 0;
+  const { total: totalPeso, incompleto, detalle } = factor > 0
+    ? computeCostoRecetaEscalado(compras, receta.ingredientesMaestros, factor)
+    : { total: 0, incompleto: [], detalle: [] };
+
+  let total = totalPeso;
+  (medida.insumos || []).forEach(ins => {
+    const qty = (ins.cantidad || 0) * cantidadFinal;
+    if (!qty) return;
+    const price = getUnitPrice(compras, ins.nombre);
+    if (price == null) {
+      if (!incompleto.includes(ins.nombre)) incompleto.push(ins.nombre);
+      return;
+    }
+    const costo = qty * price;
+    total += costo;
+    detalle.push({ nombre: ins.nombre, unidad: ins.unidad, cantidad: qty, costo });
+  });
+
   return { total, incompleto, detalle };
 }
