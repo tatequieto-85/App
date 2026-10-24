@@ -1,0 +1,3 @@
+.medida-modal-insumo-row { display: flex; align-items: flex-end; gap: 6px; margin-bottom: 8px; }
+.medida-modal-insumo-row .autocomplete-wrap { flex: 2; }
+.medida-modal-insumo-row > div:nth-child(2) { flex: 1; }

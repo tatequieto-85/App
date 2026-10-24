@@ -58,7 +58,7 @@ function IngRow({ ing, mostrarPct }) {
 // lote. ingredientes/onAddNewIngrediente: catálogo compartido, para poder
 // cargar los ingredientes usados dentro del cuadro.
 export default function RecetaDetailModal({
-  open, onClose, receta, compras, ingredientes, onAddNewIngrediente,
+  open, onClose, receta, recetaMedidas, compras, ingredientes, onAddNewIngrediente,
   onEmpezarProduccion, onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos,
   onChangeProduccionMedida, onGuardarEjecucion, onEscalarReceta
 }) {
@@ -166,12 +166,13 @@ export default function RecetaDetailModal({
         </div>
       )}
 
-      {!!(receta.medidas || []).length && (
+      {!!(recetaMedidas || []).length && (
         <div className="receta-detail-section">
           <h4 className="receta-detail-section-title">Medidas</h4>
-          {receta.medidas.map(medida => (
-            <div key={medida.medidaId} className="receta-detail-ing-row">
-              <span className="receta-detail-ing-nombre">{medida.nombre}{medida.pesoMl ? ` (${medida.pesoMl} ml)` : ''}</span>
+          <p className="receta-detail-subtitle">Se configuran desde la pestaña "Medidas" de Procesos.</p>
+          {recetaMedidas.map(medida => (
+            <div key={medida.id} className="receta-detail-ing-row">
+              <span className="receta-detail-ing-nombre">{medida.nombre}{medida.pesoMl ? ` (${medida.pesoMl} g)` : ''}</span>
               <span className="receta-detail-ing-cantidad">
                 {(medida.insumos || []).map(ins => `${ins.cantidad} ${ins.nombre}`).join(', ') || 'sin insumos'}
               </span>
@@ -190,7 +191,7 @@ export default function RecetaDetailModal({
       {ejecucion ? (
         <EjecucionProduccionBox
           ejecucion={ejecucion} ingredientes={ingredientes} onAddNewIngrediente={onAddNewIngrediente}
-          recetaIngredientes={maestros} recetaMedidas={receta.medidas || []} compras={compras}
+          recetaIngredientes={maestros} recetaMedidas={recetaMedidas || []} compras={compras}
           onAddObservacion={handleAddObservacion}
           onAddInsumo={handleAddInsumo} onRemoveInsumo={handleRemoveInsumo}
           onChangePH={handleChangePH} onChangeFrascos={handleChangeFrascos}

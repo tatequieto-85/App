@@ -10,7 +10,6 @@ import { normalizeIngredienteMaestro } from '../../services/recetasApi';
 import { normalizeIngName } from '../../services/ingredientesApi';
 import EtapaEditor from './EtapaEditor';
 import RecetaIngredientesTable from './RecetaIngredientesTable';
-import RecetaMedidasSection from './RecetaMedidasSection';
 import './RecetaModal.css';
 
 // Crear/editar receta — equivalente a openRecetaModal()/btnSaveReceta en
@@ -18,19 +17,19 @@ import './RecetaModal.css';
 // ProcesosPage), igual que una feria siempre se crea dentro de un canal.
 // ingredientes/onAddNewIngrediente: catálogo compartido (ver
 // features/ingredientes/useIngredientes.js) para el autocomplete de cada
-// fila de ingrediente.
+// fila de ingrediente. Las medidas (tamaños de empaque) ya NO se configuran
+// acá — a pedido explícito del usuario, viven enteras (insumos + a qué
+// receta pertenecen + cuánto les cabe) en la pestaña "Medidas" de
+// ProcesosPage (ver MedidaModal.jsx); el detalle de la receta
+// (RecetaDetailModal.jsx) las muestra de solo lectura.
 //
 // Producción = una sola etapa fija llamada "Ejecución", a pedido explícito
 // del usuario — ya no hay nombre de etapa ni "+ Agregar etapa" (ver
 // EtapaEditor.jsx); acá solo se maneja la lista plana de instrucciones.
-export default function RecetaModal({
-  open, onClose, editingReceta, ingredientes, compras, medidasCatalogo,
-  onAddNewIngrediente, onAddNewMedida, onSave
-}) {
+export default function RecetaModal({ open, onClose, editingReceta, ingredientes, compras, onAddNewIngrediente, onSave }) {
   const [nombre, setNombre] = useState('');
   const [instrucciones, setInstrucciones] = useState([]);
   const [ingFilas, setIngFilas] = useState([]);
-  const [medidas, setMedidas] = useState([]);
   const [busy, setBusy] = useState(false);
   const [feedback, showFeedback] = useFeedback();
   const initialRef = useRef({ nombre: '' });
@@ -56,7 +55,6 @@ export default function RecetaModal({
           }))
         : []
     );
-    setMedidas(editingReceta?.medidas || []);
     initialRef.current = { nombre: n };
   }, [open, editingReceta]);
 
@@ -82,12 +80,10 @@ export default function RecetaModal({
     if (ingredientesMaestros.some(im => im.cantidadComprada < 0 || im.cantidadReceta < 0)) {
       return showFeedback('Las cantidades de ingredientes no pueden ser negativas.', 'err');
     }
-    const medidasLimpias = medidas
-      .map(m => ({ ...m, insumos: m.insumos.filter(ins => ins.nombre.trim()) }));
 
     setBusy(true);
     try {
-      await onSave({ nombre: nombreTrim, middleEtapas, ingredientesMaestros, medidas: medidasLimpias }, editingReceta?.id || null);
+      await onSave({ nombre: nombreTrim, middleEtapas, ingredientesMaestros }, editingReceta?.id || null);
       onClose();
     } catch (err) {
       showFeedback('Error: ' + err.message, 'err');
@@ -105,12 +101,6 @@ export default function RecetaModal({
         <RecetaIngredientesTable
           filas={ingFilas} onChange={setIngFilas}
           ingredientes={ingredientes} compras={compras} onAddNew={onAddNewIngrediente} disabled={busy}
-        />
-
-        <RecetaMedidasSection
-          value={medidas} onChange={setMedidas}
-          medidasCatalogo={medidasCatalogo} ingredientes={ingredientes}
-          onAddNew={onAddNewIngrediente} onAddNewMedida={onAddNewMedida} disabled={busy}
         />
 
         <EtapaEditor instrucciones={instrucciones} onChange={setInstrucciones} disabled={busy} />

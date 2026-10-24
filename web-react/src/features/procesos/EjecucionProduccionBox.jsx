@@ -15,13 +15,14 @@ import './EjecucionProduccionBox.css';
 // que el pH), ingredientes usados (con su peso) y observaciones — campos/
 // filas agregados a voluntad — y un botón final "Guardar ejecución" que
 // cierra el lote (requiere pH cargado, ver finalizarEjecucion en
-// useProcesos.js). `recetaMedidas` (receta.medidas, ver RecetaMedidasSection.
-// jsx): si la receta tiene medidas configuradas, se pregunta cuánto salió
-// de CADA UNA (en vez de los dos campos fijos "Frasco 230 ml"/"Frasco 130
-// ml" de antes) — a pedido explícito del usuario: "salgan todas las medidas
-// atadas a esa receta y uno escoja cuántas salieron de cada una". Una
-// receta vieja sin medidas configuradas sigue viendo el par fijo de siempre,
-// sin ningún cambio de comportamiento.
+// useProcesos.js). `recetaMedidas` (del catálogo de Medidas, filtradas por
+// recetaId — ver ProcesosPage.jsx): si la receta tiene medidas
+// configuradas, se pregunta cuánto salió de CADA UNA (en vez de los dos
+// campos fijos "Frasco 230 ml"/"Frasco 130 ml" de antes) — a pedido
+// explícito del usuario: "salgan todas las medidas atadas a esa receta y
+// uno escoja cuántas salieron de cada una". Una receta vieja sin medidas
+// configuradas sigue viendo el par fijo de siempre, sin ningún cambio de
+// comportamiento.
 export default function EjecucionProduccionBox({
   ejecucion, ingredientes, onAddNewIngrediente, recetaIngredientes, recetaMedidas, compras,
   onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos, onChangeProduccionMedida, onGuardarEjecucion, onClose
@@ -72,7 +73,7 @@ export default function EjecucionProduccionBox({
   // insumos multiplicado por los que salieron").
   const medidaInsumosExpandidos = usaMedidas
     ? (recetaMedidas || []).flatMap(medida => {
-        const cantidad = parseInt(medidaDrafts[medida.medidaId], 10) || 0;
+        const cantidad = parseInt(medidaDrafts[medida.id], 10) || 0;
         if (!cantidad) return [];
         return (medida.insumos || []).filter(ins => ins.nombre).map(ins => ({
           nombre: ins.nombre, unidad: ins.unidad,
@@ -152,11 +153,11 @@ export default function EjecucionProduccionBox({
         )}
         {usaMedidas && recetaMedidas.map(medida => (
           <TextField
-            key={medida.medidaId}
+            key={medida.id}
             label={`Cantidad — ${medida.nombre}`} placeholder="0" inputMode="numeric"
-            value={medidaDrafts[medida.medidaId] ?? ''}
-            onChange={e => setMedidaDrafts(prev => ({ ...prev, [medida.medidaId]: e.target.value }))}
-            onBlur={() => handleMedidaBlur(medida.medidaId)}
+            value={medidaDrafts[medida.id] ?? ''}
+            onChange={e => setMedidaDrafts(prev => ({ ...prev, [medida.id]: e.target.value }))}
+            onBlur={() => handleMedidaBlur(medida.id)}
           />
         ))}
       </div>

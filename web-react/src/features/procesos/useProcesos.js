@@ -54,30 +54,33 @@ export function useProcesos(ingredientes, reloadIngredientes) {
     return () => { cancelled = true; };
   }, []);
 
-  // Catálogo de medidas (ver medidasApi.js) — nombre + peso en ml
-  // reutilizables entre recetas; los insumos exactos de cada combinación
-  // receta+medida se configuran en la receta misma (ver RecetaMedidasSection.jsx).
-  const createMedida = useCallback(async (nombre, pesoMl) => {
-    const id = await medidasApi.appendMedida(nombre, pesoMl);
+  // Catálogo de medidas (ver medidasApi.js) — cada medida queda atada a UNA
+  // receta puntual, con su propio grupo de insumos unitarios (frasco/
+  // etiqueta/tapa) y cuánto de la mezcla entra en ese frasco (gramos) — a
+  // pedido explícito del usuario ("cada medida debe guardar insumos de
+  // unidad con cantidad, asociarlo a una receta, e indicar en grs cuánto le
+  // cabe"). `datos`: { nombre, pesoMl, recetaId, insumos }.
+  const createMedida = useCallback(async datos => {
+    const id = await medidasApi.appendMedida(datos);
     const lista = await medidasApi.fetchMedidas();
     setMedidas(lista);
-    return lista.find(m => m.id === id) || { id, nombre, pesoMl };
+    return lista.find(m => m.id === id) || { id, ...datos };
   }, []);
 
   // Editar una medida del catálogo — a pedido explícito del usuario
   // ("ventana en Procesos... se va a poder crear, editar o ver catálogo de
-  // medidas"). Cascada a las recetas que ya la tienen atada (ver
-  // renameMedidaEnRecetas en recetasApi.js), mismo criterio que corregir un
-  // ingrediente en Inventario migra Compras/Recetas.
-  const editMedida = useCallback(async (medidaId, nombre, pesoMl) => {
+  // medidas"). No hace falta ninguna cascada: la medida ya ES la
+  // asociación con su receta (no una foto anidada ahí), así que editarla
+  // acá alcanza. Las ejecuciones ya cerradas no se tocan (evaluacion.
+  // produccionPorMedida queda "congelado", mismo criterio que costoTotal/
+  // pesoTotalReceta en finalizarEjecucion).
+  const editMedida = useCallback(async (medidaId, datos) => {
     const medida = medidas.find(m => m.id === medidaId);
     if (!medida) return;
-    await medidasApi.updateMedida({ ...medida, nombre, pesoMl });
-    await recetasApi.renameMedidaEnRecetas(recetas, medidaId, nombre, pesoMl);
+    await medidasApi.updateMedida({ ...medida, ...datos });
     const lista = await medidasApi.fetchMedidas();
     setMedidas(lista);
-    await reloadRecetas();
-  }, [medidas, recetas, reloadRecetas]);
+  }, [medidas]);
 
   // ── Grupos ─────────────────────────────────────────────────────────────
 
@@ -123,44 +126,60 @@ export function useProcesos(ingredientes, reloadIngredientes) {
 
   // datos: { nombre, middleEtapas, ingredientesMaestros }. El nivel de
   // picante nunca se elige a mano, se detecta solo (ver recetasApi.js).
-  const saveReceta = useCallback(async ({ nombre, middleEtapas, ingredientesMaestros, medidas: recetaMedidas }, editingId, blockId) => {
+  // Las medidas ya no viajan acá — viven aparte en el catálogo, atadas por
+  // recetaId (ver medidas más arriba).
+  const saveReceta = useCallback(async ({ nombre, middleEtapas, ingredientesMaestros }, editingId, blockId) => {
     const etapas = recetasApi.buildEtapasFull(middleEtapas);
     const nivelPicante = recetasApi.detectNivelPicante(ingredientesMaestros);
     if (editingId) {
       const rec = recetas.find(r => r.id === editingId);
-      if (rec) await recetasApi.updateReceta({ ...rec, nombre, etapas, ingredientesMaestros, medidas: recetaMedidas, nivelPicante });
+      if (rec) await recetasApi.updateReceta({ ...rec, nombre, etapas, ingredientesMaestros, nivelPicante });
     } else {
       await recetasApi.appendReceta({
-        id: crypto.randomUUID(), nombre, descripcion: '', etapas, ingredientesMaestros, medidas: recetaMedidas,
+        id: crypto.randomUUID(), nombre, descripcion: '', etapas, ingredientesMaestros,
         blockId: blockId || '', nivelPicante, creadoEn: new Date().toISOString()
       });
     }
     await reloadRecetas();
   }, [recetas, reloadRecetas]);
 
+  // Borrar una receta borra también SUS medidas (ya no tiene sentido que
+  // una medida sobreviva sin la receta a la que está atada — a diferencia
+  // de Ingredientes, que sí se reusan entre recetas).
   const deleteReceta = useCallback(async receta => {
+    const propias = medidas.filter(m => m.recetaId === receta.id).slice().sort((a, b) => b.rowIndex - a.rowIndex);
+    for (const m of propias) await medidasApi.deleteMedidaRow(m.rowIndex);
     await recetasApi.deleteRecetaRow(receta.rowIndex);
+    if (propias.length) setMedidas(await medidasApi.fetchMedidas());
     await reloadRecetas();
-  }, [reloadRecetas]);
+  }, [medidas, reloadRecetas]);
 
-  // Copia completa (etapas + ingredientes) en el mismo grupo, con "(copia)"
-  // en el nombre para distinguirla — a pedido del usuario, revelado con
-  // mantener presionado junto a Editar/Eliminar. Las etapas se duplican con
-  // ids nuevos (sin pisar los de la receta original).
+  // Copia completa (etapas + ingredientes + medidas con sus insumos) en el
+  // mismo grupo, con "(copia)" en el nombre para distinguirla — a pedido
+  // del usuario, revelado con mantener presionado junto a Editar/Eliminar.
+  // Las etapas se duplican con ids nuevos (sin pisar los de la receta
+  // original); las medidas se recrean en el catálogo atadas al id NUEVO
+  // (no tiene sentido que la copia comparta medida con el original, cada
+  // una necesita poder editarse sin afectar a la otra).
   const duplicateReceta = useCallback(async receta => {
+    const nuevoId = crypto.randomUUID();
     await recetasApi.appendReceta({
-      id: crypto.randomUUID(),
+      id: nuevoId,
       nombre: `${receta.nombre} (copia)`,
       descripcion: receta.descripcion || '',
       etapas: (receta.etapas || []).map(et => ({ ...et, id: crypto.randomUUID() })),
       ingredientesMaestros: receta.ingredientesMaestros || [],
-      medidas: receta.medidas || [],
       blockId: receta.blockId || '',
       nivelPicante: receta.nivelPicante || '',
       creadoEn: new Date().toISOString()
     });
+    const medidasReceta = medidas.filter(m => m.recetaId === receta.id);
+    for (const m of medidasReceta) {
+      await medidasApi.appendMedida({ nombre: m.nombre, pesoMl: m.pesoMl, recetaId: nuevoId, insumos: m.insumos });
+    }
+    if (medidasReceta.length) setMedidas(await medidasApi.fetchMedidas());
     await reloadRecetas();
-  }, [reloadRecetas]);
+  }, [medidas, reloadRecetas]);
 
   // Escalar receta: a pedido explícito del usuario, desde el detalle se
   // puede elegir UN ingrediente de la receta y la cantidad que se va a
@@ -249,15 +268,16 @@ export function useProcesos(ingredientes, reloadIngredientes) {
   }, []);
 
   // Equivalente a updateFrascosEjecucion, pero para recetas con medidas
-  // configuradas (ver RecetaMedidasSection.jsx) en vez de los dos tamaños
-  // fijos 230/130 — a pedido explícito del usuario: "salgan todas las
-  // medidas atadas a esa receta y uno escoja cuántas salieron de cada
-  // una". Vive en evaluacion.produccionPorMedida (upsert por medidaId).
-  // Puente de compatibilidad: Stock (stockApi.js) sigue leyendo
+  // configuradas en su catálogo (ver pestaña "Medidas" en ProcesosPage.jsx/
+  // MedidaModal.jsx) en vez de los dos tamaños fijos 230/130 — a pedido
+  // explícito del usuario: "salgan todas las medidas atadas a esa receta y
+  // uno escoja cuántas salieron de cada una". Vive en evaluacion.
+  // produccionPorMedida (upsert por medidaId — el id de la medida en el
+  // catálogo). Puente de compatibilidad: Stock (stockApi.js) sigue leyendo
   // evaluacion.frascos230/frascos130/frascosProducidos tal cual — en vez
   // de reescribir ese código ya varias veces debuggeado para N medidas
   // arbitrarias, se recalculan esos mismos campos legacy a partir de
-  // produccionPorMedida en cada guardado: una medida de 230/130 ml
+  // produccionPorMedida en cada guardado: una medida de 230/130 g
   // alimenta su campo dedicado (precio por frasco exacto en Stock);
   // cualquier otro tamaño cae en frascosProducidos (el mismo balde
   // genérico que ya usa hoy el dato "sin tamaño conocido" — precio
@@ -265,7 +285,7 @@ export function useProcesos(ingredientes, reloadIngredientes) {
   // importar el tamaño, ver EjecucionProduccionBox.jsx).
   const updateProduccionMedidaEjecucion = useCallback(async (ejecucion, medidaId, cantidad, medidasReceta) => {
     const prevLista = ejecucion.evaluacion?.produccionPorMedida || [];
-    const medidaInfo = (medidasReceta || []).find(m => m.medidaId === medidaId);
+    const medidaInfo = (medidasReceta || []).find(m => m.id === medidaId);
     const nuevaLista = [
       ...prevLista.filter(p => p.medidaId !== medidaId),
       { medidaId, nombre: medidaInfo?.nombre || '', pesoMl: medidaInfo?.pesoMl || 0, cantidad }

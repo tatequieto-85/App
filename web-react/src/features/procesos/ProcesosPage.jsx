@@ -81,6 +81,7 @@ export default function ProcesosPage({ onBack }) {
                         {recetasGrupo.map(r => (
                           <RecetaCard
                             key={r.id} receta={r}
+                            medidasCount={pr.medidas.filter(m => m.recetaId === r.id).length}
                             onAbrir={setDetailId}
                             onEdit={rr => setRecetaModal({ editing: rr, groupId: group.id })}
                             onDelete={pr.deleteReceta}
@@ -100,7 +101,7 @@ export default function ProcesosPage({ onBack }) {
       )}
 
       {!pr.loading && !pr.error && tab === 'medidas' && (
-        <MedidasCatalogSection medidas={pr.medidas} onEdit={m => setMedidaModal({ editing: m })} />
+        <MedidasCatalogSection medidas={pr.medidas} recetas={pr.recetas} onEdit={m => setMedidaModal({ editing: m })} />
       )}
 
       {tab === 'recetas' ? (
@@ -124,7 +125,10 @@ export default function ProcesosPage({ onBack }) {
         open={!!medidaModal}
         onClose={() => setMedidaModal(null)}
         editingMedida={medidaModal?.editing || null}
-        onSave={(datos, editingId) => editingId ? pr.editMedida(editingId, datos.nombre, datos.pesoMl) : pr.createMedida(datos.nombre, datos.pesoMl)}
+        recetas={pr.recetas}
+        ingredientes={ingredientes}
+        onAddNewIngrediente={tryAddIngrediente}
+        onSave={(datos, editingId) => editingId ? pr.editMedida(editingId, datos) : pr.createMedida(datos)}
       />
 
       <RecetaModal
@@ -133,9 +137,7 @@ export default function ProcesosPage({ onBack }) {
         editingReceta={recetaModal?.editing || null}
         ingredientes={ingredientes}
         compras={pr.compras}
-        medidasCatalogo={pr.medidas}
         onAddNewIngrediente={tryAddIngrediente}
-        onAddNewMedida={pr.createMedida}
         onSave={(datos, editingId) => pr.saveReceta(datos, editingId, recetaModal?.groupId)}
       />
 
@@ -143,6 +145,7 @@ export default function ProcesosPage({ onBack }) {
         open={!!detailId}
         onClose={() => setDetailId(null)}
         receta={detailReceta}
+        recetaMedidas={detailReceta ? pr.medidas.filter(m => m.recetaId === detailReceta.id) : []}
         compras={pr.compras}
         ingredientes={ingredientes}
         onAddNewIngrediente={tryAddIngrediente}

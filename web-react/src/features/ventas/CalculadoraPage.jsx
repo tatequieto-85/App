@@ -17,9 +17,10 @@ function nuevaFila() {
 }
 
 // "Necesito hacer 5 de este sabor, 29 de este sabor" — a pedido explícito
-// del usuario: elegís varias recetas, con QUÉ MEDIDA (tamaño de empaque, ver
-// RecetaMedidasSection.jsx) y cuántas UNIDADES finales de esa medida querés
-// sacar, y acá se calcula cuánto cuesta en insumos, según los últimos
+// del usuario: elegís varias recetas, con QUÉ MEDIDA (tamaño de empaque,
+// del catálogo de Medidas — ver medidasApi.js) y cuántas UNIDADES finales
+// de esa medida querés sacar, y acá se calcula cuánto cuesta en insumos,
+// según los últimos
 // precios de Compras (mismo criterio que el costo estimado de una receta en
 // Procesos). Cada receta escala sus insumos de peso según el peso de esa
 // medida (ver computeCostoRecetaMedida en recetasApi.js) y le suma los
@@ -27,8 +28,12 @@ function nuevaFila() {
 // receta sin medidas configuradas no se puede calcular, queda afuera de la
 // cuenta con un aviso. No guarda nada — es una calculadora de verdad.
 export default function CalculadoraPage() {
-  const { recetas, compras, ingredientes, ejecuciones, ferias, stockMovimientos, loading, error } = useCalculadora();
+  const { recetas, compras, ingredientes, ejecuciones, ferias, stockMovimientos, medidas, loading, error } = useCalculadora();
   const [filas, setFilas] = useState([nuevaFila()]);
+
+  function medidasDeReceta(recetaId) {
+    return medidas.filter(m => m.recetaId === recetaId);
+  }
   // Selección de insumos puntuales en la tabla de abajo, para ir sumando
   // un total aparte — a pedido explícito del usuario ("que se deje
   // seleccionar algunos insumos calculados y vayan sumando el total"), p.
@@ -67,11 +72,13 @@ export default function CalculadoraPage() {
       const receta = recetas.find(r => r.id === f.recetaId);
       const cantidadPedida = parseInt(f.cantidad, 10) || 0;
       if (!receta || !cantidadPedida) return;
-      if (!receta.medidas?.length) {
+      const medidasReceta = medidasDeReceta(receta.id);
+      if (!medidasReceta.length) {
         if (!sinConfigurar.includes(receta.nombre)) sinConfigurar.push(receta.nombre);
         return;
       }
-      if (!f.medidaId) return;
+      const medidaSel = medidasReceta.find(m => m.id === f.medidaId);
+      if (!medidaSel) return;
       // Si ya hay unidades de este sabor hechas y sin vender (ver Stock),
       // no hace falta producirlas de nuevo — a pedido explícito del
       // usuario ("si pongo 10 y hay tres debe aclararlo"): la cuenta de
@@ -81,7 +88,7 @@ export default function CalculadoraPage() {
       const cantidadNum = Math.max(0, cantidadPedida - stockDisponible);
       stockPorFila[f.id] = { cantidadPedida, stockDisponible, aProducir: cantidadNum };
       if (!cantidadNum) return;
-      const { total, incompleto, detalle } = computeCostoRecetaMedida(compras, receta, f.medidaId, cantidadNum);
+      const { total, incompleto, detalle } = computeCostoRecetaMedida(compras, receta, medidaSel, cantidadNum);
       porFila[f.id] = total;
       totalGeneral += total;
       incompleto.forEach(n => incompletos.add(n));
@@ -124,14 +131,14 @@ export default function CalculadoraPage() {
       porFila,
       stockPorFila
     };
-  }, [filas, recetas, compras, ingredientes, ejecuciones, ferias, stockMovimientos]);
+  }, [filas, recetas, medidas, compras, ingredientes, ejecuciones, ferias, stockMovimientos]);
 
   const totalSeleccionado = resultados.filasInsumos
     .filter(f => seleccionados.has(f.nombre) && f.faltante > 0)
     .reduce((s, f) => s + f.costoFaltante, 0);
 
   function recetaLabel(r) {
-    return r.medidas?.length ? r.nombre : `${r.nombre} (sin medidas)`;
+    return medidasDeReceta(r.id).length ? r.nombre : `${r.nombre} (sin medidas)`;
   }
 
   // Una receta ya elegida en OTRA fila no vuelve a aparecer en el
@@ -162,13 +169,13 @@ export default function CalculadoraPage() {
                       onChange={e => updateFila(f.id, 'recetaId', e.target.value)}
                       options={[{ value: '', label: 'Elegí una receta' }, ...opcionesPara(f.id)]}
                     />
-                    {!!recetas.find(r => r.id === f.recetaId)?.medidas?.length && (
+                    {!!f.recetaId && !!medidasDeReceta(f.recetaId).length && (
                       <Select
                         label="Medida" value={f.medidaId}
                         onChange={e => updateFila(f.id, 'medidaId', e.target.value)}
                         options={[
                           { value: '', label: 'Elegí…' },
-                          ...recetas.find(r => r.id === f.recetaId).medidas.map(m => ({ value: m.medidaId, label: m.nombre }))
+                          ...medidasDeReceta(f.recetaId).map(m => ({ value: m.id, label: m.nombre }))
                         ]}
                       />
                     )}

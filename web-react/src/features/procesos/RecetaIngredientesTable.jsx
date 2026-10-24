@@ -103,7 +103,8 @@ function IngRowPeso({ fila, idx, unidad, pct, onUpdate, onRemove, ingredientes, 
 // checklist fijo sobre todo el catálogo que usaba la app vanilla. Los
 // insumos "por unidad" (frasco/etiqueta/tapa) ya NO viven acá — a pedido
 // explícito del usuario, cada tamaño de empaque (medida) tiene su propio
-// grupo de insumos unitarios, configurado en RecetaMedidasSection.jsx. Una
+// grupo de insumos unitarios, configurado en la pestaña "Medidas" de
+// Procesos (ver MedidaModal.jsx), atado a esta receta por `recetaId`. Una
 // receta vieja que todavía tenga insumos "por unidad" en su lista (de antes
 // de este cambio) sigue viendo esas filas acá mismo, con los mismos campos
 // de peso — dato intacto, pero hay que migrarlos a una medida para que

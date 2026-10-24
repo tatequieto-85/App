@@ -10,7 +10,7 @@ import './RecetaCard.css';
 // una fila extra a pedido del usuario. Sin color por nivel de picante (se
 // sacó a pedido explícito del usuario) — el nivel se muestra como texto
 // plano, mismo color que el resto de los metadatos de la tarjeta.
-export default function RecetaCard({ receta, onAbrir, onEdit, onDelete, onDuplicate }) {
+export default function RecetaCard({ receta, medidasCount, onAbrir, onEdit, onDelete, onDuplicate }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrapRef = useCloseOnOutsideClick(actionsOpen, () => setActionsOpen(false));
@@ -52,7 +52,7 @@ export default function RecetaCard({ receta, onAbrir, onEdit, onDelete, onDuplic
         <div className="receta-card-meta">
           <span>
             {label}
-            {!!receta.medidas?.length && ` · ${receta.medidas.length} medida${receta.medidas.length === 1 ? '' : 's'}`}
+            {!!medidasCount && ` · ${medidasCount} medida${medidasCount === 1 ? '' : 's'}`}
           </span>
         </div>
       </div>

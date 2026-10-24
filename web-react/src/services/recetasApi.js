@@ -153,26 +153,6 @@ export async function renameIngredienteEnRecetas(recetas, nombreViejo, nombreNue
   }
 }
 
-// Mismo motivo que renameIngredienteEnRecetas, para el catálogo de Medidas
-// (ver medidasApi.js): cada receta guarda una FOTO del nombre/peso de la
-// medida al momento de atarla (para que no se "recalcule en vivo" contra
-// un catálogo que puede cambiar), así que corregir una medida desde su
-// catálogo (`editMedida` en useProcesos.js) tiene que actualizar esa foto
-// en bloque en todas las recetas que la usan — si no, quedarían
-// desincronizadas del catálogo real. No toca ejecuciones ya cerradas
-// (evaluacion.produccionPorMedida queda "congelado", mismo criterio que
-// costoTotal/pesoTotalReceta en finalizarEjecucion).
-export async function renameMedidaEnRecetas(recetas, medidaId, nombreNuevo, pesoMlNuevo) {
-  for (const r of recetas) {
-    const medidas = r.medidas || [];
-    if (!medidas.some(m => m.medidaId === medidaId)) continue;
-    const actualizadas = medidas.map(m =>
-      m.medidaId === medidaId ? { ...m, nombre: nombreNuevo, pesoMl: pesoMlNuevo } : m
-    );
-    await updateReceta({ ...r, medidas: actualizadas });
-  }
-}
-
 export async function deleteRecetaRow(rowIndex) {
   if (!recetasSheetId) await ensureRecetasSheets();
   await sheetsReq(':batchUpdate', {
@@ -419,18 +399,19 @@ export function computeCostoRecetaEscalado(compras, ingredientesMaestros, factor
 // Costo de producir `cantidadFinal` unidades de UNA medida puntual de la
 // receta — lo usa la Calculadora de Ventas (reemplaza el escalado por
 // `unidadesPorLote`, a pedido explícito del usuario: "en la Calculadora
-// también se elige una medida específica"). Dos partes:
+// también se elige una medida específica"). `medida` viene del catálogo de
+// Medidas (ver medidasApi.js — cada medida ya está atada a UNA receta, con
+// su propio grupo de insumos; quien llama a esto ya la buscó filtrando por
+// `recetaId === receta.id`). Dos partes:
 // - Insumos de peso/volumen (maní, cayena, aceite…): se escalan con el mismo
 //   criterio que la sugerencia de frascos de RecetaEscalarSection.jsx
-//   (floor(pesoTotal / pesoMl) ≈ unidades que rinde un lote completo de ESE
-//   tamaño) — factor = cantidadFinal * medida.pesoMl / pesoTotalReceta.
-// - Insumos unitarios de esa medida (frasco/etiqueta/tapa — ver
-//   receta.medidas): no se escalan por lote, son directamente "por unidad
-//   final" × cantidadFinal.
-// Sin peso total o sin la medida en la receta, no hay base para escalar —
-// devuelve todo en incompleto en vez de inventar un costo.
-export function computeCostoRecetaMedida(compras, receta, medidaId, cantidadFinal) {
-  const medida = (receta.medidas || []).find(m => m.medidaId === medidaId);
+//   (floor(pesoTotal / pesoGramos) ≈ unidades que rinde un lote completo de
+//   ESE tamaño) — factor = cantidadFinal * medida.pesoMl / pesoTotalReceta.
+// - Insumos unitarios de esa medida (frasco/etiqueta/tapa): no se escalan
+//   por lote, son directamente "por unidad final" × cantidadFinal.
+// Sin peso total o sin medida, no hay base para escalar — devuelve todo en
+// incompleto en vez de inventar un costo.
+export function computeCostoRecetaMedida(compras, receta, medida, cantidadFinal) {
   if (!medida || !cantidadFinal) return { total: 0, incompleto: [], detalle: [] };
 
   const pesoTotal = computePesoTotal(receta.ingredientesMaestros);
