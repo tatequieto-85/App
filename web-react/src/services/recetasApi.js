@@ -153,6 +153,26 @@ export async function renameIngredienteEnRecetas(recetas, nombreViejo, nombreNue
   }
 }
 
+// Mismo motivo que renameIngredienteEnRecetas, para el catálogo de Medidas
+// (ver medidasApi.js): cada receta guarda una FOTO del nombre/peso de la
+// medida al momento de atarla (para que no se "recalcule en vivo" contra
+// un catálogo que puede cambiar), así que corregir una medida desde su
+// catálogo (`editMedida` en useProcesos.js) tiene que actualizar esa foto
+// en bloque en todas las recetas que la usan — si no, quedarían
+// desincronizadas del catálogo real. No toca ejecuciones ya cerradas
+// (evaluacion.produccionPorMedida queda "congelado", mismo criterio que
+// costoTotal/pesoTotalReceta en finalizarEjecucion).
+export async function renameMedidaEnRecetas(recetas, medidaId, nombreNuevo, pesoMlNuevo) {
+  for (const r of recetas) {
+    const medidas = r.medidas || [];
+    if (!medidas.some(m => m.medidaId === medidaId)) continue;
+    const actualizadas = medidas.map(m =>
+      m.medidaId === medidaId ? { ...m, nombre: nombreNuevo, pesoMl: pesoMlNuevo } : m
+    );
+    await updateReceta({ ...r, medidas: actualizadas });
+  }
+}
+
 export async function deleteRecetaRow(rowIndex) {
   if (!recetasSheetId) await ensureRecetasSheets();
   await sheetsReq(':batchUpdate', {

@@ -64,6 +64,21 @@ export function useProcesos(ingredientes, reloadIngredientes) {
     return lista.find(m => m.id === id) || { id, nombre, pesoMl };
   }, []);
 
+  // Editar una medida del catálogo — a pedido explícito del usuario
+  // ("ventana en Procesos... se va a poder crear, editar o ver catálogo de
+  // medidas"). Cascada a las recetas que ya la tienen atada (ver
+  // renameMedidaEnRecetas en recetasApi.js), mismo criterio que corregir un
+  // ingrediente en Inventario migra Compras/Recetas.
+  const editMedida = useCallback(async (medidaId, nombre, pesoMl) => {
+    const medida = medidas.find(m => m.id === medidaId);
+    if (!medida) return;
+    await medidasApi.updateMedida({ ...medida, nombre, pesoMl });
+    await recetasApi.renameMedidaEnRecetas(recetas, medidaId, nombre, pesoMl);
+    const lista = await medidasApi.fetchMedidas();
+    setMedidas(lista);
+    await reloadRecetas();
+  }, [medidas, recetas, reloadRecetas]);
+
   // ── Grupos ─────────────────────────────────────────────────────────────
 
   const saveRecetaGroup = useCallback(async ({ nombre, color, icono }, editingId) => {
@@ -314,7 +329,7 @@ export function useProcesos(ingredientes, reloadIngredientes) {
 
   return {
     recetaBlocks, recetas, compras, medidas, loading, error,
-    saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups, createMedida,
+    saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups, createMedida, editMedida,
     saveReceta, deleteReceta, duplicateReceta, escalarReceta,
     empezarProduccion, addObservacionEjecucion,
     addInsumoEjecucion, removeInsumoEjecucion, updatePHEjecucion, updateFrascosEjecucion,

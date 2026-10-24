@@ -133,7 +133,10 @@ export default function RecetaMedidasSection({ value, onChange, medidasCatalogo,
           {nuevaMedidaSel === CREAR_NUEVA && (
             <div className="field-row">
               <TextField label="Nombre" placeholder="Ej: 230 ml" value={nuevoNombre} onChange={e => setNuevoNombre(e.target.value)} />
-              <TextField label="Peso (ml)" type="number" min="0" placeholder="230" value={nuevoPesoMl} onChange={e => setNuevoPesoMl(e.target.value)} />
+              <TextField
+                label="¿Cuánto de la mezcla entra en este frasco? (ml)" type="number" min="0" placeholder="230"
+                value={nuevoPesoMl} onChange={e => setNuevoPesoMl(e.target.value)}
+              />
               <Button type="button" variant="primary" disabled={!nuevoNombre.trim()} onClick={handleConfirmNueva}>
                 Crear
               </Button>

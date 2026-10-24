@@ -4,6 +4,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import FabButton from '../../components/ui/FabButton';
 import Icon from '../../components/icons/Icon';
 import PageHeader from '../../components/layout/PageHeader';
+import Tabs from '../../components/ui/Tabs';
 import { useProcesos } from './useProcesos';
 import { useIngredientes } from '../ingredientes/useIngredientes';
 import RecetaGroupCard from './RecetaGroupCard';
@@ -11,9 +12,13 @@ import RecetaGroupModal from './RecetaGroupModal';
 import RecetaCard from './RecetaCard';
 import RecetaModal from './RecetaModal';
 import RecetaDetailModal from './RecetaDetailModal';
+import MedidasCatalogSection from './MedidasCatalogSection';
+import MedidaModal from './MedidaModal';
 import './RecetaGroupCard.css';
 import './RecetaCard.css';
 import './ProcesosPage.css';
+
+const TABS = [{ id: 'recetas', label: 'Recetas' }, { id: 'medidas', label: 'Medidas' }];
 
 // Todos los grupos y sus recetas en una sola pestaña — a pedido explícito
 // del usuario: antes "entrar" a un grupo llevaba a otra pantalla con solo
@@ -26,9 +31,11 @@ import './ProcesosPage.css';
 export default function ProcesosPage({ onBack }) {
   const { ingredientes, tryAddIngrediente, reload: reloadIngredientes } = useIngredientes();
   const pr = useProcesos(ingredientes, reloadIngredientes);
+  const [tab, setTab] = useState('recetas');
   const [groupModal, setGroupModal] = useState(null); // { editing } | null
   const [recetaModal, setRecetaModal] = useState(null); // { editing, groupId } | null
   const [detailId, setDetailId] = useState(null);
+  const [medidaModal, setMedidaModal] = useState(null); // { editing } | null
 
   const recetasPorGrupo = useMemo(() => {
     const map = new Map();
@@ -48,13 +55,14 @@ export default function ProcesosPage({ onBack }) {
       className="app-shell"
     >
       <PageHeader title="Procesos" onBack={onBack} />
+      <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
-      <div>
-        {pr.loading && <div className="loading-state">Cargando…</div>}
-        {pr.error && <EmptyState>No se pudo cargar: {pr.error}</EmptyState>}
+      {pr.loading && <div className="loading-state">Cargando…</div>}
+      {pr.error && <EmptyState>No se pudo cargar: {pr.error}</EmptyState>}
 
-        {!pr.loading && !pr.error && (
-          !pr.recetaBlocks.length ? (
+      {!pr.loading && !pr.error && tab === 'recetas' && (
+        <div>
+          {!pr.recetaBlocks.length ? (
             <EmptyState>Agrega el primer grupo de recetas con el botón de abajo.</EmptyState>
           ) : (
             <div className="receta-groups-sections">
@@ -87,19 +95,36 @@ export default function ProcesosPage({ onBack }) {
                 );
               })}
             </div>
-          )
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
-      <FabButton onClick={() => setGroupModal({ editing: null })}>
-        <Icon name="plus" size={16} /> Nuevo grupo
-      </FabButton>
+      {!pr.loading && !pr.error && tab === 'medidas' && (
+        <MedidasCatalogSection medidas={pr.medidas} onEdit={m => setMedidaModal({ editing: m })} />
+      )}
+
+      {tab === 'recetas' ? (
+        <FabButton onClick={() => setGroupModal({ editing: null })}>
+          <Icon name="plus" size={16} /> Nuevo grupo
+        </FabButton>
+      ) : (
+        <FabButton onClick={() => setMedidaModal({ editing: null })}>
+          <Icon name="plus" size={16} /> Nueva medida
+        </FabButton>
+      )}
 
       <RecetaGroupModal
         open={!!groupModal}
         onClose={() => setGroupModal(null)}
         editingGroup={groupModal?.editing || null}
         onSave={pr.saveRecetaGroup}
+      />
+
+      <MedidaModal
+        open={!!medidaModal}
+        onClose={() => setMedidaModal(null)}
+        editingMedida={medidaModal?.editing || null}
+        onSave={(datos, editingId) => editingId ? pr.editMedida(editingId, datos.nombre, datos.pesoMl) : pr.createMedida(datos.nombre, datos.pesoMl)}
       />
 
       <RecetaModal

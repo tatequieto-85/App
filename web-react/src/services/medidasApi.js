@@ -51,3 +51,10 @@ export async function appendMedida(nombre, pesoMl) {
   });
   return id;
 }
+
+export async function updateMedida(medida) {
+  await sheetsReq(`/values/Medidas!A${medida.rowIndex}:D${medida.rowIndex}?valueInputOption=RAW`, {
+    method: 'PUT',
+    body: JSON.stringify({ values: [[medida.id, medida.nombre, medida.pesoMl || 0, medida.creadoEn]] })
+  });
+}
