@@ -117,7 +117,7 @@ export function useContabilidad() {
   }, [movimientos, reload]);
 
   return {
-    cajas, movimientos, loading, error,
+    cajas, movimientos, loading, error, reload,
     saveCaja, deleteCaja, addMovimiento, addTransferencia, editMovimiento, removeMovimiento,
     saldoCaja: cajaId => api.cajaSaldo(movimientos, cajaId)
   };

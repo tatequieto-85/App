@@ -6,10 +6,14 @@ import FabButton from '../../components/ui/FabButton';
 import Icon from '../../components/icons/Icon';
 import PageHeader from '../../components/layout/PageHeader';
 import { useContabilidad } from './useContabilidad';
+import { useIngredientes } from '../ingredientes/useIngredientes';
+import { useCompras } from '../compras/useCompras';
+import { getUnitPrice } from '../../services/comprasApi';
 import CajaCard from './CajaCard';
 import CajaModal from './CajaModal';
 import MovimientoModal from './MovimientoModal';
 import MovimientoRow from './MovimientoRow';
+import CompraModal from '../compras/CompraModal';
 import './ContabilidadPage.css';
 
 // "Cajas" (estado ingreso/egreso de cada una, creadas a mano). El
@@ -23,11 +27,55 @@ import './ContabilidadPage.css';
 // Todo lo que pasó se ve junto en el resumen de movimientos de abajo.
 export default function ContabilidadPage({ onBack }) {
   const ct = useContabilidad();
+  // Un movimiento AUTOMÁTICO de compra no se edita/borra como un
+  // movimiento cualquiera (eso desincronizaría la caja de la compra real)
+  // — "Editar" abre la compra que lo generó (mismo formulario que
+  // Inventario) y "Borrar" borra esa compra entera, para que el
+  // movimiento se actualice/desaparezca solo como efecto de eso. A
+  // pedido explícito del usuario. Para esto hace falta la misma lógica
+  // de Compras acá (saveCompra ya resincroniza el movimiento al guardar,
+  // ver useCompras.js).
+  const { ingredientes, reload: reloadIngredientes } = useIngredientes();
+  const comprasHook = useCompras(ingredientes, reloadIngredientes);
   const [cajaModal, setCajaModal] = useState(null); // { editing } | null
   const [cajaActionsFor, setCajaActionsFor] = useState(null);
   const [movimientoModal, setMovimientoModal] = useState(null); // { editing } | null
+  const [compraModal, setCompraModal] = useState(null); // { ingrediente, editRecord } | null
 
   const nombreCaja = cajaId => ct.cajas.find(c => c.id === cajaId)?.nombre || 'Caja borrada';
+
+  function compraDeMovimiento(item) {
+    if (item.origen !== 'auto' || !item.origenRefId) return null;
+    return comprasHook.compras.find(c => c.id === item.origenRefId) || null;
+  }
+
+  async function handleEditarMovimiento(item) {
+    const compra = compraDeMovimiento(item);
+    if (compra) {
+      const ingrediente = ingredientes.find(i => i.nombre === compra.ingrediente);
+      setCompraModal({
+        ingrediente, editRecord: compra,
+        lastUnitPrice: getUnitPrice(comprasHook.compras, compra.ingrediente)
+      });
+    } else {
+      setMovimientoModal({ editing: item });
+    }
+  }
+
+  async function handleBorrarMovimiento(item) {
+    const compra = compraDeMovimiento(item);
+    if (compra) {
+      await comprasHook.removeCompra(compra.rowIndex);
+      await ct.reload();
+    } else {
+      await ct.removeMovimiento(item.id);
+    }
+  }
+
+  async function handleSaveCompra(data, editRecord) {
+    await comprasHook.saveCompra(data, editRecord);
+    await ct.reload();
+  }
 
   // Todos los movimientos de todas las cajas juntos, más reciente primero
   // — a pedido explícito del usuario ("debajo de las cajas, el resumen de
@@ -87,8 +135,9 @@ export default function ContabilidadPage({ onBack }) {
                     key={m.id}
                     item={m}
                     cajaNombre={nombreCaja(m.cajaId)}
-                    onEdit={item => setMovimientoModal({ editing: item })}
-                    onDelete={() => ct.removeMovimiento(m.id)}
+                    esCompraAuto={!!compraDeMovimiento(m)}
+                    onEdit={handleEditarMovimiento}
+                    onDelete={() => handleBorrarMovimiento(m)}
                   />
                 ))}
               </div>
@@ -118,6 +167,16 @@ export default function ContabilidadPage({ onBack }) {
         onSaveMovimiento={ct.addMovimiento}
         onSaveTransferencia={ct.addTransferencia}
         onSaveEdit={ct.editMovimiento}
+      />
+
+      <CompraModal
+        open={!!compraModal}
+        onClose={() => setCompraModal(null)}
+        ingrediente={compraModal?.ingrediente}
+        editRecord={compraModal?.editRecord || null}
+        lastUnitPrice={compraModal?.lastUnitPrice ?? null}
+        cajas={ct.cajas}
+        onSave={handleSaveCompra}
       />
     </motion.div>
   );

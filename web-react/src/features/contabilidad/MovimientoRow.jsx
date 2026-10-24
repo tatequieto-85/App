@@ -5,27 +5,37 @@ import { useCloseOnOutsideClick } from '../../hooks/useCloseOnOutsideClick';
 import { fmtCOP, fmtDayMonthSlash } from '../../utils/format';
 import './MovimientoRow.css';
 
-// Fila de un movimiento — los automáticos (generados solos al cerrar una
-// feria o registrar una compra, ver contabilidadApi.js) no se pueden
-// editar ni borrar desde acá: si hace falta corregirlos, se edita/borra
-// la venta/compra que los generó, para que la caja nunca quede
-// desincronizada de la fuente real. De los manuales, mantener presionado
-// revela Editar y Borrar — a pedido explícito del usuario — salvo que sea
-// la mitad de una transferencia (comparte `origenRefId` con otra fila),
-// que solo se puede borrar entera (ver MovimientoModal.jsx). cajaNombre
+// Fila de un movimiento. De los manuales, mantener presionado revela
+// Editar y Borrar — a pedido explícito del usuario — salvo que sea la
+// mitad de una transferencia (comparte `origenRefId` con otra fila), que
+// solo se puede borrar entera (ver MovimientoModal.jsx). Los automáticos
+// que vienen de una compra TAMBIÉN tienen Editar/Borrar — a pedido
+// explícito del usuario — pero en vez de un formulario propio acá,
+// "Editar" abre la compra que lo generó y "Borrar" borra esa compra
+// entera (ver `esCompraAuto`/handleEditarMovimiento/
+// handleBorrarMovimiento en ContabilidadPage.jsx, que decide a cuál de
+// los dos casos corresponde cada click y arma `onEdit`/`onDelete` ya
+// resueltos — acá no hace falta distinguirlos). El resto de los
+// automáticos (ventas) siguen sin poder tocarse desde acá: para
+// corregirlos hay que editar/borrar la feria que los generó, para que la
+// caja nunca quede desincronizada de la fuente real. cajaNombre
 // (opcional): para el resumen global de todas las cajas (ver
 // ContabilidadPage.jsx) — adentro del detalle de UNA caja no hace falta,
 // ya se sabe cuál es.
-export default function MovimientoRow({ item, cajaNombre, onEdit, onDelete }) {
+export default function MovimientoRow({ item, cajaNombre, esCompraAuto, onEdit, onDelete }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const esManual = item.origen === 'manual';
   const esTransferencia = esManual && !!item.origenRefId;
+  const accionable = esManual || esCompraAuto;
   const wrapRef = useCloseOnOutsideClick(actionsOpen, () => setActionsOpen(false));
-  const gestureProps = useRowGestures({ onLongPress: esManual ? () => setActionsOpen(true) : undefined });
+  const gestureProps = useRowGestures({ onLongPress: accionable ? () => setActionsOpen(true) : undefined });
 
   async function handleDelete() {
-    if (!window.confirm(`¿Borrar este movimiento (${fmtCOP(item.monto)})?`)) return;
+    const pregunta = esCompraAuto
+      ? `Esto borra la compra que generó este movimiento (${fmtCOP(item.monto)}). ¿Seguro?`
+      : `¿Borrar este movimiento (${fmtCOP(item.monto)})?`;
+    if (!window.confirm(pregunta)) return;
     setBusy(true);
     try {
       await onDelete();
@@ -50,7 +60,7 @@ export default function MovimientoRow({ item, cajaNombre, onEdit, onDelete }) {
           {item.tipo === 'egreso' ? '−' : '+'}{fmtCOP(item.monto)}
         </span>
       </div>
-      {esManual && actionsOpen && (
+      {accionable && actionsOpen && (
         <div className="row-actions-bar movimiento-row-actions">
           {!esTransferencia && (
             <button type="button" disabled={busy} onClick={() => { setActionsOpen(false); onEdit(item); }}>
