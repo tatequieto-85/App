@@ -342,6 +342,23 @@ export function computePesoTotal(ingredientesMaestros) {
     .reduce((sum, im) => sum + (pesoEnGramos(im.cantidadReceta, im.unidad) || 0), 0);
 }
 
+// Rendimiento + merma de UNA medida puntual contra el peso total de la
+// receta — a pedido explícito del usuario ("al poner las medidas y
+// contrastarlas con el peso, me debe decir la merma que hubo"): si todo
+// el lote se envasara SOLO en frascos de esta medida, cuántos enteros
+// salen (floor(pesoTotal / medida.pesoMl), mismo criterio que la
+// sugerencia de RecetaEscalarSection.jsx) y cuánto queda sin envasar
+// (merma — lo que no llega a completar un frasco más). Con varias
+// medidas atadas a la receta, cada una se evalúa POR SEPARADO contra el
+// mismo peso total (no hay forma de saber de antemano cómo se va a
+// repartir la producción real entre tamaños — eso se carga lote por lote
+// en Ejecuciones, ver EjecucionProduccionBox.jsx).
+export function computeRendimientoMedida(pesoTotal, medida) {
+  if (!medida?.pesoMl || !(pesoTotal > 0)) return { unidades: 0, merma: 0 };
+  const unidades = Math.floor(pesoTotal / medida.pesoMl);
+  return { unidades, merma: pesoTotal - unidades * medida.pesoMl };
+}
+
 // Precio TOTAL ESTIMADO del lote a partir de la receta — junto al peso
 // total, a pedido del usuario. Usa `cantidadComprada` de CADA ingrediente
 // (de peso/volumen Y por unidad, aclarado explícitamente por el usuario:

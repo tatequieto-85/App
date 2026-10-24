@@ -4,7 +4,7 @@ import Button from '../../components/ui/Button';
 import { fmtCOP } from '../../utils/format';
 import {
   calcularPorcentajes, pesoEnGramos, esUnidadDePeso, fmtPesoGramos,
-  normalizeIngredienteMaestro, computeCostoReceta
+  normalizeIngredienteMaestro, computeCostoReceta, computeRendimientoMedida
 } from '../../services/recetasApi';
 import EjecucionProduccionBox from './EjecucionProduccionBox';
 import RecetaEscalarSection from './RecetaEscalarSection';
@@ -170,14 +170,22 @@ export default function RecetaDetailModal({
         <div className="receta-detail-section">
           <h4 className="receta-detail-section-title">Medidas</h4>
           <p className="receta-detail-subtitle">Se configuran desde la pestaña "Medidas" de Procesos.</p>
-          {recetaMedidas.map(medida => (
-            <div key={medida.id} className="receta-detail-ing-row">
-              <span className="receta-detail-ing-nombre">{medida.nombre}{medida.pesoMl ? ` (${medida.pesoMl} g)` : ''}</span>
-              <span className="receta-detail-ing-cantidad">
-                {(medida.insumos || []).map(ins => `${ins.cantidad} ${ins.nombre}`).join(', ') || 'sin insumos'}
-              </span>
-            </div>
-          ))}
+          {recetaMedidas.map(medida => {
+            // Rendimiento + merma de ESTA medida contra el peso total de la
+            // receta — a pedido explícito del usuario ("al poner las
+            // medidas y contrastarlas con el peso, me debe decir la merma
+            // que hubo"): si todo el lote se envasara solo en este tamaño.
+            const { unidades, merma } = computeRendimientoMedida(pesoTotal, medida);
+            return (
+              <div key={medida.id} className="receta-detail-ing-row">
+                <span className="receta-detail-ing-nombre">{medida.nombre}{medida.pesoMl ? ` (${medida.pesoMl} g)` : ''}</span>
+                <span className="receta-detail-ing-cantidad">
+                  {pesoTotal > 0 && medida.pesoMl ? `≈${unidades} unidades · merma ${fmtPesoGramos(merma)}` : ''}
+                  {(medida.insumos || []).length ? ` · ${medida.insumos.map(ins => `${ins.cantidad} ${ins.nombre}`).join(', ')}` : ' · sin insumos'}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 
