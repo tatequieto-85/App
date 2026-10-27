@@ -41,6 +41,7 @@ export default function TestigoModal({ open, onClose, lotesConStock, onSave }) {
     if (!ejecucionId) return showFeedback('Selecciona un lote.', 'err');
     if (qty <= 0) return showFeedback('La cantidad debe ser mayor a 0.', 'err');
     if (!fechaApartado || !fechaRevision) return showFeedback('Las fechas son obligatorias.', 'err');
+    if (!window.confirm(`¿Confirmás apartar ${qty} unidades como producto testigo?`)) return;
 
     setBusy(true);
     try {

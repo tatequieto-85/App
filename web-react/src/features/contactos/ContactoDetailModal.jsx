@@ -29,6 +29,7 @@ export default function ContactoDetailModal({ open, onClose, contacto, vinculos,
     e.preventDefault();
     const text = texto.trim();
     if (!text) return;
+    if (!window.confirm('¿Agregar esta observación?')) return;
     setBusy(true);
     try {
       await onAddObservacion(contacto, text);

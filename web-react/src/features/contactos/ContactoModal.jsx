@@ -59,6 +59,7 @@ export default function ContactoModal({
     e.preventDefault();
     const nombre = form.nombre.trim();
     if (!nombre) return showFeedback('El nombre es obligatorio.', 'err');
+    if (!window.confirm(editingContacto ? '¿Confirmás guardar los cambios de este contacto?' : '¿Confirmás guardar este contacto?')) return;
 
     setBusy(true);
     try {
@@ -84,6 +85,7 @@ export default function ContactoModal({
     if (!otroId) return showFeedback('Elegí con quién vincularlo.', 'err');
     const categoria = categoriaVinculo.trim();
     if (!categoria) return showFeedback('Ponele una categoría al vínculo.', 'err');
+    if (!window.confirm('¿Agregar este vínculo?')) return;
 
     setVinculoBusy(true);
     try {
@@ -134,7 +136,7 @@ export default function ContactoModal({
               <div key={v.rowIndex} className="contacto-relacion-item">
                 <span className="badge">{v.tipo === 'trabajo' && <Icon name="briefcase" size={11} />}{v.categoria}</span>
                 <span className="contacto-relacion-nombre">{v.otro.nombre}</span>
-                <button type="button" onClick={() => onRemoveRelacion(v.rowIndex)}>Quitar</button>
+                <button type="button" onClick={() => { if (window.confirm('¿Quitar este vínculo?')) onRemoveRelacion(v.rowIndex); }}>Quitar</button>
               </div>
             )) : <div className="empty-state" style={{ padding: '8px 0' }}>Sin vínculos todavía</div>}
           </div>

@@ -38,6 +38,11 @@ export default function InsumoModal({ open, onClose, onSave, initialNombre = '',
     e.preventDefault();
     if (!nombre.trim()) return showFeedback('Indica el nombre.', 'err');
     if (!unidad.trim()) return showFeedback('Indica la unidad de medida.', 'err');
+    const nombreCambio = editing && editing.nombre !== nombre.trim();
+    const mensaje = nombreCambio
+      ? '¿Confirmás renombrar este insumo? Se actualiza en cascada en Compras y Recetas.'
+      : editing ? '¿Confirmás guardar los cambios de este insumo?' : '¿Confirmás guardar este insumo?';
+    if (!window.confirm(mensaje)) return;
     setBusy(true);
     try {
       // onSave decide qué pasa después de guardar — cerrar este modal

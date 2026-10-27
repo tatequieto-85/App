@@ -46,6 +46,7 @@ export default function AjusteModal({ open, onClose, item, onSave }) {
     const motivoFinal = motivo === 'otro' ? motivoOtro.trim() : motivo;
     if (qty <= 0) return showFeedback('La cantidad debe ser mayor a 0.', 'err');
     if (!motivoFinal) return showFeedback('Indica el motivo del ajuste.', 'err');
+    if (!window.confirm(`¿Confirmás esta ${tipo === 'entrada' ? 'entrada' : 'salida'} de ${qty} en "${item.nombre}"?`)) return;
 
     setBusy(true);
     try {

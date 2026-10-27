@@ -32,6 +32,26 @@ export default function StockTestigoCard({ testigo, actionsOpen, onOpenActionsCh
     }
   }
 
+  async function handleMarcarRevisado() {
+    if (!window.confirm('¿Marcar este producto testigo como revisado?')) return;
+    setBusy(true);
+    try {
+      await onMarcarRevisado(testigo);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleMarcarDescartado() {
+    if (!window.confirm('¿Marcar este producto testigo como descartado?')) return;
+    setBusy(true);
+    try {
+      await onMarcarDescartado(testigo);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="stock-testigo-wrap">
       <div className="stock-testigo-card" {...gestureProps}>
@@ -54,10 +74,10 @@ export default function StockTestigoCard({ testigo, actionsOpen, onOpenActionsCh
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .12 }}
           >
             {testigo.estado === 'en_resguardo' && (
-              <button type="button" disabled={busy} onClick={() => onMarcarRevisado(testigo)}>Revisado</button>
+              <button type="button" disabled={busy} onClick={handleMarcarRevisado}>Revisado</button>
             )}
             {testigo.estado === 'en_resguardo' && (
-              <button type="button" disabled={busy} onClick={() => onMarcarDescartado(testigo)}>Descartado</button>
+              <button type="button" disabled={busy} onClick={handleMarcarDescartado}>Descartado</button>
             )}
             <button type="button" className="danger" disabled={busy} onClick={handleDelete}>Eliminar</button>
           </motion.div>

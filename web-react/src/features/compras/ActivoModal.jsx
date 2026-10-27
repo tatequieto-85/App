@@ -38,6 +38,7 @@ export default function ActivoModal({ open, onClose, editing, categorias, onSave
     e.preventDefault();
     const nombreTrim = nombre.trim();
     if (!nombreTrim) return showFeedback('El nombre es obligatorio.', 'err');
+    if (!window.confirm(editing ? '¿Confirmás guardar los cambios de este activo?' : '¿Confirmás guardar este activo?')) return;
 
     setBusy(true);
     try {

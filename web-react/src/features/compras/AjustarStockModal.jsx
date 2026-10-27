@@ -35,6 +35,7 @@ export default function AjustarStockModal({ open, onClose, ingrediente, onSave }
   async function handleSubmit(e) {
     e.preventDefault();
     if (!cantidadNum || cantidadNum <= 0) return showFeedback('La cantidad debe ser mayor a 0.', 'err');
+    if (!window.confirm(`¿Confirmás este ajuste? Nuevo stock: ${nuevoStock} ${ingrediente.unidad}.`)) return;
     setBusy(true);
     try {
       await onSave(ingrediente, tipo === 'entrada' ? cantidadNum : -cantidadNum);

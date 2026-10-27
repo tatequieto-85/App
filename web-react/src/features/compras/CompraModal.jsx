@@ -75,6 +75,7 @@ export default function CompraModal({ open, onClose, ingrediente, editRecord, la
     if (!price || price <= 0) return showFeedback('El precio total debe ser mayor a 0.', 'err');
     if (!fecha) return showFeedback('Indica la fecha de compra.', 'err');
     if (cajas?.length && !cajaId) return showFeedback('Indica de qué caja salió la plata.', 'err');
+    if (!window.confirm(editRecord ? '¿Confirmás guardar los cambios de esta compra?' : '¿Confirmás guardar esta compra?')) return;
 
     setBusy(true);
     try {
