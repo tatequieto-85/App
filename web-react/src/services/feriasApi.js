@@ -5,6 +5,7 @@
 // `planStock`/`ventas`/`id`, campos que siguen ahí igual que antes.
 import { sheetsReq } from './googleAuth';
 import { parseISODate, toISODate, addDays } from '../utils/format';
+import { getProduccionPorMedidaLote } from './ejecucionesApi';
 
 function safeParseJSON(val, fallback) {
   if (!val) return fallback;
@@ -380,12 +381,14 @@ function getStockAjustesNetosLote(stockMovimientos, ejecucionId) {
 export function getStockDisponibleLote({ ejecuciones, ferias, stockMovimientos, stockTestigos }, ejecucionId, excludeFeriaId) {
   const ej = ejecuciones.find(e => e.id === ejecucionId);
   if (!ej) return 0;
-  const ev = ej.evaluacion || {};
-  // Mismas cuatro fuentes que getLoteResumen en stockApi.js — frascos130 se
-  // había quedado afuera acá (bug real: Ventas → Eventos mostraba un
-  // disponible distinto al del módulo Stock para cualquier lote envasado
-  // en 130 ml, reportado por el usuario).
-  const producido = (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascos130 || 0) + (ev.frascosProducidos || 0);
+  // Mismo criterio que getLoteResumen en stockApi.js — vía
+  // getProduccionPorMedidaLote (ejecucionesApi.js) para no perder ningún
+  // tamaño (frascos130 se había quedado afuera acá, bug real: Ventas →
+  // Eventos mostraba un disponible distinto al del módulo Stock para
+  // cualquier lote envasado en 130 ml) y para no contar un lote que
+  // todavía está en curso (sin "Guardar ejecución") como si ya estuviera
+  // listo para planear en una feria.
+  const producido = getProduccionPorMedidaLote(ej).reduce((s, i) => s + i.cantidad, 0);
   const testigo = stockTestigos
     .filter(t => t.ejecucionId === ejecucionId)
     .reduce((sum, t) => sum + (t.cantidad || 0), 0);

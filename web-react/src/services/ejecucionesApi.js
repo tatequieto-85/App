@@ -107,18 +107,41 @@ export function generateLoteId(nombreReceta) {
   return `TQ-${abbr}-${date}-${time}`;
 }
 
+// Desglose de UN lote por medida — la usan tanto Ferias (feriasApi.js) como
+// Stock (stockApi.js) para calcular disponibilidad; vive acá (sin depender
+// de ninguno de esos dos módulos) justamente para que ambos la puedan
+// importar sin crear una dependencia circular (stockApi.js ya importa de
+// feriasApi.js). `medidaId` es el id real del catálogo (Medidas) para lotes
+// nuevos, o una clave sintética estable ("legacy-230"/"legacy-130"/
+// "legacy-180"/"legacy-otros") para lotes viejos sin medida configurada.
+// Solo cuenta lotes con `estado === 'Completada'` ("Guardar ejecución") —
+// bug real reportado por el usuario: "en la ejecución si aún no pongo
+// terminado me suma como si fuera terminado". Mientras el lote sigue en
+// curso, "Empezar producción" ya guarda las cantidades ingresadas en
+// evaluacion.produccionPorMedida/frascos230 en cada cambio (para no perder
+// lo escrito si se cierra la app a mitad de carga), pero eso NO significa
+// que el lote ya esté listo — ni Stock ni Ventas deben sumarlo hasta que
+// se confirme con "Guardar ejecución".
+export function getProduccionPorMedidaLote(ejecucion) {
+  if (ejecucion.estado !== 'Completada') return [];
+  const ev = ejecucion.evaluacion || {};
+  if (ev.produccionPorMedida?.length) {
+    return ev.produccionPorMedida
+      .filter(p => p.cantidad > 0)
+      .map(p => ({ medidaId: p.medidaId, nombre: p.nombre || 'Medida', pesoMl: p.pesoMl || 0, cantidad: p.cantidad }));
+  }
+  const items = [];
+  if (ev.frascos230) items.push({ medidaId: 'legacy-230', nombre: '230 ml', pesoMl: 230, cantidad: ev.frascos230 });
+  if (ev.frascos130) items.push({ medidaId: 'legacy-130', nombre: '130 ml', pesoMl: 130, cantidad: ev.frascos130 });
+  if (ev.frascos180) items.push({ medidaId: 'legacy-180', nombre: '180 ml', pesoMl: 180, cantidad: ev.frascos180 });
+  if (ev.frascosProducidos) items.push({ medidaId: 'legacy-otros', nombre: 'Otros', pesoMl: 0, cantidad: ev.frascosProducidos });
+  return items;
+}
+
 // Suma de frascos producidos para una receta — la usan tanto Ferias como
-// Stock para calcular disponibilidad. `frascos230`/`frascos180` es el
-// desglose por tamaño que ya usaba la evaluación completa de la app
-// vanilla (todavía sin migrar); `frascosProducidos` es el campo simple
-// (sin desglose por tamaño) que se carga desde el cuadro de producción en
-// React — se suman los tres para no perder ninguno según de dónde venga
-// el dato.
+// Stock para calcular disponibilidad.
 export function getStockProducido(ejecuciones, recetaId) {
   return ejecuciones
     .filter(ej => ej.recetaId === recetaId)
-    .reduce((sum, ej) => {
-      const ev = ej.evaluacion || {};
-      return sum + (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascos130 || 0) + (ev.frascosProducidos || 0);
-    }, 0);
+    .reduce((sum, ej) => sum + getProduccionPorMedidaLote(ej).reduce((s, i) => s + i.cantidad, 0), 0);
 }

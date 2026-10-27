@@ -1,6 +1,6 @@
 // Portado de ../../stock.js — mismas hojas "StockTestigo" y "StockMovimientos".
 import { sheetsReq } from './googleAuth';
-import { getStockProducido } from './ejecucionesApi';
+import { getStockProducido, getProduccionPorMedidaLote } from './ejecucionesApi';
 import { getStockComprometidoLote, getStockVendidoLote } from './feriasApi';
 import { parseISODate, toISODate, addMonths } from '../utils/format';
 
@@ -282,8 +282,7 @@ function getStockAjustesNetosMedida(stockMovimientos, medidaId) {
 export function getLoteResumen({ ejecuciones, ferias, stockMovimientos, stockTestigos }, ejecucionId) {
   const ej = ejecuciones.find(e => e.id === ejecucionId);
   if (!ej) return null;
-  const ev          = ej.evaluacion || {};
-  const producido   = (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascos130 || 0) + (ev.frascosProducidos || 0);
+  const producido   = getProduccionPorMedidaLote(ej).reduce((s, i) => s + i.cantidad, 0);
   const testigo     = stockTestigos
     .filter(t => t.ejecucionId === ejecucionId)
     .reduce((sum, t) => sum + (t.cantidad || 0), 0);
@@ -317,8 +316,7 @@ function getStockMuestrasLote(ferias, ejecucionId) {
 export function getStockDisponibleLoteReal({ ejecuciones, ferias, stockMovimientos }, ejecucionId) {
   const ej = ejecuciones.find(e => e.id === ejecucionId);
   if (!ej) return 0;
-  const ev = ej.evaluacion || {};
-  const producido = (ev.frascos230 || 0) + (ev.frascos180 || 0) + (ev.frascos130 || 0) + (ev.frascosProducidos || 0);
+  const producido = getProduccionPorMedidaLote(ej).reduce((s, i) => s + i.cantidad, 0);
   const vendido = getStockVendidoLote(ferias, ejecucionId);
   const muestras = getStockMuestrasLote(ferias, ejecucionId);
   const ajustes = getStockAjustesNetosLote(stockMovimientos, ejecucionId);
@@ -330,31 +328,11 @@ export function getStockDisponibleLoteReal({ ejecuciones, ferias, stockMovimient
 // solo tenían columnas fijas para "230"/"130", así que cualquier medida
 // de otro peso (ej. "105 g") quedaba invisible, aunque SÍ sumaba al
 // Disponible general (vía evaluacion.frascosProducidos, el balde de
-// compatibilidad — ver EjecucionProduccionBox.jsx/useProcesos.js). Esto
-// reemplaza esas columnas fijas por un desglose dinámico, con UN SOLO
-// camino tanto para lotes nuevos (evaluacion.produccionPorMedida) como
-// para lotes viejos (frascos230/180/130/frascosProducidos, sintetizados
-// acá a la misma forma) — así el resto del código (tabla, pricing) no
-// necesita dos ramas distintas.
-// `medidaId` identifica el ITEM al que pertenece cada cantidad — el id real
-// del catálogo (Medidas) para lotes nuevos, o una clave sintética estable
-// ("legacy-230"/"legacy-130"/"legacy-180"/"legacy-otros") para lotes viejos
-// sin medida configurada, para poder agrupar/ajustar cada tamaño por
-// separado igual que a una medida real (ver getStockPorMedida).
-export function getProduccionPorMedidaLote(ejecucion) {
-  const ev = ejecucion.evaluacion || {};
-  if (ev.produccionPorMedida?.length) {
-    return ev.produccionPorMedida
-      .filter(p => p.cantidad > 0)
-      .map(p => ({ medidaId: p.medidaId, nombre: p.nombre || 'Medida', pesoMl: p.pesoMl || 0, cantidad: p.cantidad }));
-  }
-  const items = [];
-  if (ev.frascos230) items.push({ medidaId: 'legacy-230', nombre: '230 ml', pesoMl: 230, cantidad: ev.frascos230 });
-  if (ev.frascos130) items.push({ medidaId: 'legacy-130', nombre: '130 ml', pesoMl: 130, cantidad: ev.frascos130 });
-  if (ev.frascos180) items.push({ medidaId: 'legacy-180', nombre: '180 ml', pesoMl: 180, cantidad: ev.frascos180 });
-  if (ev.frascosProducidos) items.push({ medidaId: 'legacy-otros', nombre: 'Otros', pesoMl: 0, cantidad: ev.frascosProducidos });
-  return items;
-}
+// compatibilidad — ver EjecucionProduccionBox.jsx/useProcesos.js). Vive en
+// ejecucionesApi.js (no acá) para que feriasApi.js también la pueda
+// importar sin crear una dependencia circular — ver su definición ahí para
+// el resto del criterio (medidaId real/sintético, filtro por `estado`).
+export { getProduccionPorMedidaLote };
 
 // 1 ml ≈ 1 g (misma convención que el resto de la app, ver
 // UNIDAD_A_GRAMOS en recetasApi.js) — un frasco de 230 ml equivale a 230
@@ -387,10 +365,12 @@ export function getPrecioPorMedida(costoLote, pesoTotalLote, items) {
 // El ajuste manual se guarda por receta, pero el plan de stock de Ferias
 // elige cuánto llevar lote por lote — sin un lote asignado, un ajuste nunca
 // se vería reflejado ahí. Se atribuye solo, sin preguntarle al usuario, al
-// lote más reciente con producción registrada de esa receta.
+// lote más reciente con producción registrada de esa receta — solo entre
+// los YA terminados (mismo criterio que getProduccionPorMedidaLote), para
+// no atribuirle un ajuste a un lote todavía en curso.
 export function getLoteParaAjuste(ejecuciones, recetaId) {
   const lotes = ejecuciones
-    .filter(ej => ej.recetaId === recetaId && (ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180 || ej.evaluacion?.frascos130 || ej.evaluacion?.frascosProducidos))
+    .filter(ej => ej.recetaId === recetaId && getProduccionPorMedidaLote(ej).length)
     .sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio));
   return lotes[0]?.id || '';
 }

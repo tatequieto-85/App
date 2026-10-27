@@ -5,6 +5,7 @@ import Feedback from '../../components/ui/Feedback';
 import EmptyState from '../../components/ui/EmptyState';
 import { useFeedback } from '../../hooks/useFeedback';
 import { getStockDisponibleLote } from '../../services/feriasApi';
+import { getProduccionPorMedidaLote } from '../../services/ejecucionesApi';
 import './FeriaStockModal.css';
 
 // Equivalente a openFeriaStockModal() en ../../../ferias.js — se abre en
@@ -23,9 +24,11 @@ export default function FeriaStockModal({ open, onClose, feria, ejecuciones, ctx
 
   if (!feria) return null;
 
-  const lotes = ejecuciones.filter(ej =>
-    ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180 || ej.evaluacion?.frascos130 || ej.evaluacion?.frascosProducidos
-  );
+  // Solo lotes YA terminados ("Guardar ejecución") — un lote todavía en
+  // curso no tiene producción confirmada, así que no se puede planear para
+  // una feria (bug real reportado por el usuario: "en la ejecución si aún
+  // no pongo terminado me suma como si fuera terminado").
+  const lotes = ejecuciones.filter(ej => getProduccionPorMedidaLote(ej).length);
 
   // Bug real reportado por el usuario ("me dice que no hay stock
   // suficiente, pero sí hay"): `cantidades` arranca precargado con TODO
