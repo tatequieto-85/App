@@ -268,6 +268,17 @@ export function useProcesos(ingredientes, reloadIngredientes) {
     return lista.find(e => e.id === nuevaEjecucion.id) || nuevaEjecucion;
   }, []);
 
+  // Se sale de la receta con una ejecución todavía "En progreso" (nunca se
+  // tocó "Guardar ejecución") y el usuario confirmó que prefiere
+  // descartarla en vez de seguir completándola — a pedido explícito del
+  // usuario ("si decide dejarla no registrarla en sheet"). Borra la fila
+  // entera; una ejecución ya "Completada" nunca llega acá (ver
+  // RecetaDetailModal.jsx, que solo pide confirmación mientras sigue en
+  // curso).
+  const descartarEjecucion = useCallback(async ejecucion => {
+    await ejecucionesApi.deleteEjecucionRow(ejecucion.rowIndex);
+  }, []);
+
   const addObservacionEjecucion = useCallback(async (ejecucion, text) => {
     const updated = {
       ...ejecucion,
@@ -398,7 +409,7 @@ export function useProcesos(ingredientes, reloadIngredientes) {
     saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups, createMedida, editMedida,
     saveMedidaGroup, deleteMedidaGroup, reorderMedidaGroups,
     saveReceta, deleteReceta, duplicateReceta, escalarReceta,
-    empezarProduccion, addObservacionEjecucion,
+    empezarProduccion, descartarEjecucion, addObservacionEjecucion,
     addInsumoEjecucion, removeInsumoEjecucion, updatePHEjecucion, updateFrascosEjecucion,
     updateProduccionMedidaEjecucion,
     finalizarEjecucion

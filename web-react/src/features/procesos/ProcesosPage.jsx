@@ -168,6 +168,7 @@ export default function ProcesosPage({ onBack }) {
         ingredientes={ingredientes}
         onAddNewIngrediente={tryAddIngrediente}
         onEmpezarProduccion={pr.empezarProduccion}
+        onDescartarEjecucion={pr.descartarEjecucion}
         onAddObservacion={pr.addObservacionEjecucion}
         onAddInsumo={pr.addInsumoEjecucion}
         onRemoveInsumo={pr.removeInsumoEjecucion}

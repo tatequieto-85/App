@@ -59,7 +59,7 @@ function IngRow({ ing, mostrarPct }) {
 // cargar los ingredientes usados dentro del cuadro.
 export default function RecetaDetailModal({
   open, onClose, receta, recetaMedidas, compras, ingredientes, onAddNewIngrediente,
-  onEmpezarProduccion, onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos,
+  onEmpezarProduccion, onDescartarEjecucion, onAddObservacion, onAddInsumo, onRemoveInsumo, onChangePH, onChangeFrascos,
   onChangeProduccionMedida, onGuardarEjecucion, onEscalarReceta
 }) {
   const [busy, setBusy] = useState(false);
@@ -102,6 +102,26 @@ export default function RecetaDetailModal({
 
   if (!receta) return null;
 
+  // Salir con una ejecución "En progreso" (nunca se tocó "Guardar
+  // ejecución") pide confirmación — a pedido explícito del usuario
+  // ("cada vez que se salga de la receta en ejecucion se necesite una
+  // confirmacion... y si decide dejarla no registrarla en sheet"): si
+  // confirma, se borra la fila entera en vez de dejarla abandonada a
+  // medio cargar. Una ejecución ya "Completada" (o ninguna activa) cierra
+  // directo, sin preguntar nada — ya está guardada, no hay nada que perder.
+  async function handleClose() {
+    if (ejecucion && ejecucion.estado !== 'Completada') {
+      if (!window.confirm('Hay una ejecución en proceso sin guardar. ¿Salir? No se va a registrar en la hoja.')) return;
+      try {
+        await onDescartarEjecucion(ejecucion);
+      } catch (err) {
+        alert('Error: ' + err.message);
+        return;
+      }
+    }
+    onClose();
+  }
+
   async function handleEmpezarProduccion() {
     setBusy(true);
     try {
@@ -141,7 +161,7 @@ export default function RecetaDetailModal({
   const middleEtapas = (receta.etapas || []).filter(e => !e.fija);
 
   return (
-    <Modal open={open} onClose={onClose} showBack title={receta.nombre}>
+    <Modal open={open} onClose={handleClose} showBack title={receta.nombre}>
       {!!maestros.length && (
         <div className="receta-detail-section">
           <h4 className="receta-detail-section-title">Ingredientes</h4>

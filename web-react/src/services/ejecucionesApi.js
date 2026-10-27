@@ -97,6 +97,23 @@ export async function updateEjecucion(ej) {
   });
 }
 
+// Descartar un lote que se dejó "En progreso" sin llegar a "Guardar
+// ejecución" — a pedido explícito del usuario ("si decide dejarla no
+// registrarla en sheet"): salir de la receta mientras hay una ejecución
+// en curso pide confirmación (ver RecetaDetailModal.jsx) y, si se
+// confirma, borra la fila entera en vez de dejarla abandonada a medio
+// cargar — mismo motivo que los lotes vacíos de prueba que el usuario
+// tuvo que limpiar a mano antes de que existiera esto.
+export async function deleteEjecucionRow(rowIndex) {
+  if (!ejecucionesSheetId) await ensureEjecucionesSheet();
+  await sheetsReq(':batchUpdate', {
+    method: 'POST',
+    body: JSON.stringify({ requests: [{ deleteDimension: {
+      range: { sheetId: ejecucionesSheetId, dimension: 'ROWS', startIndex: rowIndex - 1, endIndex: rowIndex }
+    } }] })
+  });
+}
+
 // Portado de generateLotId() en ../../procesos.js — mismo formato que ya
 // reconoce la app vanilla (y lee Stock/Ventas): TQ-{3 letras}-{YYYYMMDD}-{HHMM}.
 export function generateLoteId(nombreReceta) {
