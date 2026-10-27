@@ -1,8 +1,18 @@
-import { useState } from 'react';
 import { useRowGestures } from '../../hooks/useRowGestures';
 
-function ResumenRow({ row, expanded, onToggle, onLongPress }) {
-  const gestureProps = useRowGestures({ onTap: onToggle, onLongPress: () => onLongPress(row.receta) });
+function ResumenRow({ row, onLongPress }) {
+  const gestureProps = useRowGestures({ onLongPress: () => onLongPress(row.receta) });
+  // El desglose por medida va siempre visible debajo del total de la receta
+  // — no detrás de un toque — a pedido explícito del usuario, que después
+  // de que el desglose quedara escondido tras un tap lo siguió reportando
+  // como "stock aun me dice solo maracuya tranqui 26" (no lo notaba/no le
+  // servía escondido): "la receta esta anexa a medida y stock deberia estar
+  // anexa a medida" — cada medida es de UNA sola receta (ver medidasApi.js),
+  // así que mostrar siempre receta+medida es lo que corresponde, igual que
+  // ya hace Trazabilidad. Si solo hay un grupo (p. ej. receta sin medidas
+  // configuradas, todo cae en "Sin medida asignada") no se repite la misma
+  // cifra dos veces.
+  const mostrarDesglose = row.porMedida.length > 1;
   return (
     <>
       <tr className="stock-resumen-row" {...gestureProps}>
@@ -11,7 +21,7 @@ function ResumenRow({ row, expanded, onToggle, onLongPress }) {
           {row.disponible}
         </td>
       </tr>
-      {expanded && !!row.porMedida.length && (
+      {mostrarDesglose && (
         <tr className="stock-resumen-row-detalle">
           <td colSpan={2}>
             {row.porMedida.map((m, i) => (
@@ -30,30 +40,22 @@ function ResumenRow({ row, expanded, onToggle, onLongPress }) {
 // Equivalente a renderStockResumen() en ../../../stock.js. Mantener presionada
 // una fila abre el ajuste manual de ese producto (no hay botones editar/
 // eliminar acá: una sola acción, así que no hace falta la barra de dos
-// botones — long-press abre el modal directo). Un toque simple expande/
-// colapsa el desglose por MEDIDA debajo — a pedido explícito del usuario
-// ("en stock no me distingue entre las recetas... no me da el stock por
-// receta/medida"; "deberia salir receta + medida = ... = 8") — `row.porMedida`
-// ya viene resuelto desde useStock.js (ver getStockPorMedida en stockApi.js).
+// botones — long-press abre el modal directo). El desglose por MEDIDA va
+// siempre visible debajo de cada receta con más de una medida — a pedido
+// explícito del usuario — `row.porMedida` ya viene resuelto desde
+// useStock.js (ver getStockPorMedida en stockApi.js).
 export default function StockResumenTable({ rows, onOpenAjuste }) {
-  const [expandedId, setExpandedId] = useState(null);
-
   return (
     <>
       <table className="tasks-table">
         <thead><tr><th>Producto</th><th>Disponible</th></tr></thead>
         <tbody>
           {rows.map(row => (
-            <ResumenRow
-              key={row.receta.id} row={row}
-              expanded={expandedId === row.receta.id}
-              onToggle={() => setExpandedId(id => id === row.receta.id ? null : row.receta.id)}
-              onLongPress={onOpenAjuste}
-            />
+            <ResumenRow key={row.receta.id} row={row} onLongPress={onOpenAjuste} />
           ))}
         </tbody>
       </table>
-      <div className="ejecucion-hint">tocar una fila = ver por medida · mantener presionada = ajuste manual</div>
+      <div className="ejecucion-hint">mantener presionada una fila = ajuste manual</div>
     </>
   );
 }
