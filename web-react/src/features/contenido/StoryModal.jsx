@@ -47,6 +47,7 @@ export default function StoryModal({ open, onClose, onSave }) {
     const tituloTrim = title.trim();
     if (!tituloTrim) return showFeedback('El título es obligatorio.', 'err');
     if (!scheduled) return showFeedback('La fecha es obligatoria.', 'err');
+    if (!window.confirm('¿Confirmás programar esta historia?')) return;
 
     setBusy(true);
     try {

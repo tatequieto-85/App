@@ -28,6 +28,7 @@ export default function QRModal({ open, onClose, onGenerar }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!window.confirm('¿Confirmás generar y guardar este código QR?')) return;
     setBusy(true);
     try {
       await onGenerar({ nombre, link });

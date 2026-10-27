@@ -64,6 +64,7 @@ export default function MovimientoModal({ open, onClose, cajas, editing, onSaveM
     if (!editing && tipo === 'transferencia' && cajaId === cajaDestinoId) {
       return showFeedback('Elegí dos cajas distintas para la transferencia.', 'err');
     }
+    if (!window.confirm(editing ? '¿Confirmás guardar los cambios de este movimiento?' : '¿Confirmás guardar este movimiento?')) return;
 
     setBusy(true);
     try {

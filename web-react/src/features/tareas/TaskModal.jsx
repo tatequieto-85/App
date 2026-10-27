@@ -67,8 +67,13 @@ export default function TaskModal({ open, onClose, editingTask, columns, areas, 
     if (!priority) return showFeedback('La prioridad es obligatoria.', 'err');
     // Igual que en TaskDetailModal: guardar en un estado archivable
     // (Finalizada) saca la tarea de la lista para siempre, se pide
-    // confirmación antes, a pedido explícito del usuario.
-    if (ARCHIVABLE_STATES.includes(status) && !window.confirm('Al finalizar, la tarea se archiva y desaparece de la lista. ¿Continuar?')) return;
+    // confirmación antes, a pedido explícito del usuario. Para el resto de
+    // los estados, el confirm genérico de guardar (ver abajo) alcanza.
+    if (ARCHIVABLE_STATES.includes(status)) {
+      if (!window.confirm('Al finalizar, la tarea se archiva y desaparece de la lista. ¿Continuar?')) return;
+    } else if (!window.confirm(editingTask ? '¿Confirmás guardar los cambios de esta tarea?' : '¿Confirmás crear esta tarea?')) {
+      return;
+    }
 
     setBusy(true);
     try {

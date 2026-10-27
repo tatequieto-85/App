@@ -38,6 +38,7 @@ export default function CajaModal({ open, onClose, editingCaja, onSave }) {
     e.preventDefault();
     const nombreTrim = nombre.trim();
     if (!nombreTrim) return showFeedback('Ponele un nombre a la caja.', 'err');
+    if (!window.confirm(editingCaja ? '¿Confirmás guardar los cambios de esta caja?' : '¿Confirmás crear esta caja?')) return;
 
     setBusy(true);
     try {

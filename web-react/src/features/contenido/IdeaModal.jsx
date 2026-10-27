@@ -50,6 +50,7 @@ export default function IdeaModal({ open, onClose, onSave }) {
     const descTrim = descripcion.trim();
     if (!descTrim) return showFeedback('La descripción es obligatoria.', 'err');
     if (!categoria) return showFeedback('Elegí una categoría.', 'err');
+    if (!window.confirm('¿Confirmás guardar esta idea?')) return;
     if (recorder.recording) recorder.stop();
 
     setBusy(true);

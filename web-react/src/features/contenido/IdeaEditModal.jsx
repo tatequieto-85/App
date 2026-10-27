@@ -28,6 +28,7 @@ export default function IdeaEditModal({ open, onClose, idea, onSave }) {
     e.preventDefault();
     const descTrim = descripcion.trim();
     if (!descTrim) return showFeedback('La descripción es obligatoria.', 'err');
+    if (!window.confirm('¿Confirmás guardar los cambios de esta idea?')) return;
 
     setBusy(true);
     try {

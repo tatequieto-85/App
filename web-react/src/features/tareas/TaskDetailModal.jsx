@@ -30,7 +30,12 @@ export default function TaskDetailModal({ open, onClose, task, columns, onChange
     // Al pasar a un estado archivable (Finalizada) la tarea sale de la
     // lista para siempre (ver useTareas.js) — se pide confirmación antes,
     // a pedido explícito del usuario.
-    if (ARCHIVABLE_STATES.includes(nuevo) && !window.confirm('Al finalizar, la tarea se archiva y desaparece de la lista. ¿Continuar?')) {
+    if (ARCHIVABLE_STATES.includes(nuevo)) {
+      if (!window.confirm('Al finalizar, la tarea se archiva y desaparece de la lista. ¿Continuar?')) {
+        e.target.value = task.status;
+        return;
+      }
+    } else if (!window.confirm(`¿Cambiar el estado a "${nuevo}"?`)) {
       e.target.value = task.status;
       return;
     }
@@ -48,6 +53,7 @@ export default function TaskDetailModal({ open, onClose, task, columns, onChange
     e.preventDefault();
     const text = obsText.trim();
     if (!text) return;
+    if (!window.confirm('¿Agregar esta observación?')) return;
     setBusyObs(true);
     try {
       await onAddObservacion(task.id, text);
