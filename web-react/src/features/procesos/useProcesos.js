@@ -20,6 +20,7 @@ export function useProcesos(ingredientes, reloadIngredientes) {
   const [recetas, setRecetas] = useState([]);
   const [compras, setCompras] = useState([]);
   const [medidas, setMedidas] = useState([]);
+  const [medidaBlocks, setMedidaBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -37,14 +38,15 @@ export function useProcesos(ingredientes, reloadIngredientes) {
         await Promise.all([
           recetasApi.ensureRecetasSheets(), ejecucionesApi.ensureEjecucionesSheet(), medidasApi.ensureMedidasSheet()
         ]);
-        const [blocks, recs, comprs, meds] = await Promise.all([
-          recetasApi.fetchRecetaBlocks(), recetasApi.fetchRecetas(), fetchCompras(), medidasApi.fetchMedidas()
+        const [blocks, recs, comprs, meds, medBlocks] = await Promise.all([
+          recetasApi.fetchRecetaBlocks(), recetasApi.fetchRecetas(), fetchCompras(), medidasApi.fetchMedidas(), medidasApi.fetchMedidaBlocks()
         ]);
         if (cancelled) return;
         setRecetaBlocks(blocks);
         setRecetas(recs);
         setCompras(comprs);
         setMedidas(meds);
+        setMedidaBlocks(medBlocks);
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -81,6 +83,50 @@ export function useProcesos(ingredientes, reloadIngredientes) {
     const lista = await medidasApi.fetchMedidas();
     setMedidas(lista);
   }, [medidas]);
+
+  // ── Grupos de medidas (MedidaBlocks) ─────────────────────────────────────
+  // A diferencia de los grupos de recetas, agrupar una medida es opcional —
+  // a pedido explícito del usuario ("que se deje agrupar acorde a lo que el
+  // usuario quiera"). Mismo criterio de CRUD que saveRecetaGroup/
+  // deleteRecetaGroup/reorderRecetaGroups más abajo, pero sobre medidasApi.js.
+
+  const saveMedidaGroup = useCallback(async ({ nombre, color, icono }, editingId) => {
+    const dup = medidaBlocks.find(b => b.id !== editingId && b.nombre.toLowerCase() === nombre.toLowerCase());
+    if (dup) throw new Error('Ya existe un grupo con ese nombre.');
+    if (editingId) {
+      const block = medidaBlocks.find(b => b.id === editingId);
+      await medidasApi.updateMedidaBlock({ ...block, nombre, color, icono });
+    } else {
+      await medidasApi.appendMedidaBlock(
+        { id: crypto.randomUUID(), nombre, color, icono, creadoEn: new Date().toISOString() },
+        medidaBlocks.length
+      );
+    }
+    setMedidaBlocks(await medidasApi.fetchMedidaBlocks());
+  }, [medidaBlocks]);
+
+  // Las medidas del grupo NO se borran — quedan sin grupo (mismo criterio
+  // que deleteRecetaGroup).
+  const deleteMedidaGroup = useCallback(async blockId => {
+    const block = medidaBlocks.find(b => b.id === blockId);
+    if (!block) return;
+    const afectadas = medidas.filter(m => m.blockId === blockId);
+    await medidasApi.deleteMedidaBlockRow(block.rowIndex);
+    for (const m of afectadas) await medidasApi.updateMedida({ ...m, blockId: '' });
+    setMedidaBlocks(await medidasApi.fetchMedidaBlocks());
+    if (afectadas.length) setMedidas(await medidasApi.fetchMedidas());
+  }, [medidaBlocks, medidas]);
+
+  const reorderMedidaGroups = useCallback(async orderedIds => {
+    const reordered = orderedIds.map((id, i) => ({ ...medidaBlocks.find(b => b.id === id), sortOrder: i }));
+    setMedidaBlocks(reordered);
+    try {
+      await Promise.all(reordered.map(medidasApi.updateMedidaBlock));
+    } catch (err) {
+      setMedidaBlocks(await medidasApi.fetchMedidaBlocks());
+      throw err;
+    }
+  }, [medidaBlocks]);
 
   // ── Grupos ─────────────────────────────────────────────────────────────
 
@@ -348,8 +394,9 @@ export function useProcesos(ingredientes, reloadIngredientes) {
   }, [ingredientes, reloadIngredientes]);
 
   return {
-    recetaBlocks, recetas, compras, medidas, loading, error,
+    recetaBlocks, recetas, compras, medidas, medidaBlocks, loading, error,
     saveRecetaGroup, deleteRecetaGroup, reorderRecetaGroups, createMedida, editMedida,
+    saveMedidaGroup, deleteMedidaGroup, reorderMedidaGroups,
     saveReceta, deleteReceta, duplicateReceta, escalarReceta,
     empezarProduccion, addObservacionEjecucion,
     addInsumoEjecucion, removeInsumoEjecucion, updatePHEjecucion, updateFrascosEjecucion,

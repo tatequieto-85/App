@@ -35,7 +35,8 @@ export default function ProcesosPage({ onBack }) {
   const [groupModal, setGroupModal] = useState(null); // { editing } | null
   const [recetaModal, setRecetaModal] = useState(null); // { editing, groupId } | null
   const [detailId, setDetailId] = useState(null);
-  const [medidaModal, setMedidaModal] = useState(null); // { editing } | null
+  const [medidaModal, setMedidaModal] = useState(null); // { editing, defaultBlockId } | null
+  const [medidaGroupModal, setMedidaGroupModal] = useState(null); // { editing } | null
 
   const recetasPorGrupo = useMemo(() => {
     const map = new Map();
@@ -74,7 +75,7 @@ export default function ProcesosPage({ onBack }) {
                       group={group}
                       onEdit={g => setGroupModal({ editing: g })}
                       onDelete={pr.deleteRecetaGroup}
-                      onAddReceta={groupId => setRecetaModal({ editing: null, groupId })}
+                      onAdd={groupId => setRecetaModal({ editing: null, groupId })}
                     />
                     {recetasGrupo.length ? (
                       <div className="receta-cards-grid">
@@ -101,7 +102,14 @@ export default function ProcesosPage({ onBack }) {
       )}
 
       {!pr.loading && !pr.error && tab === 'medidas' && (
-        <MedidasCatalogSection medidas={pr.medidas} recetas={pr.recetas} onEdit={m => setMedidaModal({ editing: m })} />
+        <MedidasCatalogSection
+          medidas={pr.medidas} medidaBlocks={pr.medidaBlocks} recetas={pr.recetas}
+          onEdit={m => setMedidaModal({ editing: m, defaultBlockId: '' })}
+          onAddToGroup={blockId => setMedidaModal({ editing: null, defaultBlockId: blockId })}
+          onEditGroup={g => setMedidaGroupModal({ editing: g })}
+          onDeleteGroup={pr.deleteMedidaGroup}
+          onNewGroup={() => setMedidaGroupModal({ editing: null })}
+        />
       )}
 
       {tab === 'recetas' ? (
@@ -109,7 +117,7 @@ export default function ProcesosPage({ onBack }) {
           <Icon name="plus" size={16} /> Nuevo grupo
         </FabButton>
       ) : (
-        <FabButton onClick={() => setMedidaModal({ editing: null })}>
+        <FabButton onClick={() => setMedidaModal({ editing: null, defaultBlockId: '' })}>
           <Icon name="plus" size={16} /> Nueva medida
         </FabButton>
       )}
@@ -125,10 +133,20 @@ export default function ProcesosPage({ onBack }) {
         open={!!medidaModal}
         onClose={() => setMedidaModal(null)}
         editingMedida={medidaModal?.editing || null}
+        defaultBlockId={medidaModal?.defaultBlockId || ''}
         recetas={pr.recetas}
+        medidaBlocks={pr.medidaBlocks}
         ingredientes={ingredientes}
         onAddNewIngrediente={tryAddIngrediente}
         onSave={(datos, editingId) => editingId ? pr.editMedida(editingId, datos) : pr.createMedida(datos)}
+      />
+
+      <RecetaGroupModal
+        open={!!medidaGroupModal}
+        onClose={() => setMedidaGroupModal(null)}
+        editingGroup={medidaGroupModal?.editing || null}
+        titleNew="Nuevo grupo de medidas"
+        onSave={pr.saveMedidaGroup}
       />
 
       <RecetaModal

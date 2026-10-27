@@ -25,11 +25,17 @@ import './MedidaModal.css';
 // sugerir cuántos frascos rinde un lote (1 ml ≈ 1 g). editingMedida null =
 // crear. Editar una medida ya atada a una ejecución no toca esa ejecución
 // (evaluacion.produccionPorMedida queda "congelado", mismo criterio que
-// costoTotal/pesoTotalReceta en finalizarEjecucion).
-export default function MedidaModal({ open, onClose, editingMedida, recetas, ingredientes, onAddNewIngrediente, onSave }) {
+// costoTotal/pesoTotalReceta en finalizarEjecucion). `medidaBlocks`/
+// `defaultBlockId`: a qué grupo libre pertenece (opcional, a pedido
+// explícito del usuario "que se deje agrupar acorde a lo que el usuario
+// quiera") — se puede elegir/cambiar en cualquier momento desde acá, sin
+// importar si se abrió desde el FAB general o desde el botón "+ Medida" de
+// un grupo puntual (`defaultBlockId`, solo precarga el valor inicial).
+export default function MedidaModal({ open, onClose, editingMedida, defaultBlockId, recetas, medidaBlocks, ingredientes, onAddNewIngrediente, onSave }) {
   const [nombre, setNombre] = useState('');
   const [pesoMl, setPesoMl] = useState('');
   const [recetaId, setRecetaId] = useState('');
+  const [blockId, setBlockId] = useState('');
   const [insumos, setInsumos] = useState([]);
   const [busy, setBusy] = useState(false);
   const [feedback, showFeedback] = useFeedback();
@@ -41,9 +47,10 @@ export default function MedidaModal({ open, onClose, editingMedida, recetas, ing
     setNombre(n);
     setPesoMl(editingMedida?.pesoMl ? String(editingMedida.pesoMl) : '');
     setRecetaId(editingMedida?.recetaId || '');
+    setBlockId(editingMedida ? (editingMedida.blockId || '') : (defaultBlockId || ''));
     setInsumos(editingMedida?.insumos ? editingMedida.insumos.map(ins => ({ ...ins })) : []);
     initialRef.current = { nombre: n };
-  }, [open, editingMedida]);
+  }, [open, editingMedida, defaultBlockId]);
 
   const isDirty = () => nombre.trim() !== initialRef.current.nombre;
   const close = useDirtyGuard(isDirty, onClose);
@@ -68,7 +75,7 @@ export default function MedidaModal({ open, onClose, editingMedida, recetas, ing
 
     setBusy(true);
     try {
-      await onSave({ nombre: nombreTrim, pesoMl: pesoNum, recetaId, insumos: insumosLimpios }, editingMedida?.id || null);
+      await onSave({ nombre: nombreTrim, pesoMl: pesoNum, recetaId, insumos: insumosLimpios, blockId }, editingMedida?.id || null);
       onClose();
     } catch (err) {
       showFeedback('Error: ' + err.message, 'err');
@@ -90,6 +97,11 @@ export default function MedidaModal({ open, onClose, editingMedida, recetas, ing
         <TextField
           label="¿Cuánto de la mezcla entra en este frasco? (g)" type="number" min="0" placeholder="230"
           value={pesoMl} onChange={e => setPesoMl(e.target.value)} disabled={busy}
+        />
+
+        <Select
+          label="Grupo (opcional)" value={blockId} onChange={e => setBlockId(e.target.value)} disabled={busy}
+          options={[{ value: '', label: 'Sin grupo' }, ...(medidaBlocks || []).map(b => ({ value: b.id, label: b.nombre }))]}
         />
 
         <label className="field-label receta-modal-section-label">Insumos de esta medida</label>

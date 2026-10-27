@@ -13,9 +13,11 @@ import './RecetaGroupModal.css';
 const DEFAULT_ICON = RECETA_GROUP_ICON_OPTIONS[0];
 const DEFAULT_COLOR = 'green';
 
-// Crear o editar un grupo de recetas — mismo patrón que CanalModal.jsx en
-// Ventas (un solo modal para ambos casos). editingGroup null = crear.
-export default function RecetaGroupModal({ open, onClose, editingGroup, onSave }) {
+// Crear o editar un grupo de recetas (o de medidas, ver `titleNew` — mismo
+// componente genérico reutilizado, a pedido explícito del usuario) — mismo
+// patrón que CanalModal.jsx en Ventas (un solo modal para ambos casos).
+// editingGroup null = crear.
+export default function RecetaGroupModal({ open, onClose, editingGroup, onSave, titleNew = 'Nuevo grupo de recetas' }) {
   const [nombre, setNombre] = useState('');
   const [icono, setIcono] = useState(DEFAULT_ICON);
   const [color, setColor] = useState(DEFAULT_COLOR);
@@ -51,7 +53,7 @@ export default function RecetaGroupModal({ open, onClose, editingGroup, onSave }
   }
 
   return (
-    <Modal open={open} onClose={close} showBack title={editingGroup ? 'Editar grupo' : 'Nuevo grupo de recetas'}>
+    <Modal open={open} onClose={close} showBack title={editingGroup ? 'Editar grupo' : titleNew}>
       <form onSubmit={handleSubmit}>
         <TextField label="Nombre" placeholder="Ej: Salsas picantes" value={nombre} onChange={e => setNombre(e.target.value)} disabled={busy} autoFocus />
 

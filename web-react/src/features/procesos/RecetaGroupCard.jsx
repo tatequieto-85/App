@@ -10,11 +10,14 @@ import './RecetaGroupCard.css';
 // Encabezado de un grupo dentro de la lista única de Procesos — a pedido
 // explícito del usuario, las recetas ya no se ven en otra pantalla al
 // "entrar" a un grupo: cada grupo es una sección (ver ProcesosPage.jsx) con
-// este encabezado (ícono + nombre + botón "+ Receta") seguida de sus
-// recetas, todo en la misma pestaña. Ya no hay "entrar", así que mantener
+// este encabezado (ícono + nombre + botón "+ Receta"/"+ Medida") seguida de
+// sus items, todo en la misma pestaña. Ya no hay "entrar", así que mantener
 // presionado sigue revelando Editar/Borrar (mismo patrón de siempre, ver
 // regla 5 de convenciones de UI) pero no hay acción de un solo toque.
-export default function RecetaGroupCard({ group, onEdit, onDelete, onAddReceta }) {
+// Reutilizado también para grupos de Medidas (`addLabel`="Medida") — mismo
+// componente genérico, a pedido explícito del usuario ("que se deje agrupar
+// acorde a lo que el usuario quiera").
+export default function RecetaGroupCard({ group, onEdit, onDelete, onAdd, addLabel = 'Receta' }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrapRef = useCloseOnOutsideClick(actionsOpen, () => setActionsOpen(false));
@@ -42,8 +45,8 @@ export default function RecetaGroupCard({ group, onEdit, onDelete, onAddReceta }
           <Icon name={icon} size={18} className="app-card-icon-glyph" />
         </span>
         <span className="receta-group-header-label">{group.nombre}</span>
-        <Button type="button" variant="outline" className="receta-group-header-add-btn" onClick={() => onAddReceta(group.id)}>
-          <Icon name="plus" size={13} /> Receta
+        <Button type="button" variant="outline" className="receta-group-header-add-btn" onClick={() => onAdd(group.id)}>
+          <Icon name="plus" size={13} /> {addLabel}
         </Button>
       </div>
       {actionsOpen && (
