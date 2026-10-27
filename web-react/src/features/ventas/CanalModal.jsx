@@ -45,6 +45,7 @@ export default function CanalModal({ open, onClose, editingCanal, onSave }) {
     e.preventDefault();
     const nombreTrim = nombre.trim();
     if (!nombreTrim) return showFeedback('Ponele un nombre al canal.', 'err');
+    if (!window.confirm(editingCanal ? '¿Confirmás guardar los cambios de este canal?' : '¿Confirmás crear este canal?')) return;
     setBusy(true);
     try {
       await onSave({ nombre: nombreTrim, icono, color }, editingCanal?.id || null);

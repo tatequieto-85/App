@@ -53,6 +53,7 @@ export default function EjecucionInsumosSection({ ejecucion, ingredientes, onAdd
     const comprada = parseThousandsInput(compradoDraft) || 0;
     const receta = esUnidadDePeso(unidadIng) ? (parseThousandsInput(recetaDraft) || 0) : comprada;
     if (!nombreTrim || !comprada) return;
+    if (!window.confirm('¿Agregar este ingrediente?')) return;
     setBusy(true);
     try {
       await onAddInsumo(ejecucion, { nombre: nombreTrim, cantidadComprada: comprada, cantidadReceta: receta, unidad: unidadIng });
@@ -63,6 +64,7 @@ export default function EjecucionInsumosSection({ ejecucion, ingredientes, onAdd
   }
 
   async function handleRemove(idx) {
+    if (!window.confirm('¿Quitar este ingrediente?')) return;
     setBusy(true);
     try {
       await onRemoveInsumo(ejecucion, idx);

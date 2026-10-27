@@ -106,6 +106,7 @@ export default function FeriaCierreModal({ open, onClose, feria, ejecuciones, ca
   async function handleSave() {
     if (!totalUnidades) return showFeedback('Cargá al menos una unidad vendida.', 'err');
     if (!totalRecibido) return showFeedback('Cargá cuánto recibiste en al menos una caja.', 'err');
+    if (!window.confirm('¿Confirmás terminar la feria con estas ventas? No se puede deshacer fácilmente.')) return;
     const ventasPorDia = {};
     Object.entries(porDia).forEach(([fecha, d]) => {
       const porCaja = {};

@@ -72,6 +72,7 @@ export default function MedidaModal({ open, onClose, editingMedida, defaultBlock
     if (!recetaId) return showFeedback('Indica a qué receta pertenece esta medida.', 'err');
     const pesoNum = parseFloat(pesoMl.replace(',', '.')) || 0;
     const insumosLimpios = insumos.filter(ins => ins.nombre.trim());
+    if (!window.confirm(editingMedida ? '¿Confirmás guardar los cambios de esta medida?' : '¿Confirmás crear esta medida?')) return;
 
     setBusy(true);
     try {

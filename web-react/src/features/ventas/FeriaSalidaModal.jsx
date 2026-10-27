@@ -43,6 +43,7 @@ export default function FeriaSalidaModal({ open, onClose, feria, ejecuciones, ar
       .filter(([, cantidad]) => cantidad > 0)
       .map(([ejecucionId, cantidad]) => ({ ejecucionId, cantidad }));
     if (!items.length) return showFeedback('Ingresa al menos una cantidad.', 'err');
+    if (!window.confirm(`¿Confirmás registrar ${title.toLowerCase()}?`)) return;
     setBusy(true);
     try {
       await onSave(feria.id, arrField, items, fecha);

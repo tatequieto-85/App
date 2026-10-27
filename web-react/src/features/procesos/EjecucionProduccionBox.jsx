@@ -99,6 +99,7 @@ export default function EjecucionProduccionBox({
   async function handleGuardarEjecucion() {
     setPhTouched(true);
     if (!phDraft.trim()) return showFeedback('El pH es obligatorio para guardar la ejecución.', 'err');
+    if (!window.confirm('¿Confirmás guardar la ejecución? Esto descuenta los insumos del stock de Inventario.')) return;
     setGuardando(true);
     try {
       await onGuardarEjecucion(ejecucion, costoLote, pesoTotalLote, todosLosInsumos);

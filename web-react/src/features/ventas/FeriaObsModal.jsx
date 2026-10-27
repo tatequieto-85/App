@@ -19,6 +19,7 @@ export default function FeriaObsModal({ open, onClose, feriaId, fecha, onSave })
     e.preventDefault();
     const text = texto.trim();
     if (!text) return;
+    if (!window.confirm('¿Agregar esta observación?')) return;
     setBusy(true);
     try {
       await onSave(feriaId, fecha, text);

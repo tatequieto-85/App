@@ -123,6 +123,7 @@ export default function RecetaDetailModal({
   }
 
   async function handleEmpezarProduccion() {
+    if (!window.confirm('¿Empezar producción de este lote?')) return;
     setBusy(true);
     try {
       const nueva = await onEmpezarProduccion(receta);

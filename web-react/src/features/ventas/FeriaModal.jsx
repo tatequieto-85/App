@@ -62,6 +62,7 @@ export default function FeriaModal({ open, onClose, editingFeria, contactos, onS
     if (fechaInicio > fechaFin) return showFeedback('La fecha de inicio no puede ser posterior a la de fin.', 'err');
     const contacto = contactos?.find(c => c.nombre.toLowerCase() === contactoNombre.trim().toLowerCase());
     if (!contacto) return showFeedback('Elegí un contacto de la lista (escribí su nombre y tocá la sugerencia).', 'err');
+    if (!window.confirm(editingFeria ? '¿Confirmás guardar los cambios de esta feria?' : '¿Confirmás crear esta feria?')) return;
 
     setBusy(true);
     try {
@@ -107,6 +108,7 @@ export default function FeriaModal({ open, onClose, editingFeria, contactos, onS
         {editingFeria?.cerrada && (
           <div className="feria-reabrir-wrap">
             <Button type="button" variant="outline" disabled={busy} onClick={async () => {
+              if (!window.confirm('¿Confirmás reabrir esta feria?')) return;
               setBusy(true);
               try { await onReabrir(editingFeria.id); onClose(); }
               catch (err) { showFeedback('Error al reabrir: ' + err.message, 'err'); }

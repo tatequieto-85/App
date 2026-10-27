@@ -80,6 +80,7 @@ export default function RecetaModal({ open, onClose, editingReceta, ingredientes
     if (ingredientesMaestros.some(im => im.cantidadComprada < 0 || im.cantidadReceta < 0)) {
       return showFeedback('Las cantidades de ingredientes no pueden ser negativas.', 'err');
     }
+    if (!window.confirm(editingReceta ? '¿Confirmás guardar los cambios de esta receta?' : '¿Confirmás crear esta receta?')) return;
 
     setBusy(true);
     try {

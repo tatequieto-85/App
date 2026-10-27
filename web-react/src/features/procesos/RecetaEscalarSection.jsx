@@ -44,6 +44,7 @@ export default function RecetaEscalarSection({ maestros, pesoTotalActual, onEsca
 
   async function handleActualizar() {
     if (!factor) return;
+    if (!window.confirm('¿Confirmás actualizar la receta con estas cantidades escaladas? Se sobreescriben los gramos/cantidades actuales.')) return;
     setBusy(true);
     try {
       const nuevosMaestros = maestros.map(m => {

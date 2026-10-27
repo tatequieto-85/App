@@ -41,6 +41,7 @@ export default function RecetaGroupModal({ open, onClose, editingGroup, onSave, 
     e.preventDefault();
     const nombreTrim = nombre.trim();
     if (!nombreTrim) return showFeedback('Ponele un nombre al grupo.', 'err');
+    if (!window.confirm(editingGroup ? '¿Confirmás guardar los cambios de este grupo?' : '¿Confirmás crear este grupo?')) return;
     setBusy(true);
     try {
       await onSave({ nombre: nombreTrim, icono, color }, editingGroup?.id || null);

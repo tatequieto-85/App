@@ -30,6 +30,7 @@ export default function EjecucionObsSection({ ejecucion, onAddObservacion }) {
     e.preventDefault();
     const text = texto.trim();
     if (!text) return;
+    if (!window.confirm('¿Agregar esta observación?')) return;
     setBusy(true);
     try {
       await onAddObservacion(ejecucion, text);

@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import Feedback from '../../components/ui/Feedback';
 import EmptyState from '../../components/ui/EmptyState';
 import { useFeedback } from '../../hooks/useFeedback';
+import { useDirtyGuard } from '../../hooks/useDirtyGuard';
 import { getStockDisponibleLote } from '../../services/feriasApi';
 import { getProduccionPorMedidaLote } from '../../services/ejecucionesApi';
 import './FeriaStockModal.css';
@@ -16,13 +17,23 @@ export default function FeriaStockModal({ open, onClose, feria, ejecuciones, ctx
   const [cantidades, setCantidades] = useState({});
   const [busy, setBusy] = useState(false);
   const [feedback, showFeedback] = useFeedback();
+  const initialRef = useRef({});
 
   useEffect(() => {
     if (!open || !feria) return;
-    setCantidades({ ...(feria.planStock || {}) });
+    const plan = { ...(feria.planStock || {}) };
+    setCantidades(plan);
+    initialRef.current = plan;
   }, [open, feria]);
 
   if (!feria) return null;
+
+  // Gap encontrado en la auditoría de confirmaciones: a diferencia de sus
+  // hermanos (FeriaSalidaModal/FeriaObsModal/FeriaCierreModal/FeriaModal),
+  // este modal no tenía useDirtyGuard — las cantidades planeadas se podían
+  // perder sin avisar al cerrar.
+  const isDirty = () => JSON.stringify(cantidades) !== JSON.stringify(initialRef.current);
+  const close = useDirtyGuard(isDirty, onClose);
 
   // Solo lotes YA terminados ("Guardar ejecución") — un lote todavía en
   // curso no tiene producción confirmada, así que no se puede planear para
@@ -47,6 +58,7 @@ export default function FeriaStockModal({ open, onClose, feria, ejecuciones, ctx
       const qty = parseInt(cantidades[ej.id]) || 0;
       if (qty > 0) newPlan[ej.id] = qty;
     });
+    if (!window.confirm('¿Confirmás guardar este plan de stock?')) return;
     setBusy(true);
     try {
       await onSave(feria.id, newPlan);
@@ -59,7 +71,7 @@ export default function FeriaStockModal({ open, onClose, feria, ejecuciones, ctx
   }
 
   return (
-    <Modal open={open} onClose={onClose} showBack title={`Plan de stock — ${feria.empresa}`}>
+    <Modal open={open} onClose={close} showBack title={`Plan de stock — ${feria.empresa}`}>
       {!lotes.length ? (
         <EmptyState>No hay lotes con producción registrada en Procesos → Ejecuciones.</EmptyState>
       ) : (
