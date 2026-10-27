@@ -26,14 +26,21 @@ export default function FeriaStockModal({ open, onClose, feria, ejecuciones, ctx
     initialRef.current = plan;
   }, [open, feria]);
 
-  if (!feria) return null;
-
   // Gap encontrado en la auditoría de confirmaciones: a diferencia de sus
   // hermanos (FeriaSalidaModal/FeriaObsModal/FeriaCierreModal/FeriaModal),
   // este modal no tenía useDirtyGuard — las cantidades planeadas se podían
-  // perder sin avisar al cerrar.
+  // perder sin avisar al cerrar. useDirtyGuard (como todo hook) tiene que
+  // llamarse SIEMPRE, antes de cualquier return condicional — bug real
+  // encontrado ("doble clic en una feria deja la página en blanco"):
+  // ponerlo después de `if (!feria) return null;` lo saltea en el primer
+  // render (feria null, modal cerrado) y lo ejecuta en el siguiente (feria
+  // ya resuelta), lo que React trata como "Rendered more hooks than
+  // during the previous render" y tira abajo toda la pantalla sin
+  // Error Boundary que lo atrape.
   const isDirty = () => JSON.stringify(cantidades) !== JSON.stringify(initialRef.current);
   const close = useDirtyGuard(isDirty, onClose);
+
+  if (!feria) return null;
 
   // Solo lotes YA terminados ("Guardar ejecución") — un lote todavía en
   // curso no tiene producción confirmada, así que no se puede planear para
