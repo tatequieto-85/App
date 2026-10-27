@@ -3,3 +3,10 @@
 .stock-resumen-row     { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .stock-trazabilidad-row { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .ejecucion-hint { font-size: 11px; color: var(--text-sub); margin-top: 8px; padding-bottom: 4px; opacity: .7; }
+
+.stock-resumen-row-detalle td { padding: 4px 10px 10px; background: var(--brand-light, rgba(113,75,103,.06)); }
+.stock-resumen-medida-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12.5px; color: var(--text-sub); padding: 4px 0;
+}
+.stock-resumen-medida-row strong { color: var(--text); font-weight: 700; }

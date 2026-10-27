@@ -298,31 +298,58 @@ export function getStockDisponibleLoteReal({ ejecuciones, ferias, stockMovimient
   return producido - vendido - muestras + ajustes;
 }
 
+// Desglose de UN lote por medida — a pedido explícito del usuario, que
+// produciendo de verdad encontró el bug: Trazabilidad/LoteResumenModal
+// solo tenían columnas fijas para "230"/"130", así que cualquier medida
+// de otro peso (ej. "105 g") quedaba invisible, aunque SÍ sumaba al
+// Disponible general (vía evaluacion.frascosProducidos, el balde de
+// compatibilidad — ver EjecucionProduccionBox.jsx/useProcesos.js). Esto
+// reemplaza esas columnas fijas por un desglose dinámico, con UN SOLO
+// camino tanto para lotes nuevos (evaluacion.produccionPorMedida) como
+// para lotes viejos (frascos230/180/130/frascosProducidos, sintetizados
+// acá a la misma forma) — así el resto del código (tabla, pricing) no
+// necesita dos ramas distintas.
+export function getProduccionPorMedidaLote(ejecucion) {
+  const ev = ejecucion.evaluacion || {};
+  if (ev.produccionPorMedida?.length) {
+    return ev.produccionPorMedida
+      .filter(p => p.cantidad > 0)
+      .map(p => ({ nombre: p.nombre || 'Medida', pesoMl: p.pesoMl || 0, cantidad: p.cantidad }));
+  }
+  const items = [];
+  if (ev.frascos230) items.push({ nombre: '230 ml', pesoMl: 230, cantidad: ev.frascos230 });
+  if (ev.frascos130) items.push({ nombre: '130 ml', pesoMl: 130, cantidad: ev.frascos130 });
+  if (ev.frascos180) items.push({ nombre: '180 ml', pesoMl: 180, cantidad: ev.frascos180 });
+  if (ev.frascosProducidos) items.push({ nombre: 'Otros', pesoMl: 0, cantidad: ev.frascosProducidos });
+  return items;
+}
+
 // 1 ml ≈ 1 g (misma convención que el resto de la app, ver
 // UNIDAD_A_GRAMOS en recetasApi.js) — un frasco de 230 ml equivale a 230
-// g de producto, uno de 130 ml a 130 g. Precio por frasco, a pedido
-// explícito del usuario: el costo del lote se divide por lo
-// EFECTIVAMENTE ENVASADO (frascos230*230 + frascos130*130), no por el
-// peso total planeado de la receta — así la merma (peso total - lo
-// envasado, p. ej. evaporación o residuo que no llegó a ningún frasco)
-// queda absorbida en el precio de lo que sí se envasó, en vez de perderse
-// contable: sumar (precio de cada frasco × su cantidad) da EXACTO el
-// costo total del lote. Si el lote no tiene frascos de tamaño conocido
-// (dato viejo, solo "frascosProducidos" genérico) no hay base para
-// calcular por gramos — se reparte parejo entre todos los frascos.
-export function getPrecioFrascosLote(costoLote, pesoTotalLote, frascos230, frascos130, otrosFrascos = 0) {
-  const pesoEnvasado = (frascos230 || 0) * 230 + (frascos130 || 0) * 130;
-  if (pesoEnvasado > 0) {
-    const precioPorGramo = costoLote / pesoEnvasado;
-    return {
-      precio230: precioPorGramo * 230,
-      precio130: precioPorGramo * 130,
-      merma: pesoTotalLote != null ? pesoTotalLote - pesoEnvasado : null
-    };
-  }
-  const totalFrascos = (frascos230 || 0) + (frascos130 || 0) + (otrosFrascos || 0);
-  const precioParejo = totalFrascos > 0 ? costoLote / totalFrascos : 0;
-  return { precio230: precioParejo, precio130: precioParejo, merma: null };
+// g de producto. Precio por frasco, a pedido explícito del usuario: el
+// costo del lote se divide por lo EFECTIVAMENTE ENVASADO (suma de
+// pesoMl × cantidad de cada medida con peso conocido), no por el peso
+// total planeado de la receta — así la merma (peso total - lo envasado,
+// p. ej. evaporación o residuo que no llegó a ningún frasco) queda
+// absorbida en el precio de lo que sí se envasó, en vez de perderse
+// contable. Generalizado a N medidas (antes hardcodeado a 230/130 — ver
+// getPrecioFrascosLote, reemplazada por esta). Corrige un bug gemelo de
+// paso: antes, una medida SIN peso conocido (`pesoMl` 0) junto con otras
+// SÍ conocidas quedaba sin precio del todo — acá siempre recibe un
+// precio razonable (parejo entre todas las unidades del lote) si no se
+// le conoce el peso.
+export function getPrecioPorMedida(costoLote, pesoTotalLote, items) {
+  const totalUnidades = items.reduce((s, i) => s + (i.cantidad || 0), 0);
+  const pesoEnvasado = items.filter(i => i.pesoMl > 0).reduce((s, i) => s + i.pesoMl * i.cantidad, 0);
+  const precioPorGramo = pesoEnvasado > 0 ? costoLote / pesoEnvasado : 0;
+  const precioParejo = totalUnidades > 0 ? costoLote / totalUnidades : 0;
+  return {
+    items: items.map(i => ({
+      ...i,
+      precioUnidad: i.pesoMl > 0 && pesoEnvasado > 0 ? precioPorGramo * i.pesoMl : precioParejo
+    })),
+    merma: pesoTotalLote != null ? pesoTotalLote - pesoEnvasado : null
+  };
 }
 
 // El ajuste manual se guarda por receta, pero el plan de stock de Ferias
@@ -334,4 +361,46 @@ export function getLoteParaAjuste(ejecuciones, recetaId) {
     .filter(ej => ej.recetaId === recetaId && (ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180 || ej.evaluacion?.frascos130 || ej.evaluacion?.frascosProducidos))
     .sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio));
   return lotes[0]?.id || '';
+}
+
+// Desglose del Resumen por receta+medida — a pedido explícito del usuario
+// ("en stock no me distingue entre las recetas... no me da el stock por
+// receta/medida", "deberia salir receta + medida = ... = 8"). Producido
+// por medida: se agrupa por nombre+pesoMl sumando getProduccionPorMedidaLote
+// de TODOS los lotes de esta receta (lotes viejos sin medida configurada
+// caen en un grupo "Sin medida asignada"). Disponible por medida: Ventas
+// registra lo vendido/entregado como muestra por LOTE, no por medida
+// puntual dentro de ese lote — no hay forma de saber cuál size exacto se
+// vendió — así que se reparte el vendido+muestras de CADA lote entre sus
+// medidas en proporción a lo que cada una aportó a ese lote (mismo
+// criterio de reparto que ya usaba resumenStockTotal en useStock.js para
+// separar 230 vs 130, generalizado acá a N medidas en vez de 2 fijas).
+export function getStockPorMedida({ ejecuciones, ferias, stockMovimientos }, recetaId) {
+  const grupos = new Map(); // "nombre|pesoMl" -> { nombre, pesoMl, producido, disponible }
+
+  function addA(key, nombre, pesoMl, producidoDelta, disponibleDelta) {
+    const g = grupos.get(key) || { nombre, pesoMl, producido: 0, disponible: 0 };
+    g.producido += producidoDelta;
+    g.disponible += disponibleDelta;
+    grupos.set(key, g);
+  }
+
+  ejecuciones.filter(ej => ej.recetaId === recetaId).forEach(ej => {
+    const items = getProduccionPorMedidaLote(ej);
+    const producidoLote = items.reduce((s, i) => s + i.cantidad, 0);
+    if (!producidoLote) return;
+    const vendido = getStockVendidoLote(ferias, ej.id);
+    const muestras = getStockMuestrasLote(ferias, ej.id);
+    const ajustes = getStockAjustesNetosLote(stockMovimientos, ej.id);
+    const disponibleLote = producidoLote - vendido - muestras + ajustes;
+    items.forEach(i => {
+      const key = `${i.nombre}|${i.pesoMl}`;
+      const ratio = i.cantidad / producidoLote;
+      addA(key, i.nombre, i.pesoMl, i.cantidad, disponibleLote * ratio);
+    });
+  });
+
+  return [...grupos.values()]
+    .map(g => ({ ...g, disponible: Math.round(g.disponible) }))
+    .sort((a, b) => b.producido - a.producido);
 }

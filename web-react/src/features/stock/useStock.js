@@ -104,33 +104,38 @@ export function useStock() {
       }
     });
 
-    const filasActuales = recetas.map(r => ({ receta: r, disponible: stockApi.getStockDisponibleGeneral(ctx, r.id) }));
+    const filasActuales = recetas.map(r => ({
+      receta: r,
+      disponible: stockApi.getStockDisponibleGeneral(ctx, r.id),
+      porMedida: stockApi.getStockPorMedida(ctx, r.id)
+    }));
     const filasOrfanas = [...nombresOrfanos].map(([id, nombre]) => ({
       receta: { id, nombre: `${nombre} (receta eliminada)` },
-      disponible: stockApi.getStockDisponibleGeneral(ctx, id)
+      disponible: stockApi.getStockDisponibleGeneral(ctx, id),
+      porMedida: stockApi.getStockPorMedida(ctx, id)
     })).filter(f => f.disponible !== 0);
 
     return [...filasActuales, ...filasOrfanas].sort((a, b) => a.receta.nombre.localeCompare(b.receta.nombre));
   }, [recetas, ejecuciones, ferias, stockMovimientos]);
 
   // Trazabilidad: un lote (ejecución con producción envasada) por fila —
-  // con el costo/peso del lote ya resueltos y el precio por frasco según
-  // su tamaño (230/130 ml, ver getPrecioFrascosLote), para el resumen que
+  // con el costo/peso del lote ya resueltos y el desglose por medida con
+  // su precio (ver getProduccionPorMedidaLote/getPrecioPorMedida en
+  // stockApi.js — generalizado a N medidas, antes fijo a 230/130 ml, bug
+  // real reportado por el usuario: "en trazabilidad solo me contó la de
+  // 230 y no la de 1" con una medida de otro tamaño), para el resumen que
   // se abre al tocar una fila (ver LoteResumenModal.jsx).
   const trazabilidadRows = useMemo(() => {
     const lotes = ejecuciones
-      .filter(ej => ej.evaluacion?.frascos230 || ej.evaluacion?.frascos180 || ej.evaluacion?.frascos130 || ej.evaluacion?.frascosProducidos)
+      .filter(ej => stockApi.getProduccionPorMedidaLote(ej).length)
       .slice()
       .sort((a, b) => (b.fechaFin || '') < (a.fechaFin || '') ? -1 : 1);
     return lotes.map(ej => {
-      const ev = ej.evaluacion || {};
       const costoLote = getCostoLote(ej, recetas, compras);
       const pesoTotalLote = getPesoTotalLote(ej, recetas);
-      const precios = stockApi.getPrecioFrascosLote(
-        costoLote, pesoTotalLote, ev.frascos230 || 0, ev.frascos130 || 0,
-        (ev.frascos180 || 0) + (ev.frascosProducidos || 0)
-      );
-      return { ejecucion: ej, resumen: stockApi.getLoteResumen(ctx, ej.id), costoLote, pesoTotalLote, ...precios };
+      const produccion = stockApi.getProduccionPorMedidaLote(ej);
+      const { items, merma } = stockApi.getPrecioPorMedida(costoLote, pesoTotalLote, produccion);
+      return { ejecucion: ej, resumen: stockApi.getLoteResumen(ctx, ej.id), costoLote, pesoTotalLote, items, merma };
     });
   }, [ejecuciones, ferias, stockMovimientos, stockTestigos, recetas, compras]);
 
@@ -145,7 +150,7 @@ export function useStock() {
   // barato ya se agotó mientras queda el más caro, repartir "promediaba"
   // el costo y subestimaba el valor total). Cada lote se costea con SU
   // PROPIO costoLote — y, dentro de un mismo lote, cada frasco con SU
-  // PROPIO precio según gramos (230 vs 130 ml, ver getPrecioFrascosLote),
+  // PROPIO precio según gramos (230 vs 130 ml, ver getPrecioPorMedida),
   // no un promedio plano por frasco — a pedido explícito del usuario.
   const resumenStockTotal = useMemo(() => {
     let valor = 0;
@@ -155,27 +160,24 @@ export function useStock() {
     ejecuciones.forEach(ej => {
       const disponibleLote = stockApi.getStockDisponibleLoteReal(ctx, ej.id);
       if (disponibleLote <= 0) return;
-      const ev = ej.evaluacion || {};
-      const f230 = ev.frascos230 || 0;
-      const f130 = ev.frascos130 || 0;
-      const producidoLote = f230 + (ev.frascos180 || 0) + f130 + (ev.frascosProducidos || 0);
+      const produccion = stockApi.getProduccionPorMedidaLote(ej);
+      const producidoLote = produccion.reduce((s, i) => s + i.cantidad, 0);
       if (producidoLote <= 0) return;
       const ratio = disponibleLote / producidoLote;
-      const disp230Lote = f230 * ratio;
-      const disp130Lote = f130 * ratio;
-      disponible230 += disp230Lote;
-      disponible130 += disp130Lote;
 
       const costoLote = getCostoLote(ej, recetas, compras);
       const pesoTotalLote = getPesoTotalLote(ej, recetas);
-      const otrosFrascos = (ev.frascos180 || 0) + (ev.frascosProducidos || 0);
-      const { precio230, precio130 } = stockApi.getPrecioFrascosLote(costoLote, pesoTotalLote, f230, f130, otrosFrascos);
-      // Los frascos 180/producidos (legacy, ya no se cargan desde la UI)
-      // no tienen tamaño conocido en gramos — se les aplica el costo
-      // promedio plano del lote, sobre lo que les toca de disponible.
-      const otrosDisponible = disponibleLote - disp230Lote - disp130Lote;
-      const precioPromedio = producidoLote > 0 ? costoLote / producidoLote : 0;
-      valor += disp230Lote * precio230 + disp130Lote * precio130 + otrosDisponible * precioPromedio;
+      const { items } = stockApi.getPrecioPorMedida(costoLote, pesoTotalLote, produccion);
+      // El widget de Home solo desglosa 230/130 (ver próxima fila) —
+      // cualquier otra medida igual suma al valor total, con SU PROPIO
+      // precio por gramo (ver getPrecioPorMedida en stockApi.js), no un
+      // promedio plano por frasco — a pedido explícito del usuario.
+      items.forEach(i => {
+        const dispItem = i.cantidad * ratio;
+        if (i.pesoMl === 230) disponible230 += dispItem;
+        else if (i.pesoMl === 130) disponible130 += dispItem;
+        valor += dispItem * i.precioUnidad;
+      });
     });
 
     return { valor, disponible230: Math.round(disponible230), disponible130: Math.round(disponible130) };
