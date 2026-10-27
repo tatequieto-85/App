@@ -89,6 +89,17 @@ async function ensureStockSheetsInner() {
       method: 'PUT', body: JSON.stringify({ values: [MOVIMIENTO_HEADER] })
     });
   }
+  // MedidaId/MedidaNombre (J/K) — a qué ITEM puntual (medida real del
+  // catálogo, o bucket legacy 230/130/180/otros) afecta este ajuste, vacío
+  // para los ajustes viejos a nivel de receta completa — a pedido explícito
+  // del usuario, mismo criterio de migración que RecetaId/Insumos en
+  // medidasApi.js (agregar columnas al final, nunca reordenar).
+  const mdExt = await sheetsReq('/values/StockMovimientos!J1:K1').catch(() => ({}));
+  if (!(mdExt.values || [])[0]?.length) {
+    await sheetsReq('/values/StockMovimientos!J1:K1?valueInputOption=RAW', {
+      method: 'PUT', body: JSON.stringify({ values: [['MedidaId', 'MedidaNombre']] })
+    });
+  }
 
   // Limpia las filas "fantasma" que el bug de arriba ya haya creado antes
   // de este fix — el encabezado reinsertado como si fuera un registro
@@ -175,30 +186,34 @@ export async function deleteStockTestigoRow(rowIndex) {
 }
 
 export async function fetchStockMovimientos() {
-  const data = await sheetsReq('/values/StockMovimientos!A:I');
+  const data = await sheetsReq('/values/StockMovimientos!A:K');
   const rows = (data.values || []).slice(1);
   return rows.filter(r => r[0]).map((r, i) => ({
-    id:           r[0] || '',
-    recetaId:     r[1] || '',
-    recetaNombre: r[2] || '',
-    tipo:         r[3] || 'salida',
+    id:           r[0]  || '',
+    recetaId:     r[1]  || '',
+    recetaNombre: r[2]  || '',
+    tipo:         r[3]  || 'salida',
     cantidad:     parseInt(r[4]) || 0,
-    motivo:       r[5] || '',
-    fecha:        r[6] || '',
-    creadoEn:     r[7] || '',
-    ejecucionId:  r[8] || '',
+    motivo:       r[5]  || '',
+    fecha:        r[6]  || '',
+    creadoEn:     r[7]  || '',
+    ejecucionId:  r[8]  || '',
+    medidaId:     r[9]  || '',
+    medidaNombre: r[10] || '',
     rowIndex:     i + 2
   }));
 }
 
 // El lote (ejecucionId) se asigna solo, sin preguntarle al usuario — ver
-// getLoteParaAjuste más abajo.
+// getLoteParaAjuste más abajo. medidaId/medidaNombre: a qué ITEM puntual
+// afecta el ajuste (vacío si es un ajuste a nivel de receta completa, para
+// recetas sin medidas configuradas).
 export async function appendStockMovimiento(m) {
-  await sheetsReq('/values/StockMovimientos!A:I:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+  await sheetsReq('/values/StockMovimientos!A:K:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
     method: 'POST',
     body: JSON.stringify({ values: [[
       crypto.randomUUID(), m.recetaId, m.recetaNombre, m.tipo, m.cantidad, m.motivo, m.fecha,
-      new Date().toISOString(), m.ejecucionId || ''
+      new Date().toISOString(), m.ejecucionId || '', m.medidaId || '', m.medidaNombre || ''
     ]] })
   });
 }
@@ -249,6 +264,18 @@ export function getStockDisponibleGeneral({ ejecuciones, ferias, stockMovimiento
 function getStockAjustesNetosLote(stockMovimientos, ejecucionId) {
   return stockMovimientos
     .filter(m => m.ejecucionId === ejecucionId)
+    .reduce((sum, m) => sum + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad), 0);
+}
+
+// Ajustes manuales de UN item puntual (medida real o bucket legacy) — a
+// pedido explícito del usuario ("quiero que cada medida sea un item que se
+// pueda ajustar manualmente en stock"). A diferencia del vendido/muestras
+// (que Ventas solo registra por LOTE y hay que repartir proporcionalmente,
+// ver getStockPorMedida), un ajuste manual SIEMPRE se guarda ya apuntando a
+// una medida puntual — así que acá no hace falta ningún reparto, es exacto.
+function getStockAjustesNetosMedida(stockMovimientos, medidaId) {
+  return stockMovimientos
+    .filter(m => m.medidaId === medidaId)
     .reduce((sum, m) => sum + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad), 0);
 }
 
@@ -309,18 +336,23 @@ export function getStockDisponibleLoteReal({ ejecuciones, ferias, stockMovimient
 // para lotes viejos (frascos230/180/130/frascosProducidos, sintetizados
 // acá a la misma forma) — así el resto del código (tabla, pricing) no
 // necesita dos ramas distintas.
+// `medidaId` identifica el ITEM al que pertenece cada cantidad — el id real
+// del catálogo (Medidas) para lotes nuevos, o una clave sintética estable
+// ("legacy-230"/"legacy-130"/"legacy-180"/"legacy-otros") para lotes viejos
+// sin medida configurada, para poder agrupar/ajustar cada tamaño por
+// separado igual que a una medida real (ver getStockPorMedida).
 export function getProduccionPorMedidaLote(ejecucion) {
   const ev = ejecucion.evaluacion || {};
   if (ev.produccionPorMedida?.length) {
     return ev.produccionPorMedida
       .filter(p => p.cantidad > 0)
-      .map(p => ({ nombre: p.nombre || 'Medida', pesoMl: p.pesoMl || 0, cantidad: p.cantidad }));
+      .map(p => ({ medidaId: p.medidaId, nombre: p.nombre || 'Medida', pesoMl: p.pesoMl || 0, cantidad: p.cantidad }));
   }
   const items = [];
-  if (ev.frascos230) items.push({ nombre: '230 ml', pesoMl: 230, cantidad: ev.frascos230 });
-  if (ev.frascos130) items.push({ nombre: '130 ml', pesoMl: 130, cantidad: ev.frascos130 });
-  if (ev.frascos180) items.push({ nombre: '180 ml', pesoMl: 180, cantidad: ev.frascos180 });
-  if (ev.frascosProducidos) items.push({ nombre: 'Otros', pesoMl: 0, cantidad: ev.frascosProducidos });
+  if (ev.frascos230) items.push({ medidaId: 'legacy-230', nombre: '230 ml', pesoMl: 230, cantidad: ev.frascos230 });
+  if (ev.frascos130) items.push({ medidaId: 'legacy-130', nombre: '130 ml', pesoMl: 130, cantidad: ev.frascos130 });
+  if (ev.frascos180) items.push({ medidaId: 'legacy-180', nombre: '180 ml', pesoMl: 180, cantidad: ev.frascos180 });
+  if (ev.frascosProducidos) items.push({ medidaId: 'legacy-otros', nombre: 'Otros', pesoMl: 0, cantidad: ev.frascosProducidos });
   return items;
 }
 
@@ -363,27 +395,35 @@ export function getLoteParaAjuste(ejecuciones, recetaId) {
   return lotes[0]?.id || '';
 }
 
-// Desglose del Resumen por receta+medida — a pedido explícito del usuario
-// ("en stock no me distingue entre las recetas... no me da el stock por
-// receta/medida", "deberia salir receta + medida = ... = 8"). Producido
-// por medida: se agrupa por nombre+pesoMl sumando getProduccionPorMedidaLote
-// de TODOS los lotes de esta receta (lotes viejos sin medida configurada
-// caen en un grupo "Sin medida asignada"). Disponible por medida: Ventas
-// registra lo vendido/entregado como muestra por LOTE, no por medida
-// puntual dentro de ese lote — no hay forma de saber cuál size exacto se
-// vendió — así que se reparte el vendido+muestras de CADA lote entre sus
-// medidas en proporción a lo que cada una aportó a ese lote (mismo
-// criterio de reparto que ya usaba resumenStockTotal en useStock.js para
-// separar 230 vs 130, generalizado acá a N medidas en vez de 2 fijas).
-export function getStockPorMedida({ ejecuciones, ferias, stockMovimientos }, recetaId) {
-  const grupos = new Map(); // "nombre|pesoMl" -> { nombre, pesoMl, producido, disponible }
+// Desglose de Stock por receta+medida — cada medida es su propio ITEM
+// ajustable, a pedido explícito del usuario ("la receta esta anexa a
+// medida y stock deberia estar anexa a medida... quiero que cada medida
+// sea un item que se pueda ajustar manualmente en stock"), no un desglose
+// de solo lectura debajo de la receta. Se arranca sembrando TODAS las
+// medidas del catálogo de esta receta (medidasCatalogo, ver medidasApi.js)
+// aunque todavía no se haya producido nada de alguna — así son ajustables
+// desde el día uno. Producido: se suma getProduccionPorMedidaLote de cada
+// lote de esta receta por medidaId (lotes viejos sin medida configurada
+// caen en buckets legacy sintéticos — "230 ml"/"130 ml"/etc. — que también
+// quedan como su propio item ajustable). Vendido/muestras: Ventas los
+// registra por LOTE, no por medida puntual dentro del lote — no hay forma
+// de saber cuál tamaño exacto se vendió — así que se reparten en
+// proporción a lo que cada medida aportó a ESE lote. Ajustes manuales: a
+// diferencia de vendido/muestras, SÍ se guardan ya apuntando a una medida
+// puntual (ver getStockAjustesNetosMedida) — por eso entran EXACTOS, sin
+// repartir.
+export function getStockPorMedida({ ejecuciones, ferias, stockMovimientos }, recetaId, medidasCatalogo = []) {
+  const grupos = new Map(); // medidaId -> { medidaId, nombre, pesoMl, producido, disponible }
 
-  function addA(key, nombre, pesoMl, producidoDelta, disponibleDelta) {
-    const g = grupos.get(key) || { nombre, pesoMl, producido: 0, disponible: 0 };
-    g.producido += producidoDelta;
-    g.disponible += disponibleDelta;
-    grupos.set(key, g);
+  function ensure(medidaId, nombre, pesoMl) {
+    let g = grupos.get(medidaId);
+    if (!g) { g = { medidaId, nombre, pesoMl, producido: 0, disponible: 0 }; grupos.set(medidaId, g); }
+    return g;
   }
+
+  medidasCatalogo.filter(m => m.recetaId === recetaId).forEach(m => {
+    ensure(m.id, m.nombre, m.pesoMl);
+  });
 
   ejecuciones.filter(ej => ej.recetaId === recetaId).forEach(ej => {
     const items = getProduccionPorMedidaLote(ej);
@@ -391,14 +431,16 @@ export function getStockPorMedida({ ejecuciones, ferias, stockMovimientos }, rec
     if (!producidoLote) return;
     const vendido = getStockVendidoLote(ferias, ej.id);
     const muestras = getStockMuestrasLote(ferias, ej.id);
-    const ajustes = getStockAjustesNetosLote(stockMovimientos, ej.id);
-    const disponibleLote = producidoLote - vendido - muestras + ajustes;
+    const disponibleLoteSinAjuste = producidoLote - vendido - muestras;
     items.forEach(i => {
-      const key = `${i.nombre}|${i.pesoMl}`;
+      const g = ensure(i.medidaId, i.nombre, i.pesoMl);
       const ratio = i.cantidad / producidoLote;
-      addA(key, i.nombre, i.pesoMl, i.cantidad, disponibleLote * ratio);
+      g.producido += i.cantidad;
+      g.disponible += disponibleLoteSinAjuste * ratio;
     });
   });
+
+  grupos.forEach(g => { g.disponible += getStockAjustesNetosMedida(stockMovimientos, g.medidaId); });
 
   return [...grupos.values()]
     .map(g => ({ ...g, disponible: Math.round(g.disponible) }))

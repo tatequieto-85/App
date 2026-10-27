@@ -16,11 +16,12 @@ const MOTIVOS = [
 ];
 
 // Equivalente a openStockAjusteModal()/btnSaveStockAjuste en ../../../stock.js.
-// Se abre siempre desde el long-press de una fila de Resumen — la receta
-// viene fija (no es un <select> editable como en la app vanilla, para
-// seguir el mismo patrón que CompraModal: el dato de contexto no va dentro
-// de un campo de formulario).
-export default function AjusteModal({ open, onClose, receta, onSave }) {
+// Se abre siempre desde el long-press de una fila de Resumen — el item
+// (receta, o receta+medida puntual si la receta tiene medidas configuradas
+// — ver itemsDeReceta en useStock.js) viene fijo (no es un <select>
+// editable como en la app vanilla, para seguir el mismo patrón que
+// CompraModal: el dato de contexto no va dentro de un campo de formulario).
+export default function AjusteModal({ open, onClose, item, onSave }) {
   const [tipo, setTipo] = useState('salida');
   const [cantidad, setCantidad] = useState('');
   const [motivo, setMotivo] = useState('Frasco promocional');
@@ -48,7 +49,11 @@ export default function AjusteModal({ open, onClose, receta, onSave }) {
 
     setBusy(true);
     try {
-      await onSave({ recetaId: receta.id, recetaNombre: receta.nombre, tipo, cantidad: qty, motivo: motivoFinal });
+      await onSave({
+        recetaId: item.recetaId, recetaNombre: item.recetaNombre,
+        medidaId: item.medidaId, medidaNombre: item.medidaNombre,
+        tipo, cantidad: qty, motivo: motivoFinal
+      });
       onClose();
     } catch (err) {
       showFeedback('Error: ' + err.message, 'err');
@@ -60,7 +65,7 @@ export default function AjusteModal({ open, onClose, receta, onSave }) {
   return (
     <Modal open={open} onClose={close} showBack title="Ajuste manual">
       <form onSubmit={handleSubmit}>
-        <p className="modal-contexto">{receta?.nombre}</p>
+        <p className="modal-contexto">{item?.nombre}</p>
 
         <Select
           label="Tipo de movimiento"

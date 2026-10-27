@@ -25,7 +25,7 @@ export default function StockPage({ onBack }) {
   } = useStock();
 
   const [search, setSearch] = useState('');
-  const [ajusteReceta, setAjusteReceta] = useState(null);
+  const [ajusteItem, setAjusteItem] = useState(null);
   const [testigoOpen, setTestigoOpen] = useState(false);
   const [loteDetalle, setLoteDetalle] = useState(null);
   const [openTestigoActionsFor, setOpenTestigoActionsFor] = useState(null);
@@ -40,7 +40,7 @@ export default function StockPage({ onBack }) {
 
   const q = search.trim().toLowerCase();
   const filteredResumen = useMemo(
-    () => q ? resumenRows.filter(r => r.receta.nombre.toLowerCase().includes(q)) : resumenRows,
+    () => q ? resumenRows.filter(r => r.nombre.toLowerCase().includes(q)) : resumenRows,
     [resumenRows, q]
   );
   const filteredTrazabilidad = useMemo(
@@ -71,7 +71,7 @@ export default function StockPage({ onBack }) {
             <Card>
               {resumenRows.length
                 ? (filteredResumen.length
-                    ? <StockResumenTable rows={filteredResumen} onOpenAjuste={setAjusteReceta} />
+                    ? <StockResumenTable rows={filteredResumen} onOpenAjuste={setAjusteItem} />
                     : <EmptyState>Ningún producto coincide con "{search.trim()}".</EmptyState>)
                 : <EmptyState>No hay recetas registradas en Procesos.</EmptyState>}
             </Card>
@@ -111,7 +111,7 @@ export default function StockPage({ onBack }) {
         </>
       )}
 
-      <AjusteModal open={!!ajusteReceta} onClose={() => setAjusteReceta(null)} receta={ajusteReceta} onSave={saveAjuste} />
+      <AjusteModal open={!!ajusteItem} onClose={() => setAjusteItem(null)} item={ajusteItem} onSave={saveAjuste} />
       <TestigoModal open={testigoOpen} onClose={() => setTestigoOpen(false)} lotesConStock={lotesConStock} onSave={apartarTestigo} />
       <LoteResumenModal open={!!loteDetalle} onClose={() => setLoteDetalle(null)} row={loteDetalle} />
 

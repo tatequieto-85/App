@@ -4,6 +4,7 @@ import { fetchEjecuciones } from '../../services/ejecucionesApi';
 import { fetchFerias } from '../../services/feriasApi';
 import { fetchCompras, getUnitPrice } from '../../services/comprasApi';
 import { ensureIngredientesSheet, fetchIngredientes } from '../../services/ingredientesApi';
+import { ensureMedidasSheet, fetchMedidas } from '../../services/medidasApi';
 import * as stockApi from '../../services/stockApi';
 
 // Costo de un lote: preferir el congelado al cerrarlo (evaluacion.
@@ -41,6 +42,7 @@ export function useStock() {
   const [ferias, setFerias] = useState([]);
   const [compras, setCompras] = useState([]);
   const [ingredientes, setIngredientes] = useState([]);
+  const [medidas, setMedidas] = useState([]);
   const [stockTestigos, setStockTestigos] = useState([]);
   const [stockMovimientos, setStockMovimientos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,9 +63,9 @@ export function useStock() {
     (async () => {
       try {
         setLoading(true);
-        await Promise.all([stockApi.ensureStockSheets(), ensureIngredientesSheet()]);
-        const [r, e, f, c, i] = await Promise.all([
-          fetchRecetas(), fetchEjecuciones(), fetchFerias(), fetchCompras(), fetchIngredientes()
+        await Promise.all([stockApi.ensureStockSheets(), ensureIngredientesSheet(), ensureMedidasSheet()]);
+        const [r, e, f, c, i, md] = await Promise.all([
+          fetchRecetas(), fetchEjecuciones(), fetchFerias(), fetchCompras(), fetchIngredientes(), fetchMedidas()
         ]);
         if (cancelled) return;
         setRecetas(r);
@@ -71,6 +73,7 @@ export function useStock() {
         setFerias(f);
         setCompras(c);
         setIngredientes(i);
+        setMedidas(md);
         await reloadStockData();
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -83,13 +86,36 @@ export function useStock() {
 
   const ctx = { ejecuciones, ferias, stockMovimientos, stockTestigos };
 
-  // Resumen: una fila por receta con su disponible actual. Bug real
-  // reportado por el usuario: si una receta se borra en Procesos (no solo
-  // se renombra), sus lotes/stock seguían existiendo y Ventas los seguía
-  // ofreciendo para planificar — pero acá desaparecían del todo, porque
-  // antes solo se recorrían las recetas ACTUALES. Se agregan filas
-  // "huérfanas" por cada recetaId que aparece en ejecuciones/ajustes pero
-  // ya no tiene receta viva, para que el disponible nunca quede invisible.
+  // Resumen: una fila por ITEM — cada medida de una receta es su propio
+  // producto ajustable, no un desglose de solo lectura debajo de la receta
+  // (a pedido explícito del usuario: "la receta esta anexa a medida y
+  // stock deberia estar anexa a medida... quiero que cada medida sea un
+  // item que se pueda ajustar manualmente en stock"). Una receta sin
+  // medidas configuradas en el catálogo sigue mostrando una sola fila
+  // (mismo comportamiento de siempre). Bug real reportado por el usuario:
+  // si una receta se borra en Procesos (no solo se renombra), sus lotes/
+  // stock seguían existiendo y Ventas los seguía ofreciendo para
+  // planificar — pero acá desaparecían del todo, porque antes solo se
+  // recorrían las recetas ACTUALES. Se agregan filas "huérfanas" por cada
+  // recetaId que aparece en ejecuciones/ajustes pero ya no tiene receta
+  // viva, para que el disponible nunca quede invisible.
+  function itemsDeReceta(recetaId, recetaNombre) {
+    const porMedida = stockApi.getStockPorMedida(ctx, recetaId, medidas);
+    if (porMedida.length) {
+      return porMedida.map(m => ({
+        id: `${recetaId}:${m.medidaId}`,
+        recetaId, recetaNombre, medidaId: m.medidaId, medidaNombre: m.nombre,
+        nombre: `${recetaNombre} — ${m.nombre}`,
+        disponible: m.disponible
+      }));
+    }
+    return [{
+      id: recetaId, recetaId, recetaNombre, medidaId: '', medidaNombre: '',
+      nombre: recetaNombre,
+      disponible: stockApi.getStockDisponibleGeneral(ctx, recetaId)
+    }];
+  }
+
   const resumenRows = useMemo(() => {
     const idsConocidos = new Set(recetas.map(r => r.id));
     const nombresOrfanos = new Map();
@@ -104,19 +130,13 @@ export function useStock() {
       }
     });
 
-    const filasActuales = recetas.map(r => ({
-      receta: r,
-      disponible: stockApi.getStockDisponibleGeneral(ctx, r.id),
-      porMedida: stockApi.getStockPorMedida(ctx, r.id)
-    }));
-    const filasOrfanas = [...nombresOrfanos].map(([id, nombre]) => ({
-      receta: { id, nombre: `${nombre} (receta eliminada)` },
-      disponible: stockApi.getStockDisponibleGeneral(ctx, id),
-      porMedida: stockApi.getStockPorMedida(ctx, id)
-    })).filter(f => f.disponible !== 0);
+    const filasActuales = recetas.flatMap(r => itemsDeReceta(r.id, r.nombre));
+    const filasOrfanas = [...nombresOrfanos]
+      .filter(([id]) => stockApi.getStockDisponibleGeneral(ctx, id) !== 0)
+      .flatMap(([id, nombre]) => itemsDeReceta(id, `${nombre} (receta eliminada)`));
 
-    return [...filasActuales, ...filasOrfanas].sort((a, b) => a.receta.nombre.localeCompare(b.receta.nombre));
-  }, [recetas, ejecuciones, ferias, stockMovimientos]);
+    return [...filasActuales, ...filasOrfanas].sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [recetas, ejecuciones, ferias, stockMovimientos, medidas]);
 
   // Trazabilidad: un lote (ejecución con producción envasada) por fila —
   // con el costo/peso del lote ya resueltos y el desglose por medida con
@@ -210,9 +230,12 @@ export function useStock() {
     return [...stockTestigos].sort((a, b) => (a.fechaRevision || '9999') < (b.fechaRevision || '9999') ? -1 : 1);
   }, [stockTestigos]);
 
-  const saveAjuste = useCallback(async ({ recetaId, recetaNombre, tipo, cantidad, motivo }) => {
+  const saveAjuste = useCallback(async ({ recetaId, recetaNombre, medidaId, medidaNombre, tipo, cantidad, motivo }) => {
     const ejecucionId = stockApi.getLoteParaAjuste(ejecuciones, recetaId);
-    await stockApi.appendStockMovimiento({ recetaId, recetaNombre, tipo, cantidad, motivo, fecha: new Date().toISOString().slice(0, 10), ejecucionId });
+    await stockApi.appendStockMovimiento({
+      recetaId, recetaNombre, medidaId, medidaNombre, tipo, cantidad, motivo,
+      fecha: new Date().toISOString().slice(0, 10), ejecucionId
+    });
     await reloadStockData();
   }, [ejecuciones, reloadStockData]);
 
