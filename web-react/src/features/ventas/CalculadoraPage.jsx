@@ -67,6 +67,9 @@ export default function CalculadoraPage() {
     const porFila = {};
     const stockPorFila = {};
     const stockCtx = { ejecuciones, ferias, stockMovimientos };
+    // El stock es por receta: si el mismo sabor está en varias filas
+    // (medidas distintas), se descuenta una sola vez entre todas.
+    const stockUsado = {};
 
     filas.forEach(f => {
       const receta = recetas.find(r => r.id === f.recetaId);
@@ -84,8 +87,9 @@ export default function CalculadoraPage() {
       // usuario ("si pongo 10 y hay tres debe aclararlo"): la cuenta de
       // insumos/costo se hace sobre lo que REALMENTE falta producir, no
       // sobre el total pedido.
-      const stockDisponible = Math.max(0, getStockDisponibleGeneral(stockCtx, receta.id));
+      const stockDisponible = Math.max(0, getStockDisponibleGeneral(stockCtx, receta.id) - (stockUsado[receta.id] || 0));
       const cantidadNum = Math.max(0, cantidadPedida - stockDisponible);
+      stockUsado[receta.id] = (stockUsado[receta.id] || 0) + Math.min(stockDisponible, cantidadPedida);
       stockPorFila[f.id] = { cantidadPedida, stockDisponible, aProducir: cantidadNum };
       if (!cantidadNum) return;
       const { total, incompleto, detalle } = computeCostoRecetaMedida(compras, receta, medidaSel, cantidadNum);
@@ -145,9 +149,21 @@ export default function CalculadoraPage() {
   // desplegable — a pedido explícito del usuario, para no repetir el
   // mismo sabor dos veces por error. La fila que ya la tiene elegida sigue
   // viéndola (si no, el Select quedaría sin poder mostrar su propio valor).
+  // Una receta puede repetirse en varias filas siempre que sea con medidas
+  // distintas (bug real: al querer agregar otra medida del mismo sabor, la
+  // receta desaparecía del desplegable). Solo se oculta cuando ya no le
+  // queda ninguna medida libre (o no tiene medidas y ya está en otra fila).
+  function medidasLibres(recetaId, filaId) {
+    const tomadas = new Set(filas.filter(x => x.id !== filaId && x.recetaId === recetaId && x.medidaId).map(x => x.medidaId));
+    return medidasDeReceta(recetaId).filter(m => !tomadas.has(m.id));
+  }
   function opcionesPara(filaId) {
-    const elegidasEnOtras = new Set(filas.filter(x => x.id !== filaId && x.recetaId).map(x => x.recetaId));
-    return recetas.filter(r => !elegidasEnOtras.has(r.id)).map(r => ({ value: r.id, label: recetaLabel(r) }));
+    return recetas.filter(r => {
+      if (!medidasDeReceta(r.id).length) {
+        return !filas.some(x => x.id !== filaId && x.recetaId === r.id);
+      }
+      return medidasLibres(r.id, filaId).length > 0;
+    }).map(r => ({ value: r.id, label: recetaLabel(r) }));
   }
 
   return (
@@ -166,7 +182,7 @@ export default function CalculadoraPage() {
                   <div className="field-row calculadora-fila-campos">
                     <Select
                       label="Sabor" value={f.recetaId}
-                      onChange={e => updateFila(f.id, 'recetaId', e.target.value)}
+                      onChange={e => setFilas(fs => fs.map(x => x.id === f.id ? { ...x, recetaId: e.target.value, medidaId: '' } : x))}
                       options={[{ value: '', label: 'Elegí una receta' }, ...opcionesPara(f.id)]}
                     />
                     {!!f.recetaId && !!medidasDeReceta(f.recetaId).length && (
@@ -175,7 +191,7 @@ export default function CalculadoraPage() {
                         onChange={e => updateFila(f.id, 'medidaId', e.target.value)}
                         options={[
                           { value: '', label: 'Elegí…' },
-                          ...medidasDeReceta(f.recetaId).map(m => ({ value: m.id, label: m.nombre }))
+                          ...medidasLibres(f.recetaId, f.id).map(m => ({ value: m.id, label: m.nombre }))
                         ]}
                       />
                     )}
