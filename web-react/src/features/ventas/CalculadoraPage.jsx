@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Button from '../../components/ui/Button';
 import EmptyState from '../../components/ui/EmptyState';
 import Icon from '../../components/icons/Icon';
@@ -27,9 +27,27 @@ function nuevaFila() {
 // insumos unitarios (frasco/etiqueta/tapa) de esa medida puntual — una
 // receta sin medidas configuradas no se puede calcular, queda afuera de la
 // cuenta con un aviso. No guarda nada — es una calculadora de verdad.
+// La última configuración (filas + insumos tildados) queda guardada en este
+// dispositivo y se restaura al volver — a pedido explícito del usuario.
+// "Poner todo en blanco" la borra.
+const STORAGE_KEY = 'ss_calculadora_config';
+
+function cargarConfig() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const filas = Array.isArray(raw?.filas) ? raw.filas.filter(f => f && f.id != null) : [];
+    if (filas.length) {
+      nextRowId = Math.max(nextRowId, ...filas.map(f => Number(f.id) || 0)) + 1;
+      return { filas, seleccionados: Array.isArray(raw.seleccionados) ? raw.seleccionados : [] };
+    }
+  } catch { /* sin storage o JSON roto: arranca en blanco */ }
+  return { filas: [nuevaFila()], seleccionados: [] };
+}
+
 export default function CalculadoraPage() {
   const { recetas, compras, ingredientes, ejecuciones, ferias, stockMovimientos, medidas, loading, error } = useCalculadora();
-  const [filas, setFilas] = useState([nuevaFila()]);
+  const [inicial] = useState(cargarConfig);
+  const [filas, setFilas] = useState(inicial.filas);
 
   function medidasDeReceta(recetaId) {
     return medidas.filter(m => m.recetaId === recetaId);
@@ -39,7 +57,19 @@ export default function CalculadoraPage() {
   // seleccionar algunos insumos calculados y vayan sumando el total"), p.
   // ej. para armar la lista de lo que se va a comprar HOY nada más. Por
   // nombre de insumo (clave estable de esa tabla, ver filasInsumos).
-  const [seleccionados, setSeleccionados] = useState(new Set());
+  const [seleccionados, setSeleccionados] = useState(() => new Set(inicial.seleccionados));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ filas, seleccionados: [...seleccionados] }));
+    } catch { /* sin storage: simplemente no se recuerda */ }
+  }, [filas, seleccionados]);
+
+  function limpiarTodo() {
+    if (!window.confirm('¿Poner todo en blanco? Se borran los sabores, medidas, unidades e insumos seleccionados.')) return;
+    setFilas([nuevaFila()]);
+    setSeleccionados(new Set());
+  }
 
   function toggleSeleccionado(nombre) {
     setSeleccionados(prev => {
@@ -224,6 +254,9 @@ export default function CalculadoraPage() {
 
           <Button type="button" variant="outline" onClick={addFila} style={{ marginTop: 12 }}>
             <Icon name="plus" size={13} /> Agregar sabor
+          </Button>
+          <Button type="button" variant="outline" onClick={limpiarTodo} style={{ marginTop: 12, marginLeft: 8 }}>
+            Poner todo en blanco
           </Button>
 
           {!!resultados.sinConfigurar.length && (
