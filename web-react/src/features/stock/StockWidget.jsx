@@ -13,7 +13,7 @@ import './StockWidget.css';
 // en useStock.js, otro pedido explícito del usuario). Un toque lleva a la
 // pantalla de Stock.
 export default function StockWidget({ onNavigate, removing, onRequestRemove, onConfirmRemove }) {
-  const { loading, resumenStockTotal, valorInsumos } = useStock();
+  const { loading, resumenStockTotal, valorInsumos, disponiblePorPeso } = useStock();
 
   return (
     <Widget
@@ -26,8 +26,12 @@ export default function StockWidget({ onNavigate, removing, onRequestRemove, onC
       ) : (
         <>
           <div className="stock-widget-frascos">
-            <div className="stock-widget-frasco-num">{resumenStockTotal.disponible230}</div>
-            <div className="stock-widget-frasco-num">{resumenStockTotal.disponible130}</div>
+            {disponiblePorPeso.length ? disponiblePorPeso.map(g => (
+              <div key={g.peso} className="stock-widget-frasco">
+                <div className="stock-widget-frasco-num">{g.cantidad}</div>
+                <div className="stock-widget-frasco-peso">{g.peso ? `${g.peso} g` : 'otros'}</div>
+              </div>
+            )) : <div className="stock-widget-frasco-num">0</div>}
           </div>
           <div className="stock-widget-valor">{fmtCOP(resumenStockTotal.valor)}</div>
           <div className="stock-widget-valor stock-widget-valor--insumos">{fmtCOP(valorInsumos)}</div>

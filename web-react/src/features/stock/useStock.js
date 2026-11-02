@@ -104,7 +104,7 @@ export function useStock() {
     if (porMedida.length) {
       return porMedida.map(m => ({
         id: `${recetaId}:${m.medidaId}`,
-        recetaId, recetaNombre, medidaId: m.medidaId, medidaNombre: m.nombre,
+        recetaId, recetaNombre, medidaId: m.medidaId, medidaNombre: m.nombre, pesoMl: m.pesoMl,
         nombre: `${recetaNombre} — ${m.nombre}`,
         disponible: m.disponible
       }));
@@ -203,6 +203,24 @@ export function useStock() {
     return { valor, disponible230: Math.round(disponible230), disponible130: Math.round(disponible130) };
   }, [ejecuciones, ferias, stockMovimientos, stockTestigos, recetas, compras]);
 
+  // Unidades disponibles agrupadas por "¿Cuánto de la mezcla entra en este
+  // frasco? (g)" (pesoMl de la medida) — a pedido explícito del usuario,
+  // para el widget de Home: antes solo contaba 230/130 y sacaba el número
+  // de otra cuenta (por lote, sin ajustes manuales), así que decía menos de
+  // lo que había en el Resumen. Sale de resumenRows, mismo número que ve el
+  // Resumen. Items sin medida (recetas sin catálogo) van en "otros".
+  const disponiblePorPeso = useMemo(() => {
+    const grupos = new Map();
+    resumenRows.forEach(r => {
+      const peso = r.medidaId ? (Number(r.pesoMl) || 0) : 0;
+      grupos.set(peso, (grupos.get(peso) || 0) + (r.disponible || 0));
+    });
+    return [...grupos]
+      .filter(([, cantidad]) => cantidad !== 0)
+      .sort((a, b) => (a[0] || Infinity) - (b[0] || Infinity))
+      .map(([peso, cantidad]) => ({ peso, cantidad }));
+  }, [resumenRows]);
+
   // Valor total de los INSUMOS disponibles (materia prima — Inventario),
   // no del producto terminado — a pedido explícito del usuario, para el
   // widget de Home. Stock corriente de cada ingrediente (ver
@@ -266,7 +284,7 @@ export function useStock() {
 
   return {
     loading, error,
-    resumenRows, resumenStockTotal, valorInsumos, trazabilidadRows, lotesConStock, testigoRows,
+    resumenRows, resumenStockTotal, disponiblePorPeso, valorInsumos, trazabilidadRows, lotesConStock, testigoRows,
     saveAjuste, apartarTestigo, updateTestigoEstado, deleteTestigo
   };
 }
