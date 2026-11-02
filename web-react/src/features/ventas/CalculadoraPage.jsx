@@ -82,6 +82,21 @@ export default function CalculadoraPage() {
   function addFila() {
     setFilas(fs => [...fs, nuevaFila()]);
   }
+  // Completa la receta de esta fila con TODAS sus medidas del catálogo — a
+  // pedido explícito del usuario: esta fila toma una (la suya, o la primera
+  // libre) y se crea una fila nueva por cada medida que falte.
+  function agregarTodasLasMedidas(fila) {
+    const libres = medidasLibres(fila.recetaId, fila.id);
+    const propia = libres.find(m => m.id === fila.medidaId) || libres[0];
+    if (!propia) return;
+    const nuevas = libres.filter(m => m.id !== propia.id)
+      .map(m => ({ ...nuevaFila(), recetaId: fila.recetaId, medidaId: m.id }));
+    setFilas(fs => {
+      const i = fs.findIndex(x => x.id === fila.id);
+      const actualizada = { ...fs[i], medidaId: propia.id };
+      return [...fs.slice(0, i), actualizada, ...nuevas, ...fs.slice(i + 1)];
+    });
+  }
   function removeFila(id) {
     setFilas(fs => fs.filter(f => f.id !== id));
   }
@@ -238,6 +253,11 @@ export default function CalculadoraPage() {
                     </p>
                   )}
                   <div className="calculadora-fila-footer">
+                    {!!f.recetaId && medidasLibres(f.recetaId, f.id).length > 1 && (
+                      <Button type="button" variant="outline" onClick={() => agregarTodasLasMedidas(f)}>
+                        <Icon name="plus" size={13} /> Agregar todas las medidas
+                      </Button>
+                    )}
                     {resultados.porFila[f.id] != null && (
                       <span className="calculadora-fila-subtotal">{fmtCOP(resultados.porFila[f.id])}</span>
                     )}
